@@ -1,6 +1,8 @@
-import type { Risk } from '../types';
+import type { Risk, KikiConfig } from '../types';
 
-export function classifyRisk(filePaths: string[], config: { highRiskPaths: string[]; criticalRiskPaths: string[] }): Risk {
+export function classifyRisk(filePaths: string[], config: KikiConfig['riskMatrix']): Risk {
+  if (filePaths.length === 0) return 'micro';
+
   const matchesCritical = filePaths.some(p => 
     config.criticalRiskPaths.some(critical => p.includes(critical))
   );

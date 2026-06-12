@@ -15,7 +15,11 @@ describe('classifyRisk', () => {
     expect(classifyRisk(['src/auth/login.ts'], config)).toBe('high');
   });
 
-  it('defaults to medium', () => {
+  it('classifies medium risk for normal file paths', () => {
     expect(classifyRisk(['src/utils/helper.ts'], config)).toBe('medium');
+  });
+
+  it('classifies micro risk for empty file paths', () => {
+    expect(classifyRisk([], config)).toBe('micro');
   });
 });

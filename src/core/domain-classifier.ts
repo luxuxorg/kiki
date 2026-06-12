@@ -8,17 +8,33 @@ const DOMAIN_KEYWORDS: Record<Domain, string[]> = {
   general: []
 };
 
-export function classifyDomain(taskDescription: string): Domain {
-  const lower = taskDescription.toLowerCase();
-  const scores: Record<string, number> = {};
+const DOMAIN_ORDER: Domain[] = ['gui', 'backend', 'security', 'database', 'general'];
 
-  for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
-    scores[domain] = keywords.filter(kw => lower.includes(kw)).length;
+export function classifyDomain(taskDescription: string): Domain {
+  const words = taskDescription.toLowerCase().split(/[^a-z0-9]+/);
+  const scores: Record<Domain, number> = {
+    gui: 0,
+    backend: 0,
+    security: 0,
+    database: 0,
+    general: 0
+  };
+
+  for (const domain of DOMAIN_ORDER) {
+    const keywords = DOMAIN_KEYWORDS[domain];
+    scores[domain] = keywords.filter(kw => words.includes(kw)).length;
   }
 
-  const best = Object.entries(scores)
-    .filter(([_, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1])[0];
+  let bestDomain: Domain = 'general';
+  let bestScore = 0;
 
-  return (best?.[0] as Domain) ?? 'general';
+  for (const domain of DOMAIN_ORDER) {
+    const score = scores[domain];
+    if (score > bestScore) {
+      bestScore = score;
+      bestDomain = domain;
+    }
+  }
+
+  return bestDomain;
 }
