@@ -1,0 +1,11 @@
+tests/
+src/
+node_modules/
+.agentic/
+.opencode/
+.worktrees/
+worktrees/
+docs/
+tsconfig.json
+vitest.config.ts
+vitest.workspace.ts
