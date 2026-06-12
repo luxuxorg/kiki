@@ -38,13 +38,18 @@ When you initialize Kiki in a repository, it generates the following directory s
 
 ## 🛠️ CLI Installation & Commands
 
-Build and link Kiki locally:
+Install Kiki globally from GitHub:
 
 ```bash
-cd /home/lutz/lprojekte/kiki
-npm install
-npm run build
-npm link
+npm i -g https://github.com/luxuxorg/kiki/archive/main.tar.gz
+```
+
+Or for local development:
+
+```bash
+git clone https://github.com/luxuxorg/kiki.git
+cd kiki
+npm install && npm run build && npm link
 ```
 
 ### 1. Initialize a Workspace
