@@ -9,6 +9,7 @@
     "url": "https://github.com/luxuxorg/kiki.git"
   },
   "type": "module",
+  "files": ["dist/", "package.json", "README.md"],
   "main": "dist/index.js",
   "exports": {
     ".": {
