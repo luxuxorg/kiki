@@ -48,8 +48,8 @@ export function generateRoutingTable(
       const category = mapSkillDomainToCategory(skill, domain);
       
       let bestModel: string | null = null;
-      let bestScorePerDollar = 0;
-      let bestBenchmarkScore = 0;
+      let bestScorePerDollar = -Infinity;
+      let bestBenchmarkScore = -Infinity;
       let bestCost = 0;
 
       for (const model of availableModels) {
@@ -62,6 +62,7 @@ export function generateRoutingTable(
         if (pricingData.avgCostPer1k > config.costCeilingPer1kTokens) continue;
 
         const scorePerDollar = benchmarkScore / pricingData.avgCostPer1k;
+        if (isNaN(scorePerDollar)) continue;
 
         if (scorePerDollar > bestScorePerDollar) {
           bestScorePerDollar = scorePerDollar;
@@ -76,12 +77,14 @@ export function generateRoutingTable(
         for (const model of availableModels) {
           const benchmarkScore = getBridgeBenchScore(benchmarks, model, category);
           if (benchmarkScore === null) continue;
-          
+
+          const pricingData = getModelPricing(pricing, model);
+          if (pricingData === null) continue;
+
           if (benchmarkScore > bestBenchmarkScore) {
             bestBenchmarkScore = benchmarkScore;
             bestModel = model;
-            const pricingData = getModelPricing(pricing, model);
-            bestCost = pricingData?.avgCostPer1k ?? 0;
+            bestCost = pricingData.avgCostPer1k;
             bestScorePerDollar = bestCost > 0 ? benchmarkScore / bestCost : 0;
           }
         }
@@ -116,7 +119,7 @@ export function generateRoutingTable(
   };
 }
 
-function mapSkillDomainToCategory(skill: Skill, domain: Domain): string {
+export function mapSkillDomainToCategory(skill: Skill, domain: Domain): string {
   const mappings: Record<string, string> = {
     'brainstorming:gui': 'BS',
     'brainstorming:backend': 'BS',
