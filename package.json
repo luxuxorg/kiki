@@ -1,21 +1,30 @@
 {
-  "name": "kiki",
-  "version": "0.1.0",
+  "name": "kiki-evolved",
+  "version": "1.0.0",
+  "description": "Thin OpenCode plugin + CLI with benchmark-driven model routing",
+  "license": "MIT",
+  "keywords": ["opencode", "ai", "routing"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/obra/kiki-evolved.git"
+  },
   "type": "module",
-  "description": "Kiki — Reusable general-purpose meta-framework for LLM-driven software engineering",
+  "main": "dist/index.js",
   "bin": {
-    "kiki": "./dist/cli.js"
+    "kiki": "dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/cli.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cli": "node dist/cli/index.js"
   },
-  "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.7.0",
-    "tsx": "^4.0.0",
-    "@types/node": "^22.0.0",
-    "vitest": "^1.0.0"
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "@types/node": "^18.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
