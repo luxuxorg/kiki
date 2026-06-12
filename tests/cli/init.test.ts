@@ -64,4 +64,48 @@ describe('cli init', () => {
     const existing = await fs.readFile(path.join(tmpDir, '.agentic/existing.txt'), 'utf-8');
     expect(existing).toBe('hello');
   });
+
+  it('scaffolds .opencode directory with agents, plugin, package.json, docs, and .gitignore', async () => {
+    await init(tmpDir);
+
+    // Agents exist with correct content
+    const orchestrator = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-orchestrator.md'), 'utf-8');
+    expect(orchestrator).toContain('mode: primary');
+    expect(orchestrator).toContain('Kiki Orchestrator');
+
+    const researcher = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-researcher.md'), 'utf-8');
+    expect(researcher).toContain('mode: subagent');
+    expect(researcher).toContain('docs/superpowers/*');
+
+    const implementer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-implementer.md'), 'utf-8');
+    expect(implementer).toContain('mode: subagent');
+    expect(implementer).toContain('src/*');
+
+    const reviewer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-reviewer.md'), 'utf-8');
+    expect(reviewer).toContain('mode: subagent');
+    expect(reviewer).toContain('edit: deny');
+
+    const escalation = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-escalation.md'), 'utf-8');
+    expect(escalation).toContain('mode: subagent');
+    expect(escalation).toContain('Redesign');
+
+    // Plugin imports from kiki package, not relative paths
+    const plugin = await fs.readFile(path.join(tmpDir, '.opencode/plugins/kiki.ts'), 'utf-8');
+    expect(plugin).toContain("from 'kiki'");
+    expect(plugin).not.toContain("../../src/core");
+
+    // package.json references kiki dependency
+    const pkg = JSON.parse(await fs.readFile(path.join(tmpDir, '.opencode/package.json'), 'utf-8'));
+    expect(pkg.dependencies).toHaveProperty('@opencode-ai/plugin');
+    expect(pkg.dependencies).toHaveProperty('kiki');
+    expect(pkg.dependencies.kiki).toBe('github.com/luxuxorg/kiki');
+
+    // .gitignore ignores node_modules
+    const gitignore = await fs.readFile(path.join(tmpDir, '.opencode/.gitignore'), 'utf-8');
+    expect(gitignore).toContain('node_modules');
+
+    // agentic-workflow.md exists
+    const workflow = await fs.readFile(path.join(tmpDir, '.opencode/docs/agentic-workflow.md'), 'utf-8');
+    expect(workflow).toContain('Kiki Workflow');
+  });
 });
