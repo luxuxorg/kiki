@@ -23,11 +23,18 @@ export function selectModel(
 ): { model: string; updatedDefaults: Record<string, string> } {
   // If task exists, use locked model
   if (taskId && state.taskLocks[taskId]) {
-    return { model: state.taskLocks[taskId], updatedDefaults: state.projectDefaults };
+    return { model: state.taskLocks[taskId], updatedDefaults: { ...state.projectDefaults } };
   }
 
   // If no default, set candidate as default
   if (!currentDefaultModel) {
+    const updatedDefaults = { ...state.projectDefaults, [key]: candidateModel };
+    return { model: candidateModel, updatedDefaults };
+  }
+
+  // Handle division by zero or negative current score
+  if (currentDefaultScore <= 0) {
+    // If current score is 0 or negative, always switch to candidate if it's better
     const updatedDefaults = { ...state.projectDefaults, [key]: candidateModel };
     return { model: candidateModel, updatedDefaults };
   }
@@ -40,7 +47,7 @@ export function selectModel(
   }
 
   // Use existing default
-  return { model: currentDefaultModel, updatedDefaults: state.projectDefaults };
+  return { model: currentDefaultModel, updatedDefaults: { ...state.projectDefaults } };
 }
 
 export function lockTaskModel(state: StabilizerState, taskId: string, model: string): StabilizerState {
