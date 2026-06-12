@@ -1,0 +1,21 @@
+{
+  "name": "kiki",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Kiki — Reusable general-purpose meta-framework for LLM-driven software engineering",
+  "bin": {
+    "kiki": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "vitest": "^1.0.0"
+  }
+}
