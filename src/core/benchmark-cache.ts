@@ -5,13 +5,20 @@ import type { BridgeBenchCache, BenchmarkScore } from '../types';
 export let CACHE_PATH = '.agentic/cache/bridgebench.json';
 
 export function setBenchmarkCachePath(newPath: string): void {
+  if (newPath.includes('..') || newPath.startsWith('/')) {
+    throw new Error('Invalid cache path');
+  }
   CACHE_PATH = newPath;
 }
 
 export function loadBenchmarkCache(): BridgeBenchCache | null {
   if (!existsSync(CACHE_PATH)) return null;
   const raw = readFileSync(CACHE_PATH, 'utf-8');
-  return JSON.parse(raw) as BridgeBenchCache;
+  try {
+    return JSON.parse(raw) as BridgeBenchCache;
+  } catch {
+    return null;
+  }
 }
 
 export function saveBenchmarkCache(cache: BridgeBenchCache): void {

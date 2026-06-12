@@ -1,12 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import {
   loadPricingCache,
   savePricingCache,
   getModelPricing,
-  setPricingCachePath
+  setPricingCachePath,
+  fetchOpenRouterPricing,
+  CACHE_PATH
 } from '../../src/core/pricing';
 import type { OpenRouterCache } from '../../src/types';
 
@@ -14,7 +15,8 @@ describe('pricing', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kiki-pricing-test-'));
+    tmpDir = `tmp/pricing-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await fs.mkdir(tmpDir, { recursive: true });
     setPricingCachePath(path.join(tmpDir, '.agentic/cache/openrouter_pricing.json'));
   });
 
@@ -62,5 +64,41 @@ describe('pricing', () => {
       ]
     };
     expect(getModelPricing(cache, 'missing-model')).toBeNull();
+  });
+
+  it('returns null for malformed JSON cache', async () => {
+    await fs.mkdir(path.dirname(CACHE_PATH), { recursive: true });
+    await fs.writeFile(CACHE_PATH, 'not valid json');
+    const result = loadPricingCache();
+    expect(result).toBeNull();
+  });
+
+  it('rejects invalid cache paths', () => {
+    expect(() => setPricingCachePath('../etc/passwd')).toThrow('Invalid cache path');
+    expect(() => setPricingCachePath('/etc/passwd')).toThrow('Invalid cache path');
+  });
+
+  it('handles NaN pricing values gracefully', async () => {
+    const mockFetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          data: [
+            { id: 'good-model', pricing: { prompt: '0.01', completion: '0.02' } },
+            { id: 'bad-model', pricing: { prompt: 'invalid', completion: '0.02' } },
+            { id: 'bad-model2', pricing: { prompt: '0.01', completion: 'invalid' } }
+          ]
+        })
+      } as Response)
+    );
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch;
+    try {
+      const result = await fetchOpenRouterPricing();
+      expect(result.models).toHaveLength(1);
+      expect(result.models[0].model).toBe('good-model');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
