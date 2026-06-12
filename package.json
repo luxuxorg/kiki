@@ -20,8 +20,7 @@
     "kiki": "dist/cli/index.js"
   },
   "scripts": {
-    "build": "./node_modules/.bin/tsc",
-    "prepare": "npm run build",
+    "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "cli": "node dist/cli/index.js"
