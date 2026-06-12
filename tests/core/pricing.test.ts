@@ -101,4 +101,68 @@ describe('pricing', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('falls back to empty cache on fetch network failure', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn(() => Promise.reject(new Error('Network error')));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const result = await fetchOpenRouterPricing();
+      expect(result.models).toEqual([]);
+      expect(result.fetchedAt).toBeDefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Failed to fetch OpenRouter pricing:',
+        expect.any(Error)
+      );
+    } finally {
+      global.fetch = originalFetch;
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('falls back to empty cache on non-ok API response (HTTP 500)', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500
+      } as Response)
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const result = await fetchOpenRouterPricing();
+      expect(result.models).toEqual([]);
+      expect(result.fetchedAt).toBeDefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Failed to fetch OpenRouter pricing:',
+        expect.any(Error)
+      );
+    } finally {
+      global.fetch = originalFetch;
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('falls back to empty cache on invalid API response structure', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({})
+      } as Response)
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const result = await fetchOpenRouterPricing();
+      expect(result.models).toEqual([]);
+      expect(result.fetchedAt).toBeDefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Failed to fetch OpenRouter pricing:',
+        expect.any(Error)
+      );
+    } finally {
+      global.fetch = originalFetch;
+      warnSpy.mockRestore();
+    }
+  });
 });
