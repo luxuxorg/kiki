@@ -36,7 +36,7 @@ export interface RoutingTable {
     readonly pricing: string;
   };
   readonly rules: readonly RoutingRule[];
-  readonly projectDefaults: Record<string, string>;
+  projectDefaults: Record<string, string>;
 }
 
 export interface BridgeBenchCache {

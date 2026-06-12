@@ -1,4 +1,4 @@
-import type { Domain } from '../types';
+import type { Domain } from '../types.js';
 
 const DOMAIN_KEYWORDS: Record<Domain, string[]> = {
   gui: ['ui', 'frontend', 'react', 'css', 'html', 'dom', 'component', 'viewport', 'modal', 'form'],

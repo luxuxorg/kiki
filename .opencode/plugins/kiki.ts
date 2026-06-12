@@ -61,7 +61,8 @@ export default function KikiPlugin({ client }: { client: any }) {
       const currentDefaultScore = table.rules.find(r => r.model === currentDefault && r.skill === skill && r.domain === domain)?.scorePerDollar ?? 0;
       const candidateScore = table.rules.find(r => r.model === candidateModel && r.skill === skill && r.domain === domain)?.scorePerDollar ?? 0;
 
-      // TODO: Persist task locks when OpenCode supports plugin state
+      // NOTE: Task lock persistence requires plugin state storage from OpenCode.
+      // Until supported, task locks are maintained per-session only.
       const { model: selectedModel, updatedDefaults } = selectModel(
         state,
         key,

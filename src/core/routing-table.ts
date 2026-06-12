@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'node:path';
-import type { RoutingTable, RoutingRule, BridgeBenchCache, OpenRouterCache, Skill, Domain, Risk } from '../types';
-import { getBridgeBenchScore, getBenchmarkRank } from './benchmark-cache';
-import { getModelPricing } from './pricing';
+import type { RoutingTable, RoutingRule, BridgeBenchCache, OpenRouterCache, Skill, Domain, Risk } from '../types.js';
+import { getBridgeBenchScore, getBenchmarkRank } from './benchmark-cache.js';
+import { getModelPricing } from './pricing.js';
 
 export let ROUTING_PATH = '.agentic/routing.json';
 
@@ -151,6 +151,6 @@ export function lookupModel(
   domain: Domain,
   risk: Risk
 ): string | null {
-  const rule = table.rules.find(r => r.skill === skill && r.domain === domain && r.risk === risk);
+  const rule = table.rules.find((r: RoutingRule) => r.skill === skill && r.domain === domain && r.risk === risk);
   return rule?.model ?? null;
 }

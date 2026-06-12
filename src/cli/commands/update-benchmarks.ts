@@ -1,4 +1,4 @@
-import { scrapeBridgeBench, saveBenchmarkCache } from '../../core/benchmark-cache';
+import { scrapeBridgeBench, saveBenchmarkCache } from '../../core/benchmark-cache.js';
 
 export async function updateBenchmarks(): Promise<void> {
   console.log('Scraping BridgeBench...');

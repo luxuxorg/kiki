@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { loadRoutingTable } from '../../core/routing-table';
+import { loadRoutingTable } from '../../core/routing-table.js';
 
 export async function status(projectPath: string = '.'): Promise<void> {
   const agenticDir = join(projectPath, '.agentic');

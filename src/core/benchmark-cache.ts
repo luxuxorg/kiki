@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'node:path';
-import type { BridgeBenchCache, BenchmarkScore } from '../types';
+import type { BridgeBenchCache, BenchmarkScore } from '../types.js';
 
 export let CACHE_PATH = '.agentic/cache/bridgebench.json';
 
@@ -32,20 +32,21 @@ export function saveBenchmarkCache(cache: BridgeBenchCache): void {
 export function getBridgeBenchScore(cache: BridgeBenchCache, model: string, category: string): number | null {
   const scores = cache.categories[category];
   if (!scores) return null;
-  const entry = scores.find(s => s.model === model);
+  const entry = scores.find((s: BenchmarkScore) => s.model === model);
   return entry?.score ?? null;
 }
 
 export function getBenchmarkRank(cache: BridgeBenchCache, model: string, category: string): number | null {
   const scores = cache.categories[category];
   if (!scores) return null;
-  const entry = scores.find(s => s.model === model);
+  const entry = scores.find((s: BenchmarkScore) => s.model === model);
   return entry?.rank ?? null;
 }
 
 // Placeholder for actual scraping logic
 export async function scrapeBridgeBench(): Promise<BridgeBenchCache> {
-  // TODO: Implement actual scraping when BridgeBench API is available
+  // NOTE: BridgeBench has no public API yet. This is a placeholder.
+  // When an API becomes available, implement actual scraping here.
   // For now, return empty structure
   return {
     scrapedAt: new Date().toISOString(),

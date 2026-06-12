@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { init } from './commands/init';
-import { status } from './commands/status';
-import { verify } from './commands/verify';
-import { updateBenchmarks } from './commands/update-benchmarks';
-import { updatePricing } from './commands/update-pricing';
+import { init } from './commands/init.js';
+import { status } from './commands/status.js';
+import { verify } from './commands/verify.js';
+import { updateBenchmarks } from './commands/update-benchmarks.js';
+import { updatePricing } from './commands/update-pricing.js';
 
 const args = process.argv.slice(2);
 const command = args[0];

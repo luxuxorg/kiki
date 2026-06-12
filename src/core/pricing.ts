@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'node:path';
-import type { OpenRouterCache, PricingData } from '../types';
+import type { OpenRouterCache, PricingData } from '../types.js';
 
 export let CACHE_PATH = '.agentic/cache/openrouter_pricing.json';
 const OPENROUTER_API = 'https://openrouter.ai/api/v1/models';
@@ -31,7 +31,7 @@ export function savePricingCache(cache: OpenRouterCache): void {
 }
 
 export function getModelPricing(cache: OpenRouterCache, model: string): PricingData | null {
-  return cache.models.find(m => m.model === model) ?? null;
+  return cache.models.find((m: PricingData) => m.model === model) ?? null;
 }
 
 interface OpenRouterModel {

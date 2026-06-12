@@ -1,6 +1,6 @@
-import { fetchOpenRouterPricing } from '../../core/pricing';
-import { loadBenchmarkCache } from '../../core/benchmark-cache';
-import { generateRoutingTable, saveRoutingTable, loadRoutingTable } from '../../core/routing-table';
+import { fetchOpenRouterPricing } from '../../core/pricing.js';
+import { loadBenchmarkCache } from '../../core/benchmark-cache.js';
+import { generateRoutingTable, saveRoutingTable, loadRoutingTable } from '../../core/routing-table.js';
 import { readFileSync } from 'fs';
 
 export async function updatePricing(): Promise<void> {
@@ -18,7 +18,7 @@ export async function updatePricing(): Promise<void> {
     const opencodeConfig = JSON.parse(readFileSync('opencode.json', 'utf-8'));
     availableModels = Object.keys(opencodeConfig.providers ?? {});
   } catch {
-    availableModels = pricing.models.map(m => m.model);
+    availableModels = pricing.models.map((m: { model: string }) => m.model);
   }
 
   let config;
