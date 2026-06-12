@@ -18,6 +18,10 @@ describe('cli status', () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('exits with error when .agentic is missing', async () => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
       throw new Error(`process.exit(${code})`);

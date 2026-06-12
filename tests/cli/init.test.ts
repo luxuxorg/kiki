@@ -17,6 +17,10 @@ describe('cli init', () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('scaffolds .agentic directory with all config files', async () => {
     await init(tmpDir);
 

@@ -10,7 +10,13 @@ export async function status(projectPath: string = '.'): Promise<void> {
     process.exit(1);
   }
 
-  const registry = JSON.parse(readFileSync(join(agenticDir, 'TASK_REGISTRY.json'), 'utf-8'));
+  let registry;
+  try {
+    registry = JSON.parse(readFileSync(join(agenticDir, 'TASK_REGISTRY.json'), 'utf-8'));
+  } catch {
+    console.error('Failed to read TASK_REGISTRY.json');
+    process.exit(1);
+  }
   const table = loadRoutingTable();
 
   console.log('=== Task Registry ===');

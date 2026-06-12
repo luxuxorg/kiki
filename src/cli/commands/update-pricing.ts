@@ -21,7 +21,13 @@ export async function updatePricing(): Promise<void> {
     availableModels = pricing.models.map(m => m.model);
   }
 
-  const config = JSON.parse(readFileSync('.agentic/config.json', 'utf-8'));
+  let config;
+  try {
+    config = JSON.parse(readFileSync('.agentic/config.json', 'utf-8'));
+  } catch {
+    console.error('Failed to read .agentic/config.json');
+    process.exit(1);
+  }
   const table = generateRoutingTable(benchmarks, pricing, availableModels, config.routingPreferences);
   
   const existing = loadRoutingTable();

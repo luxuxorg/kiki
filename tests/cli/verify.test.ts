@@ -15,6 +15,10 @@ describe('cli verify', () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('exits with error when no file path provided', async () => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
       throw new Error(`process.exit(${code})`);

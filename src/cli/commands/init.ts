@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 
 const DEFAULT_CONFIG = {
@@ -33,10 +33,15 @@ export async function init(targetPath: string): Promise<void> {
   const agenticDir = join(targetPath, '.agentic');
   const cacheDir = join(agenticDir, 'cache');
 
+  if (existsSync(agenticDir) && !statSync(agenticDir).isDirectory()) {
+    console.error(`${agenticDir} exists but is not a directory`);
+    process.exit(1);
+  }
+
   if (!existsSync(agenticDir)) {
     mkdirSync(agenticDir, { recursive: true });
-    mkdirSync(cacheDir, { recursive: true });
   }
+  mkdirSync(cacheDir, { recursive: true });
 
   writeFileSync(join(agenticDir, 'config.json'), JSON.stringify(DEFAULT_CONFIG, null, 2));
   writeFileSync(join(agenticDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
