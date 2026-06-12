@@ -1,9 +1,9 @@
-import { readFileSync, appendFileSync, existsSync } from 'fs';
+import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
 import { loadRoutingTable, lookupModel } from '../../src/core/routing-table';
 import { classifyDomain } from '../../src/core/domain-classifier';
 import { classifyRisk } from '../../src/core/risk-classifier';
-import { selectModel, lockTaskModel } from '../../src/core/stabilizer';
-import type { Skill, Domain, Risk } from '../../src/types';
+import { selectModel } from '../../src/core/stabilizer';
+import type { Skill, Domain, Risk, RoutingLogEntry } from '../../src/types';
 
 const SUPERPOWERS_SKILLS = ['brainstorming', 'writing-plans', 'executing-plans', 'reviewing'];
 
@@ -11,9 +11,14 @@ function isSuperpowersSkill(skill: string): boolean {
   return SUPERPOWERS_SKILLS.includes(skill);
 }
 
-function logRoutingDecision(entry: any): void {
-  const logLine = JSON.stringify(entry) + '\n';
-  appendFileSync('.agentic/routing_log.jsonl', logLine);
+function logRoutingDecision(entry: RoutingLogEntry): void {
+  try {
+    mkdirSync('.agentic', { recursive: true });
+    const logLine = JSON.stringify(entry) + '\n';
+    appendFileSync('.agentic/routing_log.jsonl', logLine);
+  } catch {
+    // Silently ignore logging failures
+  }
 }
 
 export default function KikiPlugin({ client }: { client: any }) {
@@ -27,7 +32,7 @@ export default function KikiPlugin({ client }: { client: any }) {
       const taskDesc = output.args?.prompt ?? '';
       const taskId = output.args?.taskId;
       
-      const domain = classifyDomain(taskDesc) as Domain;
+      const domain = classifyDomain(taskDesc);
       
       let risk: Risk = 'medium';
       try {
@@ -50,12 +55,13 @@ export default function KikiPlugin({ client }: { client: any }) {
         return;
       }
 
-      const state = { projectDefaults: table.projectDefaults ?? {}, taskLocks: {} };
+      const state = { projectDefaults: table.projectDefaults ?? {} };
       const key = `${skill}:${domain}`;
       const currentDefault = table.projectDefaults[key] ?? null;
-      const currentDefaultScore = table.rules.find(r => r.model === currentDefault)?.scorePerDollar ?? 0;
+      const currentDefaultScore = table.rules.find(r => r.model === currentDefault && r.skill === skill && r.domain === domain)?.scorePerDollar ?? 0;
       const candidateScore = table.rules.find(r => r.model === candidateModel && r.skill === skill && r.domain === domain)?.scorePerDollar ?? 0;
 
+      // TODO: Persist task locks when OpenCode supports plugin state
       const { model: selectedModel, updatedDefaults } = selectModel(
         state,
         key,
@@ -72,6 +78,9 @@ export default function KikiPlugin({ client }: { client: any }) {
         saveRoutingTable(table);
       }
 
+      if (!output.args) {
+        output.args = {};
+      }
       output.args.model = selectedModel;
 
       logRoutingDecision({
