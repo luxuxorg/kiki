@@ -1,87 +1,88 @@
 export type Skill = 'brainstorming' | 'writing-plans' | 'executing-plans' | 'reviewing';
 export type Domain = 'gui' | 'backend' | 'security' | 'database' | 'general';
 export type Risk = 'critical' | 'high' | 'medium' | 'low' | 'micro';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 export interface BenchmarkScore {
-  model: string;
-  category: string;
-  score: number;
-  rank: number;
+  readonly model: string;
+  readonly category: string;
+  readonly score: number;
+  readonly rank: number;
 }
 
 export interface PricingData {
-  model: string;
-  prompt_cost_per_1k: number;
-  completion_cost_per_1k: number;
-  avg_cost_per_1k: number;
+  readonly model: string;
+  readonly promptCostPer1k: number;
+  readonly completionCostPer1k: number;
+  readonly avgCostPer1k: number;
 }
 
 export interface RoutingRule {
-  skill: Skill;
-  domain: Domain;
-  risk: Risk;
-  model: string;
-  score_per_dollar: number;
-  benchmark_score: number;
-  cost_per_1k: number;
-  reason: string;
+  readonly skill: Skill;
+  readonly domain: Domain;
+  readonly risk: Risk;
+  readonly model: string;
+  readonly scorePerDollar: number;
+  readonly benchmarkScore: number;
+  readonly costPer1k: number;
+  readonly reason: string;
 }
 
 export interface RoutingTable {
-  version: string;
-  generated_at: string;
-  sources: {
-    benchmarks: string;
-    pricing: string;
+  readonly version: string;
+  readonly generatedAt: string;
+  readonly sources: {
+    readonly benchmarks: string;
+    readonly pricing: string;
   };
-  rules: RoutingRule[];
-  project_defaults: Record<string, string>;
+  readonly rules: readonly RoutingRule[];
+  readonly projectDefaults: Record<string, string>;
 }
 
 export interface BridgeBenchCache {
-  scraped_at: string;
-  categories: Record<string, BenchmarkScore[]>;
+  readonly scrapedAt: string;
+  readonly categories: Record<string, readonly BenchmarkScore[]>;
 }
 
 export interface OpenRouterCache {
-  fetched_at: string;
-  models: PricingData[];
+  readonly fetchedAt: string;
+  readonly models: readonly PricingData[];
 }
 
 export interface TaskRegistryEntry {
-  task_id: string;
-  created_at: string;
-  skill: Skill;
-  domain: Domain;
-  model: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  readonly taskId: string;
+  readonly createdAt: string;
+  readonly skill: Skill;
+  readonly domain: Domain;
+  readonly model: string;
+  readonly status: TaskStatus;
 }
 
 export interface KikiConfig {
-  project_name: string;
-  language: string;
-  commands: {
-    build: string;
-    test: string;
-    lint: string;
+  readonly projectName: string;
+  readonly language: string;
+  readonly commands: {
+    readonly build: string;
+    readonly test: string;
+    readonly lint: string;
   };
-  risk_matrix: {
-    high_risk_paths: string[];
-    critical_risk_paths: string[];
+  readonly riskMatrix: {
+    readonly highRiskPaths: readonly string[];
+    readonly criticalRiskPaths: readonly string[];
   };
-  routing_preferences: {
-    refresh_interval_hours: number;
-    min_benchmark_rank: number;
-    cost_ceiling_per_1k_tokens: number;
+  readonly routingPreferences: {
+    readonly refreshIntervalHours: number;
+    readonly minBenchmarkRank: number;
+    readonly costCeilingPer1kTokens: number;
   };
 }
 
 export interface RoutingLogEntry {
-  timestamp: string;
-  task_id?: string;
-  skill: string;
-  domain: string;
-  risk: string;
-  selected_model: string;
-  reason: string;
+  readonly timestamp: string;
+  readonly taskId?: string;
+  readonly skill: Skill;
+  readonly domain: Domain;
+  readonly risk: Risk;
+  readonly selectedModel: string;
+  readonly reason: string;
 }
