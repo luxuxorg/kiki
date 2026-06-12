@@ -1,15 +1,21 @@
 {
-  "name": "kiki-evolved",
+  "name": "kiki",
   "version": "1.0.0",
   "description": "Thin OpenCode plugin + CLI with benchmark-driven model routing",
   "license": "MIT",
   "keywords": ["opencode", "ai", "routing"],
   "repository": {
     "type": "git",
-    "url": "https://github.com/obra/kiki-evolved.git"
+    "url": "https://github.com/luxuxorg/kiki.git"
   },
   "type": "module",
   "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "bin": {
     "kiki": "dist/cli/index.js"
   },
