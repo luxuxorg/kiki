@@ -73,9 +73,13 @@ describe('cli init', () => {
     expect(orchestrator).toContain('mode: primary');
     expect(orchestrator).toContain('Kiki Orchestrator');
 
-    const researcher = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-researcher.md'), 'utf-8');
-    expect(researcher).toContain('mode: subagent');
-    expect(researcher).toContain('docs/superpowers/*');
+    const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
+    expect(brainstormer).toContain('mode: subagent');
+    expect(brainstormer).toContain('docs/superpowers/*');
+
+    const planner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-planner.md'), 'utf-8');
+    expect(planner).toContain('mode: subagent');
+    expect(planner).toContain('docs/superpowers/*');
 
     const implementer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-implementer.md'), 'utf-8');
     expect(implementer).toContain('mode: subagent');

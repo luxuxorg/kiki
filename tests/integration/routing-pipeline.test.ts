@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { rmSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
 import { loadRoutingTable, saveRoutingTable, setRoutingPath } from '../../src/core/routing-table';
 import { classifyDomain } from '../../src/core/domain-classifier';
@@ -115,11 +115,54 @@ describe('routing pipeline integration', () => {
     expect(result.updatedDefaults['brainstorming:gui']).toBe('claude-4');
   });
 
-  it('intercepts task tool with superpowers skill', async () => {
+  it('intercepts task tool with kiki subagent type and sets model', async () => {
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { skill: 'brainstorming', prompt: 'Build a React component' } };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
     expect(output.args.model).toBeDefined();
+    // No file paths in prompt => risk=micro => claude-4-micro
+    expect(output.args.model).toBe('claude-4-micro');
+  });
+
+  it('ignores non-kiki subagent types', async () => {
+    const plugin = KikiPlugin({ client: {} });
+    const input = { tool: 'task' };
+    const output = { args: { subagent_type: 'general', prompt: 'Do something' } };
+    await (plugin as any)['tool.execute.before'](input, output);
+    expect(output.args.model).toBeUndefined();
+  });
+
+  it('ignores non-task tools', async () => {
+    const plugin = KikiPlugin({ client: {} });
+    const input = { tool: 'bash' };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
+    await (plugin as any)['tool.execute.before'](input, output);
+    expect(output.args.model).toBeUndefined();
+  });
+
+  it('falls back to any model for the skill when no exact rule matches', async () => {
+    const plugin = KikiPlugin({ client: {} });
+    const input = { tool: 'task' };
+    // gui/medium exists for brainstorming, but let's test with a domain that has no rules
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a backend API' } };
+    await (plugin as any)['tool.execute.before'](input, output);
+    // No exact rule for backend, but fallback should find any brainstorming model
+    expect(output.args.model).toBeDefined();
+  });
+
+  it('logs error but does not crash when routing table is missing', async () => {
+    rmSync('.agentic/routing.json');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    const plugin = KikiPlugin({ client: {} });
+    const input = { tool: 'task' };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
+    await (plugin as any)['tool.execute.before'](input, output);
+    
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No routing table found'));
+    expect(output.args.model).toBeUndefined();
+    
+    consoleSpy.mockRestore();
   });
 });
