@@ -2,8 +2,6 @@
 import { init } from './commands/init.js';
 import { status } from './commands/status.js';
 import { verify } from './commands/verify.js';
-import { updateBenchmarks } from './commands/update-benchmarks.js';
-import { updatePricing } from './commands/update-pricing.js';
 const args = process.argv.slice(2);
 const command = args[0];
 async function main() {
@@ -17,20 +15,12 @@ async function main() {
         case 'verify':
             await verify(args[1]);
             break;
-        case 'update-benchmarks':
-            await updateBenchmarks();
-            break;
-        case 'update-pricing':
-            await updatePricing();
-            break;
         default:
             console.log(`Usage: kiki <command>
 Commands:
-  init [path]          Scaffold .agentic/ directory
-  status               Show task registry + routing summary
-  verify <file>        Check for TBDs/TODOs/placeholders
-  update-benchmarks    Scrape BridgeBench and rebuild routing table
-  update-pricing       Fetch OpenRouter pricing and rebuild routing table`);
+  init [path]    Scaffold .agentic/ directory with static routing table
+  status         Show task registry + routing summary
+  verify <file>  Check for TBDs/TODOs/placeholders`);
             process.exit(1);
     }
 }

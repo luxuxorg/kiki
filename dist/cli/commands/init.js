@@ -12,11 +12,6 @@ const DEFAULT_CONFIG = {
         highRiskPaths: ['src/auth/', 'src/db/schema.ts'],
         criticalRiskPaths: ['src/security/', 'migrations/']
     },
-    routingPreferences: {
-        refreshIntervalHours: 24,
-        minBenchmarkRank: 20,
-        costCeilingPer1kTokens: 0.05
-    }
 };
 const DEFAULT_ALIGNMENT = {
     guardrails: [
@@ -187,11 +182,10 @@ Be honest and direct. Do not try to "save" a failing task.
 The Kiki plugin selects your model automatically based on the task.
 `;
 const PLUGIN_TEMPLATE = `import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { loadRoutingTable, lookupModel, saveRoutingTable } from 'kiki';
-import { classifyDomain, classifyRisk, selectModel } from 'kiki';
-import type { Skill, Domain, Risk, RoutingLogEntry, RoutingTable } from 'kiki';
+import { loadRoutingTable, lookupModel } from 'kiki';
+import { classifyDomain, classifyRisk, lockTaskModel, getLockedModel, loadStabilizerState } from 'kiki';
+import type { Skill, Domain, Risk, RoutingLogEntry, StaticRoutingTable } from 'kiki';
 
-// Map kiki subagent types to the superpowers skill they invoke.
 const SUBAGENT_TYPE_TO_SKILL: Record<string, Skill> = {
   'kiki-brainstormer': 'brainstorming',
   'kiki-planner': 'writing-plans',
@@ -214,19 +208,20 @@ function logRoutingDecision(entry: RoutingLogEntry): void {
   }
 }
 
-function findFallbackModel(table: RoutingTable, skill: Skill, domain: Domain): string | null {
-  const risks: Risk[] = ['critical', 'high', 'medium', 'low', 'micro'];
-  for (const risk of risks) {
-    const model = lookupModel(table, skill, domain, risk);
-    if (model) return model;
-  }
-  const rule = table.rules.find(r => r.skill === skill);
-  if (rule) return rule.model;
-  if (table.rules.length > 0) return table.rules[0].model;
+function findFallbackModel(table: StaticRoutingTable, skill: Skill, domain: Domain): string | null {
+  const key = \`\${skill}:\${domain}\`;
+  const rule = table.rules[key];
+  if (rule) return rule.standard;
+  const skillKeys = Object.keys(table.rules).filter(k => k.startsWith(\`\${skill}:\`));
+  if (skillKeys.length > 0) return table.rules[skillKeys[0]].standard;
+  const allKeys = Object.keys(table.rules);
+  if (allKeys.length > 0) return table.rules[allKeys[0]].standard;
   return null;
 }
 
 export default function KikiPlugin({ client }: { client: any }) {
+  const stabilizerState = loadStabilizerState();
+
   return {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
@@ -243,60 +238,46 @@ export default function KikiPlugin({ client }: { client: any }) {
 
       const domain = classifyDomain(taskDesc);
 
-      let risk: Risk = 'medium';
+      let risk: Risk = 'standard';
       try {
         const config = JSON.parse(readFileSync('.agentic/config.json', 'utf-8'));
         const pathMatches = taskDesc.match(/[\\w/.-]+\\.(ts|js|tsx|jsx|py|rs|go)/g) ?? [];
         risk = classifyRisk(pathMatches, config.riskMatrix);
       } catch {
-        // Config missing, use default medium
+        // Config missing, use default standard
       }
 
-      let table = loadRoutingTable();
-      let selectedModel: string | null = null;
+      let selectedModel: string | null = getLockedModel(stabilizerState, taskId ?? null);
       let reason: string;
 
-      if (!table) {
-        console.error('[Kiki] CRITICAL: No routing table found. Run "kiki update-benchmarks" and "kiki update-pricing".');
-        selectedModel = null;
-        reason = 'missing routing table';
+      if (selectedModel) {
+        reason = 'task locked';
       } else {
-        const candidateModel = lookupModel(table, skill, domain, risk);
+        const table = loadRoutingTable();
 
-        if (candidateModel) {
-          const state = { projectDefaults: table.projectDefaults ?? {} };
-          const key = \`\${skill}:\${domain}\`;
-          const currentDefault = table.projectDefaults[key] ?? null;
-          const currentDefaultScore = table.rules.find(r => r.model === currentDefault && r.skill === skill && r.domain === domain)?.scorePerDollar ?? 0;
-          const candidateScore = table.rules.find(r => r.model === candidateModel && r.skill === skill && r.domain === domain)?.scorePerDollar ?? 0;
-
-          const result = selectModel(
-            state,
-            key,
-            taskId ?? null,
-            candidateModel,
-            candidateScore,
-            currentDefault,
-            currentDefaultScore
-          );
-
-          selectedModel = result.model;
-
-          if (result.updatedDefaults[key] !== table.projectDefaults[key]) {
-            (table as any).projectDefaults = result.updatedDefaults;
-            const { saveRoutingTable } = await import('kiki');
-            saveRoutingTable(table);
-          }
-
-          reason = \`scorePerDollar: \${candidateScore.toFixed(2)}\`;
+        if (!table) {
+          console.error('[Kiki] CRITICAL: No routing table found. Check .agentic/routing.json exists.');
+          reason = 'missing routing table';
         } else {
-          selectedModel = findFallbackModel(table, skill, domain);
+          selectedModel = lookupModel(table, skill, domain, risk);
+
           if (selectedModel) {
-            console.warn(\`[Kiki] No exact rule for \${skill}/\${domain}/\${risk}. Falling back to \${selectedModel}.\`);
-            reason = 'fallback (no exact rule)';
+            if (taskId) {
+              lockTaskModel(stabilizerState, taskId, selectedModel);
+            }
+            reason = \`static routing (\${risk})\`;
           } else {
-            console.error(\`[Kiki] CRITICAL: Routing table has no models at all for \${skill}/\${domain}.\`);
-            reason = 'no models in routing table';
+            selectedModel = findFallbackModel(table, skill, domain);
+            if (selectedModel) {
+              console.warn(\`[Kiki] No exact rule for \${skill}/\${domain}. Falling back to \${selectedModel}.\`);
+              if (taskId) {
+                lockTaskModel(stabilizerState, taskId, selectedModel);
+              }
+              reason = 'fallback (no exact match)';
+            } else {
+              console.error(\`[Kiki] CRITICAL: Routing table has no models at all for \${skill}/\${domain}.\`);
+              reason = 'no models in routing table';
+            }
           }
         }
       }
@@ -367,15 +348,14 @@ The orchestrator updates \`.agentic/TASK_REGISTRY.json\` with the task status an
 
 ## Risk-Based Routing
 
-| Risk Level | Path |
+| Risk Level | Behavior |
 |---|---|
-| Micro | Intake → Implement → Review → Complete (bypass planning) |
-| Low | Intake → Plan → Implement → Review → Complete (bypass architect review) |
-| Medium+ | Full pipeline with all gates |
+| Standard | Uses the standard model from \`.agentic/routing.json\` |
+| Critical | Uses the critical model if defined for the skill+domain; falls back to standard |
 
 ## Model Selection
 
-Model selection is fully automated. The Kiki plugin reads the routing table (\`.agentic/routing.json\`) and selects the optimal model based on benchmark scores and cost data. Never pick a model manually — trust the plugin.
+Model selection is static and manually maintained. Edit \`.agentic/routing.json\` to change which model is used for each skill+domain combination. The \`standard\` model is always used unless a \`critical\` override is defined and the task touches critical paths.
 `;
 function writeAgenticFiles(targetPath) {
     const agenticDir = join(targetPath, '.agentic');
@@ -392,11 +372,28 @@ function writeAgenticFiles(targetPath) {
     writeFileSync(join(agenticDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
     writeFileSync(join(agenticDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
     writeFileSync(join(agenticDir, 'routing.json'), JSON.stringify({
-        version: '1.0.0',
-        generatedAt: new Date().toISOString(),
-        sources: { benchmarks: '', pricing: '' },
-        rules: [],
-        projectDefaults: {}
+        rules: {
+            "brainstorming:gui": { "standard": "anthropic/claude-sonnet-4.6" },
+            "brainstorming:backend": { "standard": "moonshotai/kimi-k2.6" },
+            "brainstorming:security": { "standard": "deepseek/deepseek-v4-pro", "critical": "anthropic/claude-sonnet-4.6" },
+            "brainstorming:database": { "standard": "moonshotai/kimi-k2.6" },
+            "brainstorming:general": { "standard": "moonshotai/kimi-k2.6" },
+            "writing-plans:gui": { "standard": "anthropic/claude-sonnet-4.6" },
+            "writing-plans:backend": { "standard": "moonshotai/kimi-k2.6" },
+            "writing-plans:security": { "standard": "moonshotai/kimi-k2.6", "critical": "anthropic/claude-sonnet-4.6" },
+            "writing-plans:database": { "standard": "moonshotai/kimi-k2.6" },
+            "writing-plans:general": { "standard": "moonshotai/kimi-k2.6" },
+            "executing-plans:gui": { "standard": "anthropic/claude-sonnet-4.6" },
+            "executing-plans:backend": { "standard": "moonshotai/kimi-k2.6" },
+            "executing-plans:security": { "standard": "deepseek/deepseek-v4-pro", "critical": "anthropic/claude-sonnet-4.6" },
+            "executing-plans:database": { "standard": "moonshotai/kimi-k2.6" },
+            "executing-plans:general": { "standard": "moonshotai/kimi-k2.6" },
+            "reviewing:gui": { "standard": "openai/gpt-5.4-mini" },
+            "reviewing:backend": { "standard": "deepseek/deepseek-v4-pro" },
+            "reviewing:security": { "standard": "moonshotai/kimi-k2.6", "critical": "anthropic/claude-sonnet-4.6" },
+            "reviewing:database": { "standard": "deepseek/deepseek-v4-pro" },
+            "reviewing:general": { "standard": "deepseek/deepseek-v4-pro" }
+        }
     }, null, 2));
     return agenticDir;
 }
