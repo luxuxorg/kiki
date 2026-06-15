@@ -1,13 +1,10 @@
 import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { loadRoutingTable, lookupModel, saveRoutingTable } from '../../src/core/routing-table';
+import { loadRoutingTable, lookupModel } from '../../src/core/routing-table';
 import { classifyDomain } from '../../src/core/domain-classifier';
 import { classifyRisk } from '../../src/core/risk-classifier';
-import { selectModel } from '../../src/core/stabilizer';
-import type { Skill, Domain, Risk, RoutingLogEntry, RoutingTable } from '../../src/types';
+import { loadStabilizerState, lockTaskModel, getLockedModel } from '../../src/core/stabilizer';
+import type { Skill, Domain, Risk, StaticRoutingTable, RoutingLogEntry } from '../../src/types';
 
-// Map kiki subagent types to the superpowers skill they invoke.
-// This is the bridge between OpenCode's task tool (which dispatches by subagent_type)
-// and Kiki's routing table (which routes by skill).
 const SUBAGENT_TYPE_TO_SKILL: Record<string, Skill> = {
   'kiki-brainstormer': 'brainstorming',
   'kiki-planner': 'writing-plans',
@@ -30,25 +27,26 @@ function logRoutingDecision(entry: RoutingLogEntry): void {
   }
 }
 
-function findFallbackModel(table: RoutingTable, skill: Skill, domain: Domain): string | null {
-  // First: try any risk level for this skill+domain
-  const risks: Risk[] = ['critical', 'high', 'medium', 'low', 'micro'];
-  for (const risk of risks) {
-    const model = lookupModel(table, skill, domain, risk);
-    if (model) return model;
-  }
+function findFallbackModel(table: StaticRoutingTable, skill: Skill, domain: Domain): string | null {
+  // Try exact match first
+  const key = `${skill}:${domain}`;
+  const rule = table.rules[key];
+  if (rule) return rule.standard;
 
-  // Second: try any rule for this skill (any domain, any risk)
-  const rule = table.rules.find(r => r.skill === skill);
-  if (rule) return rule.model;
+  // Try any domain for this skill
+  const skillKeys = Object.keys(table.rules).filter(k => k.startsWith(`${skill}:`));
+  if (skillKeys.length > 0) return table.rules[skillKeys[0]].standard;
 
-  // Third: try any rule at all
-  if (table.rules.length > 0) return table.rules[0].model;
+  // Try any rule at all
+  const allKeys = Object.keys(table.rules);
+  if (allKeys.length > 0) return table.rules[allKeys[0]].standard;
 
   return null;
 }
 
 export default function KikiPlugin({ client }: { client: any }) {
+  const stabilizerState = loadStabilizerState();
+
   return {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
@@ -57,7 +55,6 @@ export default function KikiPlugin({ client }: { client: any }) {
       const skill = getSkillFromSubagentType(subagentType);
 
       if (!skill) {
-        // Not a kiki subagent; let OpenCode handle it normally.
         return;
       }
 
@@ -66,61 +63,49 @@ export default function KikiPlugin({ client }: { client: any }) {
 
       const domain = classifyDomain(taskDesc);
 
-      let risk: Risk = 'medium';
+      let risk: Risk = 'standard';
       try {
         const config = JSON.parse(readFileSync('.agentic/config.json', 'utf-8'));
         const pathMatches = taskDesc.match(/[\w/.-]+\.(ts|js|tsx|jsx|py|rs|go)/g) ?? [];
         risk = classifyRisk(pathMatches, config.riskMatrix);
       } catch {
-        // Config missing, use default medium
+        // Config missing, use default standard
       }
 
-      let table = loadRoutingTable();
-      let selectedModel: string | null = null;
+      // Check if this task is already locked to a model
+      let selectedModel: string | null = getLockedModel(stabilizerState, taskId ?? null);
       let reason: string;
 
-      if (!table) {
-        console.error('[Kiki] CRITICAL: No routing table found. Run "kiki update-benchmarks" and "kiki update-pricing".');
-        selectedModel = null;
-        reason = 'missing routing table';
+      if (selectedModel) {
+        reason = 'task locked';
       } else {
-        const candidateModel = lookupModel(table, skill, domain, risk);
+        const table = loadRoutingTable();
 
-        if (candidateModel) {
-          const state = { projectDefaults: table.projectDefaults ?? {} };
-          const key = `${skill}:${domain}`;
-          const currentDefault = table.projectDefaults[key] ?? null;
-          const currentDefaultScore = table.rules.find(r => r.model === currentDefault && r.skill === skill && r.domain === domain)?.scorePerDollar ?? 0;
-          const candidateScore = table.rules.find(r => r.model === candidateModel && r.skill === skill && r.domain === domain)?.scorePerDollar ?? 0;
-
-          const result = selectModel(
-            state,
-            key,
-            taskId ?? null,
-            candidateModel,
-            candidateScore,
-            currentDefault,
-            currentDefaultScore
-          );
-
-          selectedModel = result.model;
-
-          if (result.updatedDefaults[key] !== table.projectDefaults[key]) {
-            (table as any).projectDefaults = result.updatedDefaults;
-            const { saveRoutingTable } = await import('../../src/core/routing-table');
-            saveRoutingTable(table);
-          }
-
-          reason = `scorePerDollar: ${candidateScore.toFixed(2)}`;
+        if (!table) {
+          console.error('[Kiki] CRITICAL: No routing table found. Check .agentic/routing.json exists.');
+          reason = 'missing routing table';
         } else {
-          // Fallback: find any usable model in the routing table
-          selectedModel = findFallbackModel(table, skill, domain);
+          selectedModel = lookupModel(table, skill, domain, risk);
+
           if (selectedModel) {
-            console.warn(`[Kiki] No exact rule for ${skill}/${domain}/${risk}. Falling back to ${selectedModel}.`);
-            reason = 'fallback (no exact rule)';
+            // Lock the task to this model
+            if (taskId) {
+              lockTaskModel(stabilizerState, taskId, selectedModel);
+            }
+            reason = `static routing (${risk})`;
           } else {
-            console.error(`[Kiki] CRITICAL: Routing table has no models at all for ${skill}/${domain}.`);
-            reason = 'no models in routing table';
+            // Fallback
+            selectedModel = findFallbackModel(table, skill, domain);
+            if (selectedModel) {
+              console.warn(`[Kiki] No exact rule for ${skill}/${domain}. Falling back to ${selectedModel}.`);
+              if (taskId) {
+                lockTaskModel(stabilizerState, taskId, selectedModel);
+              }
+              reason = 'fallback (no exact match)';
+            } else {
+              console.error(`[Kiki] CRITICAL: Routing table has no models at all for ${skill}/${domain}.`);
+              reason = 'no models in routing table';
+            }
           }
         }
       }
