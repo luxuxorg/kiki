@@ -362,12 +362,12 @@ The orchestrator updates \`.agentic/TASK_REGISTRY.json\` with the task status an
 
 | Risk Level | Behavior |
 |---|---|
-| Standard | Uses the standard model from \x60.agentic/routing.json\x60 |
+| Standard | Uses the standard model from \`.agentic/routing.json\` |
 | Critical | Uses the critical model if defined for the skill+domain; falls back to standard |
 
 ## Model Selection
 
-Model selection is static and manually maintained. Edit \x60.agentic/routing.json\x60 to change which model is used for each skill+domain combination. The \x60standard\x60 model is always used unless a \x60critical\x60 override is defined and the task touches critical paths.
+Model selection is static and manually maintained. Edit \`.agentic/routing.json\` to change which model is used for each skill+domain combination. The \`standard\` model is always used unless a \`critical\` override is defined and the task touches critical paths.
 `;
 
 function writeAgenticFiles(targetPath: string): string {
