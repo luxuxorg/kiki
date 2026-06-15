@@ -4,61 +4,26 @@ import { loadRoutingTable, saveRoutingTable, setRoutingPath } from '../../src/co
 import { classifyDomain } from '../../src/core/domain-classifier';
 import { classifyRisk } from '../../src/core/risk-classifier';
 import { lookupModel } from '../../src/core/routing-table';
-import { selectModel } from '../../src/core/stabilizer';
 import KikiPlugin from '../../.opencode/plugins/kiki';
 
 describe('routing pipeline integration', () => {
   beforeEach(() => {
+    setRoutingPath('.agentic/routing.json');
     mkdirSync('.agentic', { recursive: true });
-    
+
     writeFileSync('.agentic/config.json', JSON.stringify({
       riskMatrix: {
         highRiskPaths: ['src/auth/'],
         criticalRiskPaths: ['src/security/']
-      },
-      routingPreferences: {
-        minBenchmarkRank: 20,
-        costCeilingPer1kTokens: 1.0
       }
     }));
 
     const table = {
-      version: '1.0.0',
-      generatedAt: new Date().toISOString(),
-      sources: { benchmarks: '', pricing: '' },
-      rules: [
-        {
-          skill: 'brainstorming' as const,
-          domain: 'gui' as const,
-          risk: 'medium' as const,
-          model: 'claude-4',
-          scorePerDollar: 100,
-          benchmarkScore: 90,
-          costPer1k: 0.05,
-          reason: 'test'
-        },
-        {
-          skill: 'brainstorming' as const,
-          domain: 'gui' as const,
-          risk: 'critical' as const,
-          model: 'claude-4-critical',
-          scorePerDollar: 120,
-          benchmarkScore: 95,
-          costPer1k: 0.08,
-          reason: 'test'
-        },
-        {
-          skill: 'brainstorming' as const,
-          domain: 'gui' as const,
-          risk: 'micro' as const,
-          model: 'claude-4-micro',
-          scorePerDollar: 100,
-          benchmarkScore: 90,
-          costPer1k: 0.05,
-          reason: 'test'
-        }
-      ],
-      projectDefaults: {}
+      rules: {
+        'brainstorming:gui': { standard: 'claude-4' },
+        'brainstorming:security': { standard: 'deepseek-v4-pro', critical: 'claude-4-critical' },
+        'reviewing:backend': { standard: 'deepseek-v4-pro' }
+      }
     };
     saveRoutingTable(table);
   });
@@ -68,22 +33,26 @@ describe('routing pipeline integration', () => {
     setRoutingPath('.agentic/routing.json');
   });
 
-  it('classifies domain and looks up model', () => {
+  it('classifies domain and looks up standard model', () => {
     const domain = classifyDomain('Build a React modal component');
     expect(domain).toBe('gui');
-    
+
     const table = loadRoutingTable();
     expect(table).not.toBeNull();
-    const model = lookupModel(table!, 'brainstorming', domain, 'medium');
+    const model = lookupModel(table!, 'brainstorming', domain, 'standard');
     expect(model).toBe('claude-4');
   });
 
-  it('defaults to medium risk when config is missing', () => {
-    rmSync('.agentic/config.json');
-    const table = loadRoutingTable();
-    expect(table).not.toBeNull();
-    const model = lookupModel(table!, 'brainstorming', 'gui', 'medium');
+  it('uses standard when critical not defined for that skill+domain', () => {
+    const table = loadRoutingTable()!;
+    const model = lookupModel(table, 'brainstorming', 'gui', 'critical');
     expect(model).toBe('claude-4');
+  });
+
+  it('uses critical model when defined and risk is critical', () => {
+    const table = loadRoutingTable()!;
+    const model = lookupModel(table, 'brainstorming', 'security', 'critical');
+    expect(model).toBe('claude-4-critical');
   });
 
   it('returns null when routing table is missing', () => {
@@ -93,26 +62,18 @@ describe('routing pipeline integration', () => {
   });
 
   it('returns null when no matching model exists', () => {
-    const table = loadRoutingTable();
-    expect(table).not.toBeNull();
-    const model = lookupModel(table!, 'reviewing', 'database', 'critical');
+    const table = loadRoutingTable()!;
+    const model = lookupModel(table, 'executing-plans', 'database', 'standard');
     expect(model).toBeNull();
   });
 
-  it('classifies risk with matching paths', () => {
+  it('classifies risk with only standard/critical', () => {
     const configData = JSON.parse(readFileSync('.agentic/config.json', 'utf-8'));
-    
-    expect(classifyRisk(['src/auth/login.ts'], configData.riskMatrix)).toBe('high');
-    expect(classifyRisk(['src/security/crypto.ts'], configData.riskMatrix)).toBe('critical');
-    expect(classifyRisk(['src/app/main.ts'], configData.riskMatrix)).toBe('medium');
-    expect(classifyRisk([], configData.riskMatrix)).toBe('micro');
-  });
 
-  it('does not switch default on exactly 20% improvement (hysteresis)', () => {
-    const state = { projectDefaults: { 'brainstorming:gui': 'claude-4' } };
-    const result = selectModel(state, 'brainstorming:gui', null, 'new-model', 120, 'claude-4', 100);
-    expect(result.model).toBe('claude-4');
-    expect(result.updatedDefaults['brainstorming:gui']).toBe('claude-4');
+    expect(classifyRisk(['src/auth/login.ts'], configData.riskMatrix)).toBe('standard');
+    expect(classifyRisk(['src/security/crypto.ts'], configData.riskMatrix)).toBe('critical');
+    expect(classifyRisk(['src/app/main.ts'], configData.riskMatrix)).toBe('standard');
+    expect(classifyRisk([], configData.riskMatrix)).toBe('standard');
   });
 
   it('intercepts task tool with kiki subagent type and sets model', async () => {
@@ -121,8 +82,16 @@ describe('routing pipeline integration', () => {
     const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
     expect(output.args.model).toBeDefined();
-    // No file paths in prompt => risk=micro => claude-4-micro
-    expect(output.args.model).toBe('claude-4-micro');
+    // gui + no file paths -> standard -> claude-4
+    expect(output.args.model).toBe('claude-4');
+  });
+
+  it('uses critical model for security paths', async () => {
+    const plugin = KikiPlugin({ client: {} });
+    const input = { tool: 'task' };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Fix src/security/crypto.ts encryption' } };
+    await (plugin as any)['tool.execute.before'](input, output);
+    expect(output.args.model).toBe('claude-4-critical');
   });
 
   it('ignores non-kiki subagent types', async () => {
@@ -144,25 +113,23 @@ describe('routing pipeline integration', () => {
   it('falls back to any model for the skill when no exact rule matches', async () => {
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    // gui/medium exists for brainstorming, but let's test with a domain that has no rules
     const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a backend API' } };
     await (plugin as any)['tool.execute.before'](input, output);
-    // No exact rule for backend, but fallback should find any brainstorming model
     expect(output.args.model).toBeDefined();
   });
 
   it('logs error but does not crash when routing table is missing', async () => {
     rmSync('.agentic/routing.json');
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    
+
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
     const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
-    
+
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No routing table found'));
     expect(output.args.model).toBeUndefined();
-    
+
     consoleSpy.mockRestore();
   });
 });

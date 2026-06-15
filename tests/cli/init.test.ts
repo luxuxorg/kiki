@@ -30,7 +30,7 @@ describe('cli init', () => {
     expect(config.commands.build).toBe('npm run build');
     expect(config.riskMatrix.highRiskPaths).toContain('src/auth/');
     expect(config.riskMatrix.criticalRiskPaths).toContain('src/security/');
-    expect(config.routingPreferences.minBenchmarkRank).toBe(20);
+    expect(config.routingPreferences).toBeUndefined();
 
     const alignment = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/alignment.json'), 'utf-8'));
     expect(alignment.guardrails).toHaveLength(3);
@@ -40,9 +40,14 @@ describe('cli init', () => {
     expect(registry.tasks).toEqual([]);
 
     const routing = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/routing.json'), 'utf-8'));
-    expect(routing.version).toBe('1.0.0');
-    expect(routing.rules).toEqual([]);
-    expect(routing.projectDefaults).toEqual({});
+    expect(routing.rules).toBeDefined();
+    expect(typeof routing.rules).toBe('object');
+    expect(routing.rules['brainstorming:gui'].standard).toBe('anthropic/claude-sonnet-4.6');
+    expect(routing.rules['brainstorming:security'].critical).toBe('anthropic/claude-sonnet-4.6');
+    expect(routing.version).toBeUndefined();
+    expect(routing.generatedAt).toBeUndefined();
+    expect(routing.sources).toBeUndefined();
+    expect(routing.projectDefaults).toBeUndefined();
   });
 
   it('scaffolds at a custom path', async () => {

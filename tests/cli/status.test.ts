@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { status } from '../../src/cli/commands/status';
 import { setRoutingPath, saveRoutingTable } from '../../src/core/routing-table';
-import type { RoutingTable } from '../../src/types';
+import type { StaticRoutingTable } from '../../src/types';
 
 describe('cli status', () => {
   let tmpDir: string;
@@ -64,26 +64,10 @@ describe('cli status', () => {
     await fs.mkdir(path.join(tmpDir, '.agentic'), { recursive: true });
     await fs.writeFile(path.join(tmpDir, '.agentic/TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
 
-    const table: RoutingTable = {
-      version: '1.0.0',
-      generatedAt: '2024-01-01T00:00:00.000Z',
-      sources: {
-        benchmarks: 'BridgeBench',
-        pricing: 'OpenRouter'
-      },
-      rules: [
-        {
-          skill: 'brainstorming',
-          domain: 'general',
-          risk: 'low',
-          model: 'openai/gpt-4o',
-          scorePerDollar: 10.5,
-          benchmarkScore: 88,
-          costPer1k: 8.4,
-          reason: 'Best'
-        }
-      ],
-      projectDefaults: { foo: 'bar' }
+    const table: StaticRoutingTable = {
+      rules: {
+        'brainstorming:general': { standard: 'openai/gpt-4o' }
+      }
     };
     saveRoutingTable(table);
 
@@ -93,9 +77,10 @@ describe('cli status', () => {
 
     const logs = logSpy.mock.calls.map(c => c[0]).join('\n');
     expect(logs).toContain('Routing Table');
-    expect(logs).toContain('2024-01-01T00:00:00.000Z');
+    expect(logs).toContain('Static routing table (manually maintained)');
     expect(logs).toContain('Rules: 1');
-    expect(logs).toContain('Project defaults: 1');
+    expect(logs).toContain('brainstorming:general: standard=openai/gpt-4o');
+    expect(logs).toContain('brainstorming:');
 
     logSpy.mockRestore();
   });

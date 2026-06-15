@@ -1,81 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { selectModel, lockTaskModel, type StabilizerState } from '../../src/core/stabilizer';
+import { loadStabilizerState, lockTaskModel, getLockedModel } from '../../src/core/stabilizer';
 
 describe('stabilizer', () => {
-  it('sets default when none exists', () => {
-    const state: StabilizerState = { projectDefaults: {}, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', null, 'model-a', 100, null, 0);
-    expect(result.model).toBe('model-a');
-    expect(result.updatedDefaults['brainstorming:gui']).toBe('model-a');
+  it('loads empty state', () => {
+    const state = loadStabilizerState();
+    expect(state.taskLocks).toEqual({});
   });
 
-  it('uses locked model for existing task', () => {
-    const state: StabilizerState = { 
-      projectDefaults: { 'brainstorming:gui': 'model-a' }, 
-      taskLocks: { 'task-1': 'model-b' } 
-    };
-    const result = selectModel(state, 'brainstorming:gui', 'task-1', 'model-c', 200, 'model-a', 100);
-    expect(result.model).toBe('model-b');
+  it('locks a task to a model', () => {
+    const state = loadStabilizerState();
+    const updated = lockTaskModel(state, 'task-1', 'claude-4');
+    expect(updated.taskLocks['task-1']).toBe('claude-4');
   });
 
-  it('switches default when >20% better', () => {
-    const state: StabilizerState = { projectDefaults: { 'brainstorming:gui': 'model-a' }, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', null, 'model-b', 130, 'model-a', 100);
-    expect(result.model).toBe('model-b');
-    expect(result.updatedDefaults['brainstorming:gui']).toBe('model-b');
+  it('returns locked model for known task', () => {
+    const state = loadStabilizerState();
+    const updated = lockTaskModel(state, 'task-1', 'claude-4');
+    const locked = getLockedModel(updated, 'task-1');
+    expect(locked).toBe('claude-4');
   });
 
-  it('keeps default when improvement <20%', () => {
-    const state: StabilizerState = { projectDefaults: { 'brainstorming:gui': 'model-a' }, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', null, 'model-b', 110, 'model-a', 100);
-    expect(result.model).toBe('model-a');
+  it('returns null for unknown task', () => {
+    const state = loadStabilizerState();
+    const updated = lockTaskModel(state, 'task-1', 'claude-4');
+    const locked = getLockedModel(updated, 'task-2');
+    expect(locked).toBeNull();
   });
 
-  it('locks task model', () => {
-    const state: StabilizerState = { projectDefaults: {}, taskLocks: {} };
-    const locked = lockTaskModel(state, 'task-1', 'model-x');
-    expect(locked.taskLocks['task-1']).toBe('model-x');
+  it('returns null for null taskId', () => {
+    const state = loadStabilizerState();
+    const locked = getLockedModel(state, null);
+    expect(locked).toBeNull();
   });
 
-  it('does NOT switch when improvement is exactly 20%', () => {
-    const state: StabilizerState = { projectDefaults: { 'brainstorming:gui': 'model-a' }, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', null, 'model-b', 120, 'model-a', 100);
-    expect(result.model).toBe('model-a');
-  });
-
-  it('keeps default when scores are equal (0% improvement)', () => {
-    const state: StabilizerState = { projectDefaults: { 'brainstorming:gui': 'model-a' }, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', null, 'model-b', 100, 'model-a', 100);
-    expect(result.model).toBe('model-a');
-  });
-
-  it('switches to candidate when current default score is zero', () => {
-    const state: StabilizerState = { projectDefaults: { 'brainstorming:gui': 'model-a' }, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', null, 'model-b', 10, 'model-a', 0);
-    expect(result.model).toBe('model-b');
-    expect(result.updatedDefaults['brainstorming:gui']).toBe('model-b');
-  });
-
-  it('handles negative current default score gracefully', () => {
-    const state: StabilizerState = { projectDefaults: { 'brainstorming:gui': 'model-a' }, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', null, 'model-b', 10, 'model-a', -50);
-    expect(result.model).toBe('model-b');
-    expect(result.updatedDefaults['brainstorming:gui']).toBe('model-b');
-  });
-
-  it('does not mutate the original state object', () => {
-    const state: StabilizerState = { projectDefaults: { 'brainstorming:gui': 'model-a' }, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', null, 'model-b', 130, 'model-a', 100);
-    expect(result.model).toBe('model-b');
-    // Original state should be unchanged
-    expect(state.projectDefaults['brainstorming:gui']).toBe('model-a');
-    expect(state.projectDefaults).not.toBe(result.updatedDefaults);
-  });
-
-  it('falls through to default logic when task ID is provided but not yet locked', () => {
-    const state: StabilizerState = { projectDefaults: { 'brainstorming:gui': 'model-a' }, taskLocks: {} };
-    const result = selectModel(state, 'brainstorming:gui', 'task-2', 'model-b', 130, 'model-a', 100);
-    expect(result.model).toBe('model-b');
-    expect(result.updatedDefaults['brainstorming:gui']).toBe('model-b');
+  it('locks multiple tasks independently', () => {
+    const state = loadStabilizerState();
+    const s1 = lockTaskModel(state, 'task-1', 'claude-4');
+    const s2 = lockTaskModel(s1, 'task-2', 'kimi-k2');
+    expect(getLockedModel(s2, 'task-1')).toBe('claude-4');
+    expect(getLockedModel(s2, 'task-2')).toBe('kimi-k2');
   });
 });
