@@ -57,28 +57,6 @@ export const DEFAULT_ROUTING_TABLE = {
 export const ORCHESTRATOR_TEMPLATE = `---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
-permission:
-  task:
-    "*": allow
-  todowrite:
-    "*": allow
-  read:
-    ".agentic/*": allow
-    "docs/superpowers/*": allow
-    "README*": allow
-    "AGENTS.md": allow
-    "CLAUDE.md": allow
-    "GEMINI.md": allow
-    "*": deny
-  write:
-    ".agentic/*": allow
-    "*": deny
-  edit:
-    "*": deny
-  bash:
-    "*": deny
-  webfetch:
-    "*": deny
 ---
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 
