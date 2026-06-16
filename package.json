@@ -24,8 +24,7 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cli": "node dist/cli/index.js",
-    "prepublishOnly": "npm run build"
+    "cli": "node dist/cli/index.js"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
