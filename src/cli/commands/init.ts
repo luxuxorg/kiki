@@ -294,7 +294,6 @@ The Kiki plugin selects your model automatically based on the task.
 `;
 
 export const PLUGIN_TEMPLATE = `import { readFileSync, appendFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
 
 type Skill = 'brainstorming' | 'writing-plans' | 'executing-plans' | 'reviewing' | 'documenting';
 type Domain = 'gui' | 'backend' | 'security' | 'database' | 'general';
