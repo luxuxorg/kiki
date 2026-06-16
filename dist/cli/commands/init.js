@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
-const DEFAULT_CONFIG = {
+export const DEFAULT_CONFIG = {
     projectName: 'my-project',
     language: 'typescript',
     commands: {
@@ -13,7 +13,7 @@ const DEFAULT_CONFIG = {
         criticalRiskPaths: ['src/security/', 'migrations/']
     },
 };
-const DEFAULT_ALIGNMENT = {
+export const DEFAULT_ALIGNMENT = {
     guardrails: [
         'No hardcoded secrets in source code',
         'All database queries must use parameterized statements',
@@ -21,11 +21,66 @@ const DEFAULT_ALIGNMENT = {
     ],
     compliance: ['OWASP Top 10', 'SOC 2 Type II']
 };
-const ORCHESTRATOR_TEMPLATE = `---
+export const DEFAULT_ROUTING_TABLE = {
+    rules: {
+        "brainstorming:gui": { "standard": "anthropic/claude-sonnet-4.6" },
+        "brainstorming:backend": { "standard": "moonshotai/kimi-k2.6" },
+        "brainstorming:security": { "standard": "deepseek/deepseek-v4-pro", "critical": "anthropic/claude-sonnet-4.6" },
+        "brainstorming:database": { "standard": "moonshotai/kimi-k2.6" },
+        "brainstorming:general": { "standard": "moonshotai/kimi-k2.6" },
+        "writing-plans:gui": { "standard": "anthropic/claude-sonnet-4.6" },
+        "writing-plans:backend": { "standard": "moonshotai/kimi-k2.6" },
+        "writing-plans:security": { "standard": "moonshotai/kimi-k2.6", "critical": "anthropic/claude-sonnet-4.6" },
+        "writing-plans:database": { "standard": "moonshotai/kimi-k2.6" },
+        "writing-plans:general": { "standard": "moonshotai/kimi-k2.6" },
+        "executing-plans:gui": { "standard": "anthropic/claude-sonnet-4.6" },
+        "executing-plans:backend": { "standard": "moonshotai/kimi-k2.6" },
+        "executing-plans:security": { "standard": "deepseek/deepseek-v4-pro", "critical": "anthropic/claude-sonnet-4.6" },
+        "executing-plans:database": { "standard": "moonshotai/kimi-k2.6" },
+        "executing-plans:general": { "standard": "moonshotai/kimi-k2.6" },
+        "reviewing:gui": { "standard": "openai/gpt-5.4-mini" },
+        "reviewing:backend": { "standard": "deepseek/deepseek-v4-pro" },
+        "reviewing:security": { "standard": "moonshotai/kimi-k2.6", "critical": "anthropic/claude-sonnet-4.6" },
+        "reviewing:database": { "standard": "deepseek/deepseek-v4-pro" },
+        "reviewing:general": { "standard": "deepseek/deepseek-v4-pro" },
+        "documenting:gui": { "standard": "moonshotai/kimi-k2.6" },
+        "documenting:backend": { "standard": "moonshotai/kimi-k2.6" },
+        "documenting:security": { "standard": "moonshotai/kimi-k2.6" },
+        "documenting:database": { "standard": "moonshotai/kimi-k2.6" },
+        "documenting:general": { "standard": "moonshotai/kimi-k2.6" }
+    }
+};
+export const ORCHESTRATOR_TEMPLATE = `---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
+permission:
+  task:
+    "*": allow
+  todowrite:
+    "*": allow
+  read:
+    ".agentic/*": allow
+    "docs/superpowers/*": allow
+    "README*": allow
+    "AGENTS.md": allow
+    "CLAUDE.md": allow
+    "GEMINI.md": allow
+    "*": deny
+  write:
+    ".agentic/*": allow
+    "*": deny
+  edit:
+    "*": deny
+  bash:
+    "*": deny
+  webfetch:
+    "*": deny
 ---
-You are the Kiki Orchestrator. Guide the user through a disciplined software engineering process.
+You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
+
+## Your Role
+You do NOT write code. You do NOT edit files. You do NOT run commands. You do NOT read source files to understand implementation details.
+Your **ONLY** job is to coordinate the pipeline by dispatching the correct subagent via the \`task\` tool.
 
 ## Process
 1. **Intake:** Ask clarifying questions one at a time until requirements are clear.
@@ -34,7 +89,8 @@ You are the Kiki Orchestrator. Guide the user through a disciplined software eng
 4. **Architect Review:** Dispatch \`kiki-reviewer\` subagent (architect mode) or review the plan yourself against \`.agentic/alignment.json\`. Append inline review.
 5. **Implement:** Dispatch \`kiki-implementer\` subagent via the \`task\` tool.
 6. **Review:** Dispatch \`kiki-reviewer\` subagent via the \`task\` tool.
-7. **Complete:** Update \`.agentic/TASK_REGISTRY.json\`.
+7. **Document:** Dispatch \`kiki-historian\` subagent via the \`task\` tool to update README, CHANGELOG, and project docs.
+8. **Complete:** Update \`.agentic/TASK_REGISTRY.json\`.
 
 ## Key Rules
 - Always dispatch the correct **kiki subagent** (e.g., \`kiki-brainstormer\`, \`kiki-planner\`) via the \`task\` tool — the Kiki plugin will handle model selection.
@@ -58,7 +114,7 @@ A dispatch is considered failed when:
 
 Track failures in \`.agentic/TASK_REGISTRY.json\` under \`failures\` counter per task.
 `;
-const BRAINSTORMER_TEMPLATE = `---
+export const BRAINSTORMER_TEMPLATE = `---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
 permission:
@@ -82,7 +138,7 @@ You are the Kiki Brainstormer. Your job is to produce design specs and explore r
 
 The Kiki plugin selects your model automatically based on the task.
 `;
-const PLANNER_TEMPLATE = `---
+export const PLANNER_TEMPLATE = `---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
 permission:
@@ -106,7 +162,7 @@ You are the Kiki Planner. Your job is to write detailed implementation plans.
 
 The Kiki plugin selects your model automatically based on the task.
 `;
-const IMPLEMENTER_TEMPLATE = `---
+export const IMPLEMENTER_TEMPLATE = `---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
 permission:
@@ -132,7 +188,7 @@ You are the Kiki Implementer. Your job is to implement code strictly per the app
 
 The Kiki plugin selects your model automatically based on the task.
 `;
-const REVIEWER_TEMPLATE = `---
+export const REVIEWER_TEMPLATE = `---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent
 permission:
@@ -156,7 +212,7 @@ You are the Kiki Reviewer. Your job is to review code against the approved plan.
 
 The Kiki plugin selects your model automatically based on the task.
 `;
-const ESCALATION_TEMPLATE = `---
+export const ESCALATION_TEMPLATE = `---
 description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
 permission:
@@ -181,7 +237,52 @@ Be honest and direct. Do not try to "save" a failing task.
 
 The Kiki plugin selects your model automatically based on the task.
 `;
-const PLUGIN_TEMPLATE = `import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
+export const HISTORIAN_TEMPLATE = `---
+description: Kiki Historian — maintains project documentation, README and CHANGELOG
+mode: subagent
+permission:
+  read:
+    "README*": allow
+    "CHANGELOG*": allow
+    "docs/*": allow
+    "package.json": allow
+    ".agentic/TASK_REGISTRY.json": allow
+    "src/*": deny
+    "tests/*": deny
+    "*": deny
+  write:
+    "README*": allow
+    "CHANGELOG*": allow
+    "docs/*": allow
+    "*": deny
+  edit:
+    "README*": allow
+    "CHANGELOG*": allow
+    "docs/*": allow
+    "src/*": deny
+    "tests/*": deny
+    "*": deny
+  bash:
+    "git log*": allow
+    "git diff*": allow
+    "*": deny
+---
+You are the Kiki Historian. Your job is to keep project documentation accurate and up to date.
+
+## Responsibilities
+1. **README:** Keep \`README.md\` current with project description, setup instructions, and feature list.
+2. **CHANGELOG:** Maintain \`CHANGELOG.md\` with notable changes per version or date.
+3. **Project Docs:** Update \`docs/*\` files (except \`docs/superpowers/*\` which belongs to the planner/brainstormer).
+
+## Rules
+- You do NOT write source code. You do NOT edit \`src/*\` or \`tests/*\`.
+- You do NOT create plans or specs. Those belong to the planner and brainstormer.
+- When updating CHANGELOG, follow Keep a Changelog format (Added, Changed, Fixed, Removed, Security).
+- When the orchestrator dispatches you, you will receive a summary of what was done. Update docs accordingly.
+
+The Kiki plugin selects your model automatically based on the task.
+`;
+export const PLUGIN_TEMPLATE = `import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
 import { loadRoutingTable, lookupModel } from 'kiki';
 import { classifyDomain, classifyRisk, lockTaskModel, getLockedModel, loadStabilizerState } from 'kiki';
 import type { Skill, Domain, Risk, RoutingLogEntry, StaticRoutingTable } from 'kiki';
@@ -192,6 +293,7 @@ const SUBAGENT_TYPE_TO_SKILL: Record<string, Skill> = {
   'kiki-implementer': 'executing-plans',
   'kiki-reviewer': 'reviewing',
   'kiki-escalation': 'brainstorming',
+  'kiki-historian': 'documenting',
 };
 
 function getSkillFromSubagentType(subagentType: string): Skill | null {
@@ -306,20 +408,20 @@ export default function KikiPlugin({ client }: { client: any }) {
   };
 }
 `;
-const OPENCODE_PACKAGE_JSON_TEMPLATE = `{
+export const OPENCODE_PACKAGE_JSON_TEMPLATE = `{
   "dependencies": {
     "@opencode-ai/plugin": "1.15.13",
     "kiki": "github.com/luxuxorg/kiki"
   }
 }
 `;
-const OPENCODE_GITIGNORE_TEMPLATE = `node_modules
+export const OPENCODE_GITIGNORE_TEMPLATE = `node_modules
 package.json
 package-lock.json
 bun.lock
 .gitignore
 `;
-const WORKFLOW_TEMPLATE = `# Kiki Workflow
+export const WORKFLOW_TEMPLATE = `# Kiki Workflow
 
 This document describes the Kiki software engineering pipeline enforced by the orchestrator agent.
 
@@ -343,7 +445,10 @@ The \`kiki-implementer\` loads \`executing-plans\` and \`test-driven-development
 ### 6. Review
 The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-review\` inline and verifies plan adherence, security, code quality, and test coverage. An inline verdict is appended to the plan.
 
-### 7. Complete
+### 7. Document
+The orchestrator dispatches the \`kiki-historian\` subagent to update \`README.md\`, \`CHANGELOG.md\`, and any project docs in \`docs/*\` (excluding \`docs/superpowers/*\`).
+
+### 8. Complete
 The orchestrator updates \`.agentic/TASK_REGISTRY.json\` with the task status and any failure metrics.
 
 ## Risk-Based Routing
@@ -357,7 +462,7 @@ The orchestrator updates \`.agentic/TASK_REGISTRY.json\` with the task status an
 
 Model selection is static and manually maintained. Edit \`.agentic/routing.json\` to change which model is used for each skill+domain combination. The \`standard\` model is always used unless a \`critical\` override is defined and the task touches critical paths.
 `;
-function writeAgenticFiles(targetPath) {
+export function writeAgenticFiles(targetPath) {
     const agenticDir = join(targetPath, '.agentic');
     const cacheDir = join(agenticDir, 'cache');
     if (existsSync(agenticDir) && !statSync(agenticDir).isDirectory()) {
@@ -371,33 +476,10 @@ function writeAgenticFiles(targetPath) {
     writeFileSync(join(agenticDir, 'config.json'), JSON.stringify(DEFAULT_CONFIG, null, 2));
     writeFileSync(join(agenticDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
     writeFileSync(join(agenticDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
-    writeFileSync(join(agenticDir, 'routing.json'), JSON.stringify({
-        rules: {
-            "brainstorming:gui": { "standard": "anthropic/claude-sonnet-4.6" },
-            "brainstorming:backend": { "standard": "moonshotai/kimi-k2.6" },
-            "brainstorming:security": { "standard": "deepseek/deepseek-v4-pro", "critical": "anthropic/claude-sonnet-4.6" },
-            "brainstorming:database": { "standard": "moonshotai/kimi-k2.6" },
-            "brainstorming:general": { "standard": "moonshotai/kimi-k2.6" },
-            "writing-plans:gui": { "standard": "anthropic/claude-sonnet-4.6" },
-            "writing-plans:backend": { "standard": "moonshotai/kimi-k2.6" },
-            "writing-plans:security": { "standard": "moonshotai/kimi-k2.6", "critical": "anthropic/claude-sonnet-4.6" },
-            "writing-plans:database": { "standard": "moonshotai/kimi-k2.6" },
-            "writing-plans:general": { "standard": "moonshotai/kimi-k2.6" },
-            "executing-plans:gui": { "standard": "anthropic/claude-sonnet-4.6" },
-            "executing-plans:backend": { "standard": "moonshotai/kimi-k2.6" },
-            "executing-plans:security": { "standard": "deepseek/deepseek-v4-pro", "critical": "anthropic/claude-sonnet-4.6" },
-            "executing-plans:database": { "standard": "moonshotai/kimi-k2.6" },
-            "executing-plans:general": { "standard": "moonshotai/kimi-k2.6" },
-            "reviewing:gui": { "standard": "openai/gpt-5.4-mini" },
-            "reviewing:backend": { "standard": "deepseek/deepseek-v4-pro" },
-            "reviewing:security": { "standard": "moonshotai/kimi-k2.6", "critical": "anthropic/claude-sonnet-4.6" },
-            "reviewing:database": { "standard": "deepseek/deepseek-v4-pro" },
-            "reviewing:general": { "standard": "deepseek/deepseek-v4-pro" }
-        }
-    }, null, 2));
+    writeFileSync(join(agenticDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
     return agenticDir;
 }
-function writeOpencodeFiles(targetPath) {
+export function writeOpencodeFiles(targetPath) {
     const opencodeDir = join(targetPath, '.opencode');
     const agentsDir = join(opencodeDir, 'agents');
     const pluginsDir = join(opencodeDir, 'plugins');
@@ -412,6 +494,7 @@ function writeOpencodeFiles(targetPath) {
     writeFileSync(join(agentsDir, 'kiki-implementer.md'), IMPLEMENTER_TEMPLATE);
     writeFileSync(join(agentsDir, 'kiki-reviewer.md'), REVIEWER_TEMPLATE);
     writeFileSync(join(agentsDir, 'kiki-escalation.md'), ESCALATION_TEMPLATE);
+    writeFileSync(join(agentsDir, 'kiki-historian.md'), HISTORIAN_TEMPLATE);
     writeFileSync(join(pluginsDir, 'kiki.ts'), PLUGIN_TEMPLATE);
     writeFileSync(join(opencodeDir, 'package.json'), OPENCODE_PACKAGE_JSON_TEMPLATE);
     writeFileSync(join(opencodeDir, '.gitignore'), OPENCODE_GITIGNORE_TEMPLATE);

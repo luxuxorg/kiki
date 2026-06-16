@@ -1,4 +1,4 @@
-export type Skill = 'brainstorming' | 'writing-plans' | 'executing-plans' | 'reviewing';
+export type Skill = 'brainstorming' | 'writing-plans' | 'executing-plans' | 'reviewing' | 'documenting';
 export type Domain = 'gui' | 'backend' | 'security' | 'database' | 'general';
 export type Risk = 'standard' | 'critical';
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';

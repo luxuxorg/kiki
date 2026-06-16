@@ -4,8 +4,6 @@ mode: primary
 permission:
   task:
     "*": allow
-  todowrite:
-    "*": allow
   read:
     ".agentic/*": allow
     "docs/superpowers/*": allow
@@ -20,8 +18,6 @@ permission:
   edit:
     "*": deny
   bash:
-    "*": deny
-  webfetch:
     "*": deny
 ---
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
