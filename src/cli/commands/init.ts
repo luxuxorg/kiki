@@ -27,8 +27,34 @@ const DEFAULT_ALIGNMENT = {
 const ORCHESTRATOR_TEMPLATE = `---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
+permission:
+  task:
+    "*": allow
+  todowrite:
+    "*": allow
+  read:
+    ".agentic/*": allow
+    "docs/superpowers/*": allow
+    "README*": allow
+    "AGENTS.md": allow
+    "CLAUDE.md": allow
+    "GEMINI.md": allow
+    "*": deny
+  write:
+    ".agentic/*": allow
+    "*": deny
+  edit:
+    "*": deny
+  bash:
+    "*": deny
+  webfetch:
+    "*": deny
 ---
-You are the Kiki Orchestrator. Guide the user through a disciplined software engineering process.
+You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
+
+## Your Role
+You do NOT write code. You do NOT edit files. You do NOT run commands. You do NOT read source files to understand implementation details.
+Your **ONLY** job is to coordinate the pipeline by dispatching the correct subagent via the \`task\` tool.
 
 ## Process
 1. **Intake:** Ask clarifying questions one at a time until requirements are clear.
@@ -37,7 +63,8 @@ You are the Kiki Orchestrator. Guide the user through a disciplined software eng
 4. **Architect Review:** Dispatch \`kiki-reviewer\` subagent (architect mode) or review the plan yourself against \`.agentic/alignment.json\`. Append inline review.
 5. **Implement:** Dispatch \`kiki-implementer\` subagent via the \`task\` tool.
 6. **Review:** Dispatch \`kiki-reviewer\` subagent via the \`task\` tool.
-7. **Complete:** Update \`.agentic/TASK_REGISTRY.json\`.
+7. **Document:** Dispatch \`kiki-historian\` subagent via the \`task\` tool to update README, CHANGELOG, and project docs.
+8. **Complete:** Update \`.agentic/TASK_REGISTRY.json\`.
 
 ## Key Rules
 - Always dispatch the correct **kiki subagent** (e.g., \`kiki-brainstormer\`, \`kiki-planner\`) via the \`task\` tool — the Kiki plugin will handle model selection.
@@ -190,6 +217,52 @@ Be honest and direct. Do not try to "save" a failing task.
 The Kiki plugin selects your model automatically based on the task.
 `;
 
+const HISTORIAN_TEMPLATE = `---
+description: Kiki Historian — maintains project documentation, README and CHANGELOG
+mode: subagent
+permission:
+  read:
+    "README*": allow
+    "CHANGELOG*": allow
+    "docs/*": allow
+    "package.json": allow
+    ".agentic/TASK_REGISTRY.json": allow
+    "src/*": deny
+    "tests/*": deny
+    "*": deny
+  write:
+    "README*": allow
+    "CHANGELOG*": allow
+    "docs/*": allow
+    "*": deny
+  edit:
+    "README*": allow
+    "CHANGELOG*": allow
+    "docs/*": allow
+    "src/*": deny
+    "tests/*": deny
+    "*": deny
+  bash:
+    "git log*": allow
+    "git diff*": allow
+    "*": deny
+---
+You are the Kiki Historian. Your job is to keep project documentation accurate and up to date.
+
+## Responsibilities
+1. **README:** Keep \`README.md\` current with project description, setup instructions, and feature list.
+2. **CHANGELOG:** Maintain \`CHANGELOG.md\` with notable changes per version or date.
+3. **Project Docs:** Update \`docs/*\` files (except \`docs/superpowers/*\` which belongs to the planner/brainstormer).
+
+## Rules
+- You do NOT write source code. You do NOT edit \`src/*\` or \`tests/*\`.
+- You do NOT create plans or specs. Those belong to the planner and brainstormer.
+- When updating CHANGELOG, follow Keep a Changelog format (Added, Changed, Fixed, Removed, Security).
+- When the orchestrator dispatches you, you will receive a summary of what was done. Update docs accordingly.
+
+The Kiki plugin selects your model automatically based on the task.
+`;
+
 const PLUGIN_TEMPLATE = `import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
 import { loadRoutingTable, lookupModel } from 'kiki';
 import { classifyDomain, classifyRisk, lockTaskModel, getLockedModel, loadStabilizerState } from 'kiki';
@@ -201,6 +274,7 @@ const SUBAGENT_TYPE_TO_SKILL: Record<string, Skill> = {
   'kiki-implementer': 'executing-plans',
   'kiki-reviewer': 'reviewing',
   'kiki-escalation': 'brainstorming',
+  'kiki-historian': 'documenting',
 };
 
 function getSkillFromSubagentType(subagentType: string): Skill | null {
@@ -355,7 +429,10 @@ The \`kiki-implementer\` loads \`executing-plans\` and \`test-driven-development
 ### 6. Review
 The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-review\` inline and verifies plan adherence, security, code quality, and test coverage. An inline verdict is appended to the plan.
 
-### 7. Complete
+### 7. Document
+The orchestrator dispatches the \`kiki-historian\` subagent to update \`README.md\`, \`CHANGELOG.md\`, and any project docs in \`docs/*\` (excluding \`docs/superpowers/*\`).
+
+### 8. Complete
 The orchestrator updates \`.agentic/TASK_REGISTRY.json\` with the task status and any failure metrics.
 
 ## Risk-Based Routing
@@ -408,7 +485,12 @@ function writeAgenticFiles(targetPath: string): string {
       "reviewing:backend": { "standard": "deepseek/deepseek-v4-pro" },
       "reviewing:security": { "standard": "moonshotai/kimi-k2.6", "critical": "anthropic/claude-sonnet-4.6" },
       "reviewing:database": { "standard": "deepseek/deepseek-v4-pro" },
-      "reviewing:general": { "standard": "deepseek/deepseek-v4-pro" }
+      "reviewing:general": { "standard": "deepseek/deepseek-v4-pro" },
+      "documenting:gui": { "standard": "moonshotai/kimi-k2.6" },
+      "documenting:backend": { "standard": "moonshotai/kimi-k2.6" },
+      "documenting:security": { "standard": "moonshotai/kimi-k2.6" },
+      "documenting:database": { "standard": "moonshotai/kimi-k2.6" },
+      "documenting:general": { "standard": "moonshotai/kimi-k2.6" }
     }
   }, null, 2));
 
@@ -432,6 +514,7 @@ function writeOpencodeFiles(targetPath: string): void {
   writeFileSync(join(agentsDir, 'kiki-implementer.md'), IMPLEMENTER_TEMPLATE);
   writeFileSync(join(agentsDir, 'kiki-reviewer.md'), REVIEWER_TEMPLATE);
   writeFileSync(join(agentsDir, 'kiki-escalation.md'), ESCALATION_TEMPLATE);
+  writeFileSync(join(agentsDir, 'kiki-historian.md'), HISTORIAN_TEMPLATE);
 
   writeFileSync(join(pluginsDir, 'kiki.ts'), PLUGIN_TEMPLATE);
   writeFileSync(join(opencodeDir, 'package.json'), OPENCODE_PACKAGE_JSON_TEMPLATE);

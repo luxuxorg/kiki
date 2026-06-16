@@ -44,6 +44,7 @@ describe('cli init', () => {
     expect(typeof routing.rules).toBe('object');
     expect(routing.rules['brainstorming:gui'].standard).toBe('anthropic/claude-sonnet-4.6');
     expect(routing.rules['brainstorming:security'].critical).toBe('anthropic/claude-sonnet-4.6');
+    expect(routing.rules['documenting:general']).toBeDefined();
     expect(routing.version).toBeUndefined();
     expect(routing.generatedAt).toBeUndefined();
     expect(routing.sources).toBeUndefined();
@@ -77,6 +78,7 @@ describe('cli init', () => {
     const orchestrator = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-orchestrator.md'), 'utf-8');
     expect(orchestrator).toContain('mode: primary');
     expect(orchestrator).toContain('Kiki Orchestrator');
+    expect(orchestrator).toContain('kiki-historian');
 
     const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
     expect(brainstormer).toContain('mode: subagent');
@@ -98,10 +100,15 @@ describe('cli init', () => {
     expect(escalation).toContain('mode: subagent');
     expect(escalation).toContain('Redesign');
 
+    const historian = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-historian.md'), 'utf-8');
+    expect(historian).toContain('mode: subagent');
+    expect(historian).toContain('CHANGELOG');
+
     // Plugin imports from kiki package, not relative paths
     const plugin = await fs.readFile(path.join(tmpDir, '.opencode/plugins/kiki.ts'), 'utf-8');
     expect(plugin).toContain("from 'kiki'");
     expect(plugin).not.toContain("../../src/core");
+    expect(plugin).toContain('kiki-historian');
 
     // package.json references kiki dependency
     const pkg = JSON.parse(await fs.readFile(path.join(tmpDir, '.opencode/package.json'), 'utf-8'));
@@ -116,5 +123,6 @@ describe('cli init', () => {
     // agentic-workflow.md exists
     const workflow = await fs.readFile(path.join(tmpDir, '.opencode/docs/agentic-workflow.md'), 'utf-8');
     expect(workflow).toContain('Kiki Workflow');
+    expect(workflow).toContain('kiki-historian');
   });
 });

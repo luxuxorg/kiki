@@ -11,6 +11,7 @@ const SUBAGENT_TYPE_TO_SKILL: Record<string, Skill> = {
   'kiki-implementer': 'executing-plans',
   'kiki-reviewer': 'reviewing',
   'kiki-escalation': 'brainstorming',
+  'kiki-historian': 'documenting',
 };
 
 function getSkillFromSubagentType(subagentType: string): Skill | null {
