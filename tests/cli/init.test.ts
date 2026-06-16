@@ -104,17 +104,16 @@ describe('cli init', () => {
     expect(historian).toContain('mode: subagent');
     expect(historian).toContain('CHANGELOG');
 
-    // Plugin imports from kiki package, not relative paths
+    // Plugin is self-contained (no external imports)
     const plugin = await fs.readFile(path.join(tmpDir, '.opencode/plugins/kiki.ts'), 'utf-8');
-    expect(plugin).toContain("from 'kiki'");
+    expect(plugin).not.toContain("from 'kiki'");
     expect(plugin).not.toContain("../../src/core");
     expect(plugin).toContain('kiki-historian');
 
-    // package.json references kiki dependency
+    // package.json has only opencode plugin dependency
     const pkg = JSON.parse(await fs.readFile(path.join(tmpDir, '.opencode/package.json'), 'utf-8'));
     expect(pkg.dependencies).toHaveProperty('@opencode-ai/plugin');
-    expect(pkg.dependencies).toHaveProperty('kiki');
-    expect(pkg.dependencies.kiki).toBe('github.com/luxuxorg/kiki');
+    expect(pkg.dependencies).not.toHaveProperty('kiki');
 
     // .gitignore ignores node_modules
     const gitignore = await fs.readFile(path.join(tmpDir, '.opencode/.gitignore'), 'utf-8');

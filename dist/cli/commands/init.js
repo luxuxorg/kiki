@@ -282,10 +282,35 @@ You are the Kiki Historian. Your job is to keep project documentation accurate a
 
 The Kiki plugin selects your model automatically based on the task.
 `;
-export const PLUGIN_TEMPLATE = `import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { loadRoutingTable, lookupModel } from 'kiki';
-import { classifyDomain, classifyRisk, lockTaskModel, getLockedModel, loadStabilizerState } from 'kiki';
-import type { Skill, Domain, Risk, RoutingLogEntry, StaticRoutingTable } from 'kiki';
+export const PLUGIN_TEMPLATE = `import { readFileSync, appendFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+
+type Skill = 'brainstorming' | 'writing-plans' | 'executing-plans' | 'reviewing' | 'documenting';
+type Domain = 'gui' | 'backend' | 'security' | 'database' | 'general';
+type Risk = 'standard' | 'critical';
+
+interface StaticRoutingRule {
+  standard: string;
+  critical?: string;
+}
+
+interface StaticRoutingTable {
+  rules: Record<string, StaticRoutingRule>;
+}
+
+interface RoutingLogEntry {
+  timestamp: string;
+  taskId?: string;
+  skill: Skill;
+  domain: Domain;
+  risk: Risk;
+  selectedModel: string;
+  reason: string;
+}
+
+interface StabilizerState {
+  locks: Record<string, string>;
+}
 
 const SUBAGENT_TYPE_TO_SKILL: Record<string, Skill> = {
   'kiki-brainstormer': 'brainstorming',
@@ -300,6 +325,70 @@ function getSkillFromSubagentType(subagentType: string): Skill | null {
   return SUBAGENT_TYPE_TO_SKILL[subagentType] ?? null;
 }
 
+function loadRoutingTable(): StaticRoutingTable | null {
+  try {
+    const raw = readFileSync('.agentic/routing.json', 'utf-8');
+    return JSON.parse(raw) as StaticRoutingTable;
+  } catch {
+    return null;
+  }
+}
+
+function lookupModel(table: StaticRoutingTable, skill: Skill, domain: Domain, risk: Risk): string | null {
+  const key = skill + ':' + domain;
+  const rule = table.rules[key];
+  if (!rule) return null;
+  if (risk === 'critical' && rule.critical) return rule.critical;
+  return rule.standard;
+}
+
+function classifyDomain(taskDesc: string): Domain {
+  const d = taskDesc.toLowerCase();
+  if (/\b(react|vue|angular|frontend|ui|css|html|component)\b/.test(d)) return 'gui';
+  if (/\b(api|server|backend|route|endpoint|middleware|express|fastify)\b/.test(d)) return 'backend';
+  if (/\b(auth|security|crypto|encrypt|password|token|jwt|oauth|sql\s*injection|xss)\b/.test(d)) return 'security';
+  if (/\b(db|database|schema|migration|sql|postgres|sqlite|prisma|orm)\b/.test(d)) return 'database';
+  return 'general';
+}
+
+function classifyRisk(paths: string[], riskMatrix: { highRiskPaths: string[]; criticalRiskPaths: string[] }): Risk {
+  for (const p of paths) {
+    for (const critical of riskMatrix.criticalRiskPaths) {
+      if (p.startsWith(critical)) return 'critical';
+    }
+  }
+  for (const p of paths) {
+    for (const high of riskMatrix.highRiskPaths) {
+      if (p.startsWith(high)) return 'standard';
+    }
+  }
+  return 'standard';
+}
+
+function loadStabilizerState(): StabilizerState {
+  try {
+    const raw = readFileSync('.agentic/cache/stabilizer.json', 'utf-8');
+    return JSON.parse(raw) as StabilizerState;
+  } catch {
+    return { locks: {} };
+  }
+}
+
+function getLockedModel(state: StabilizerState, taskId: string | null): string | null {
+  if (!taskId) return null;
+  return state.locks[taskId] ?? null;
+}
+
+function lockTaskModel(state: StabilizerState, taskId: string, model: string): void {
+  state.locks[taskId] = model;
+  try {
+    mkdirSync('.agentic/cache', { recursive: true });
+    writeFileSync('.agentic/cache/stabilizer.json', JSON.stringify(state, null, 2));
+  } catch {
+    // silently ignore
+  }
+}
+
 function logRoutingDecision(entry: RoutingLogEntry): void {
   try {
     mkdirSync('.agentic', { recursive: true });
@@ -311,10 +400,10 @@ function logRoutingDecision(entry: RoutingLogEntry): void {
 }
 
 function findFallbackModel(table: StaticRoutingTable, skill: Skill, domain: Domain): string | null {
-  const key = \`\${skill}:\${domain}\`;
+  const key = skill + ':' + domain;
   const rule = table.rules[key];
   if (rule) return rule.standard;
-  const skillKeys = Object.keys(table.rules).filter(k => k.startsWith(\`\${skill}:\`));
+  const skillKeys = Object.keys(table.rules).filter(k => k.startsWith(skill + ':'));
   if (skillKeys.length > 0) return table.rules[skillKeys[0]].standard;
   const allKeys = Object.keys(table.rules);
   if (allKeys.length > 0) return table.rules[allKeys[0]].standard;
@@ -367,17 +456,17 @@ export default function KikiPlugin({ client }: { client: any }) {
             if (taskId) {
               lockTaskModel(stabilizerState, taskId, selectedModel);
             }
-            reason = \`static routing (\${risk})\`;
+            reason = 'static routing (' + risk + ')';
           } else {
             selectedModel = findFallbackModel(table, skill, domain);
             if (selectedModel) {
-              console.warn(\`[Kiki] No exact rule for \${skill}/\${domain}. Falling back to \${selectedModel}.\`);
+              console.warn('[Kiki] No exact rule for ' + skill + '/' + domain + '. Falling back to ' + selectedModel + '.');
               if (taskId) {
                 lockTaskModel(stabilizerState, taskId, selectedModel);
               }
               reason = 'fallback (no exact match)';
             } else {
-              console.error(\`[Kiki] CRITICAL: Routing table has no models at all for \${skill}/\${domain}.\`);
+              console.error('[Kiki] CRITICAL: Routing table has no models at all for ' + skill + '/' + domain + '.');
               reason = 'no models in routing table';
             }
           }
@@ -400,9 +489,9 @@ export default function KikiPlugin({ client }: { client: any }) {
           reason
         });
 
-        console.log(\`[Kiki] Routed \${subagentType} → \${selectedModel} (\${skill}, \${domain}, \${risk})\`);
+        console.log('[Kiki] Routed ' + subagentType + ' → ' + selectedModel + ' (' + skill + ', ' + domain + ', ' + risk + ')');
       } else {
-        console.error(\`[Kiki] CRITICAL: Could not select any model for \${subagentType}. Task will use OpenCode default.\`);
+        console.error('[Kiki] CRITICAL: Could not select any model for ' + subagentType + '. Task will use OpenCode default.');
       }
     }
   };
@@ -410,8 +499,7 @@ export default function KikiPlugin({ client }: { client: any }) {
 `;
 export const OPENCODE_PACKAGE_JSON_TEMPLATE = `{
   "dependencies": {
-    "@opencode-ai/plugin": "1.15.13",
-    "kiki": "github.com/luxuxorg/kiki"
+    "@opencode-ai/plugin": "1.15.13"
   }
 }
 `;
