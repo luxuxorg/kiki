@@ -1,50 +1,8 @@
-# Kiki — The Model-Agnostic LLM-Driven Software Engineering Meta-Framework
+# Kiki — Static-Routing Dev Pipeline for OpenCode
 
-Kiki is a reusable, config-driven development orchestrator that converts any repository (TypeScript, Python, Rust, etc.) into a highly disciplined, multi-agent software engineering machine. 
+Kiki is a CLI tool and OpenCode plugin that adds a disciplined, multi-agent development pipeline to any project. It scaffolds a set of role-based subagents (orchestrator, brainstormer, planner, implementer, reviewer, etc.) and routes each one to the best model for its domain and risk level — all from static configuration, with no runtime model guessing.
 
-Inspired by Google DeepMind's Co-Scientist and Noema's 8-role pipeline, Kiki enforces rigorous separation of concerns—Researching, Drafting, Architectural Auditing, Implementing (using TDD), and Code Review—completely decoupled from model lock-in or project-specific tech stacks.
-
----
-
-## 🚀 Key Capabilities
-
-1. **Model-Agnostic Dynamic Dispatch:** Roles are mapped in a central `.opencode/models.json` config. The Orchestrator automatically hot-patches the `model:` frontmatter key before dispatching any sub-agent, supporting seamless runtime fallbacks if a provider goes down.
-2. **The 3-Tier Execution Spectrum:**
-   - **Direct-Fix Mode (Micro Risk):** For typos, UI copy, and minor config changes. Bypasses planning overhead and runs: `Intake ──► Implement ──► Review ──► Complete` in under a minute.
-   - **Fast-Path Mode (Low Risk):** For standard self-contained changes. Bypasses Architectural Review gates but retains planning and first review.
-   - **Standard Path (Medium to Critical Risk):** The full 8-role pipeline with parallel audits, plan amendment gates, and premium model escalation boundaries.
-3. **Rigorous Quality Gates:** No code is written without an approved, pseudocoded execution plan. No code is merged without passing standard compiler, linter, and unit test suites.
-4. **Active Security Blacklisting:** All agents are compiled with a hard cognitive boundary that prevents them from reading, listing, or parsing sensitive credential files (like `.env`, `.pem`, `.key`, `.token`), keeping your production secrets safe from web-scraping indirect prompt injections.
-
----
-
-## 📂 Project Structure Scaffolded
-
-When you initialize Kiki in a repository, it generates the following directory structure:
-
-```
-├── .agentic/
-│   ├── config.json            # Tech stack build/test commands and file risk paths
-│   ├── alignment.json         # Project-specific safety, compliance, or business guardrails
-│   └── templates/             # guidelines for research summaries, execution plans, and reviews
-└── .opencode/
-    ├── models.json            # Active model routers (primary, fallback, escalation)
-    ├── docs/
-    │   └── agentic-workflow.md # Canonical Kiki operating manual for the Orchestrator
-    └── agents/                # 10 100% model-agnostic, role-based sub-agents
-```
-
----
-
-## 🛠️ CLI Installation & Commands
-
-Install Kiki globally from GitHub:
-
-```bash
-npm i -g https://github.com/luxuxorg/kiki/archive/main.tar.gz
-```
-
-Or for local development:
+## Installation
 
 ```bash
 git clone https://github.com/luxuxorg/kiki.git
@@ -52,174 +10,139 @@ cd kiki
 npm install && npm run build && npm link
 ```
 
-### 1. Initialize a Workspace
-Scaffolds Kiki's multi-agent engine, configs, and agents in the target project path:
-```bash
-kiki init [project-path]
-```
+Requires **Node >= 18**.
 
-### 2. Check Operational Status
-Inspects the target workspace configs, printing project parameters, active safety guardrails, commands, and dynamic model routing tables:
-```bash
-kiki status
-```
+## CLI Commands
 
-### 3. Audit Artifacts & Reports
-Scans any design or review markdown report for unfinished segments, checklist items, or active placeholders like `TODO`, `TBD`, `placeholder`, `[ ] check`, etc.:
-```bash
-kiki verify <file-path>
-```
+### `kiki init [path]`
 
----
+Scaffolds a Kiki installation in the given directory (defaults to `.`). Creates two directories:
 
-## ⚙️ Configuration Schemas
+| Directory | Contents |
+|---|---|
+| `.agentic/` | `config.json`, `alignment.json`, `routing.json`, `TASK_REGISTRY.json` |
+| `.opencode/` | `agents/` (7 subagents), `plugins/kiki.ts`, `package.json`, `docs/agentic-workflow.md` |
 
-### A. `.agentic/config.json` (Tech Stack & Risks)
+### `kiki update [path]`
+
+Updates an existing Kiki installation:
+
+- **Overwrites** `.opencode/` templates fresh (agents, plugin, workflow docs)
+- **Smart-merges** `.agentic/routing.json`, `config.json`, `alignment.json` — preserves user overrides, adds new defaults, removes stale keys
+- **Never touches** `TASK_REGISTRY.json`
+
+### `kiki status`
+
+Prints a summary of the task registry and current routing configuration.
+
+### `kiki verify <file>`
+
+Scans a markdown file for unfinished work: `TODO`, `TBD`, `placeholder`, unchecked checklist items, and other placeholders.
+
+## Configuration Files
+
+All in `.agentic/`:
+
+### `config.json` — Project metadata and risk paths
+
 ```json
 {
-  "project_name": "my-project",
+  "projectName": "my-project",
   "language": "typescript",
   "commands": {
     "build": "npm run build",
     "test": "npm test",
     "lint": "npm run lint"
   },
-  "risk_matrix": {
-    "high_risk_paths": [
-      "src/auth/",
-      "src/db/schema.ts"
-    ],
-    "critical_risk_paths": [
-      "src/security/",
-      "migrations/"
-    ]
+  "riskMatrix": {
+    "highRiskPaths": ["src/auth/", "src/db/schema.ts"],
+    "criticalRiskPaths": ["src/security/", "migrations/"]
   }
 }
 ```
 
-### B. `.agentic/alignment.json` (Guardrails & Compliance Audits)
+### `routing.json` — Static model routing table
+
+Maps `skill:domain` pairs to model IDs, with an optional critical-risk override:
+
 ```json
 {
-  "audit_type": "Security, Compliance & Alignment Gate",
-  "core_guardrails": [
-    {
-      "id": "GR-01",
-      "name": "Design & Scope Adherence",
-      "rule": "Every design decision must verify that it adheres strictly to the approved specifications without introducing scope creep."
-    },
-    {
-      "id": "GR-02",
-      "name": "Security Boundary Integrity",
-      "rule": "Every change must verify that it does not weaken authentication or expose sensitive credentials."
+  "rules": {
+    "brainstorming:gui": { "standard": "anthropic/claude-sonnet-4.6" },
+    "brainstorming:security": {
+      "standard": "deepseek/deepseek-v4-pro",
+      "critical": "anthropic/claude-sonnet-4.6"
     }
+  }
+}
+```
+
+### `alignment.json` — Guardrails and compliance standards
+
+```json
+{
+  "guardrails": [
+    "No hardcoded secrets in source code",
+    "All database queries must use parameterized statements"
   ],
-  "wait_cost_rationale": "It is always preferable to deploy a fully secure and compliant implementation than to skip security gates for immediate release."
+  "compliance": ["OWASP Top 10", "SOC 2 Type II"]
 }
 ```
 
-### C. `.opencode/models.json` (Models & Fallbacks)
-```json
-{
-  "roles": {
-    "orchestrator": {
-      "primary": "google/gemini-3.5-flash",
-      "fallback": "google/gemini-3.1-pro-preview"
-    },
-    "project-researcher": {
-      "primary": "deepseek/deepseek-v4-pro",
-      "fallback": "google/gemini-3.1-pro-preview"
-    },
-    "planning-drafter-local": {
-      "primary": "moonshotai/kimi-k2.6",
-      "fallback": "google/gemini-3.1-pro-preview"
-    },
-    "planning-drafter-synthesis": {
-      "primary": "google/gemini-3.1-pro-preview",
-      "fallback": "moonshotai/kimi-k2.6"
-    },
-    "planning-architect": {
-      "primary": "anthropic/claude-opus-4-8",
-      "fallback": "google/gemini-3.1-pro-preview"
-    },
-    "implementation-agent-standard": {
-      "primary": "deepseek/deepseek-v4-pro",
-      "fallback": "moonshotai/kimi-k2.6"
-    },
-    "implementation-agent-complexity": {
-      "primary": "anthropic/claude-opus-4-8",
-      "fallback": "google/gemini-3.1-pro-preview"
-    },
-    "first-reviewer": {
-      "primary": "moonshotai/kimi-k2.6",
-      "fallback": "anthropic/claude-sonnet-4.6"
-    },
-    "second-reviewer": {
-      "primary": "anthropic/claude-opus-4-8",
-      "fallback": "google/gemini-3.1-pro-preview"
-    },
-    "escalation-agent": {
-      "primary": "anthropic/claude-opus-4-8",
-      "fallback": "google/gemini-3.1-pro-preview"
-    }
-  },
-  "default_fallback": "moonshotai/kimi-k2.6"
-}
-```
+### `TASK_REGISTRY.json` — Task tracking
 
----
+Created by `kiki init`, updated by the orchestrator as tasks move through the pipeline.
 
-## 📋 Migration & Setup Guide (Bootstrap Prompt)
+## Subagents
 
-You can copy and paste the following prompt into opencode or any sub-agent session to automatically migrate and bootstrap existing repositories (like Noema) onto Kiki's standardized structure:
+Seven role-based subagents live in `.opencode/agents/`:
 
-```markdown
-# TASK: Standardize Workspace Agentic Workflow using the Kiki Meta-Framework
+| Agent | Role |
+|---|---|
+| `kiki-orchestrator` | **Coordination-only.** Dispatches subagents via the `task` tool. Never writes code, edits files, or runs commands. Follows an 8-step pipeline: Intake → Brainstorm → Plan → Architect Review → Implement → Review → Document → Complete |
+| `kiki-brainstormer` | Produces design specs using the superpowers brainstorming skill. Writes to `docs/superpowers/specs/` |
+| `kiki-planner` | Writes implementation plans using the superpowers writing-plans skill. Writes to `docs/superpowers/plans/` |
+| `kiki-implementer` | Implements code per the approved plan using executing-plans + test-driven-development (TDD) |
+| `kiki-reviewer` | Read-only code and security review against the approved plan |
+| `kiki-escalation` | Diagnoses pipeline failures and recommends: Redesign, Split, or Stop |
+| `kiki-historian` | Maintains `README.md`, `CHANGELOG.md`, and project docs |
 
-We are migrating this workspace's development pipeline to the standardized, model-agnostic Kiki meta-framework. We must preserve all domain-specific commands, custom risk patterns, and safety guardrails during this transition.
+### Delegate Mode
 
-## Context Locations
-* **Kiki Framework directory:** \`/home/lutz/lprojekte/kiki\`
-* **Target Workspace directory:** This current directory
+The orchestrator is **coordination-only** — enforced through its prompt. It does not write code, edit files, or run commands. Its sole job is dispatching the correct subagent via the `task` tool.
 
-Please execute the following 5-step transition plan carefully:
+## Kiki Plugin
 
----
+The plugin at `.opencode/plugins/kiki.ts` is self-contained (zero external dependencies). It:
 
-### Step 1: Scaffold Kiki into Target Project
-Execute Kiki's initializer to overlay Kiki's clean folders and model-agnostic templates on this current workspace root:
-\`\`\`bash
-node /home/lutz/lprojekte/kiki/dist/cli.js init .
-\`\`\`
+- Intercepts `task` tool calls for Kiki subagent types
+- Routes each subagent to the correct model based on `skill + domain + risk`
+- Uses static routing from `.agentic/routing.json`
+- Logs routing decisions to `.agentic/routing_log.jsonl`
 
----
+## Smart-Merge on Update
 
-### Step 2: Migrate Tech Stack & Risks (\`.agentic/config.json\`)
-Open the newly created \`.agentic/config.json\` and customize it for this specific project:
-1. **Name/Language:** Update \`project_name\` and \`language\` (e.g., typescript, python).
-2. **Commands:** Set the operational commands matching your package/dependency manager (e.g. \`npm run build\`, \`npm test\`, or \`pytest\`).
-3. **Risk Matrix:** Define specific file-path pattern rules for High Risk and Critical Risk boundaries.
+`kiki update` merges the three config files intelligently:
 
----
+- **Preserves** any user-modified values as overrides
+- **Adds** new default keys and routing rules that don't exist locally
+- **Removes** keys and rules no longer present in the defaults
 
-### Step 3: Migrate Guardrails (\`.agentic/alignment.json\`)
-Open \`.agentic/alignment.json\` and migrate any system-specific safety or product-alignment gates:
-1. **Audit Type:** Set a descriptive \`audit_type\` (e.g. "Agency-Protection, Privacy, & Pilot Alignment Gate").
-2. **Core Guardrails:** Add specific ID-mapped guardrails to the \`core_guardrails\` list that the Planning Architect and Second Reviewer must audit against.
+This means you can customize your routing table, guardrails, and project config without losing those changes when Kiki itself updates.
 
----
+## Superpowers Integration
 
-### Step 4: Cleanup Obsolete Model-Specific Files
-Delete any deprecated, model-specific subagent description files from \`.opencode/agents/\` to avoid conflicts:
-- Delete any file with hardcoded model suffixes (such as \`planning-drafter-gemini.md\` or \`implementation-agent-opus.md\`).
-- Ensure only Kiki's 10 standardized, model-agnostic agents and the central \`.opencode/models.json\` remain.
+Kiki relies on superpowers skills loaded at runtime by the subagents:
 
----
+- `brainstorming` — design exploration
+- `writing-plans` — implementation planning
+- `executing-plans` — structured implementation
+- `test-driven-development` — TDD workflow
+- `requesting-code-review` / `receiving-code-review` — review gates
 
-### Step 5: Verification
-1. Run Kiki's status diagnostics command in the workspace to verify configuration files parse and load correctly:
-   \`\`\`bash
-   node /home/lutz/lprojekte/kiki/dist/cli.js status
-   \`\`\`
-2. Assert that Kiki output matches your custom tech stack, commands, risks, and active safety rules.
-\`\`\`
+## Tech Stack
 
+- **Language:** TypeScript, compiled to JavaScript in `dist/`
+- **Tests:** Vitest (63 tests across CLI, core, integration)
+- **Runtime:** Node >= 18
+- **License:** MIT
