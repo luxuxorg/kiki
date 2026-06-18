@@ -4,19 +4,21 @@ Kiki is a CLI tool and OpenCode plugin that adds a disciplined, multi-agent deve
 
 ## Installation
 
-Install directly from GitHub:
+Install directly from GitHub (one-liner):
 
 ```bash
-npm install -g github:luxuxorg/kiki
+curl -sL https://github.com/luxuxorg/kiki/archive/main.tar.gz | tar xz -C /tmp && npm install -g /tmp/kiki-main
 ```
 
-Or clone and link locally:
+Or clone and install locally:
 
 ```bash
 git clone https://github.com/luxuxorg/kiki.git
 cd kiki
-npm install && npm link
+npm install && npm install -g .
 ```
+
+> **Note:** `npm install -g github:luxuxorg/kiki` does not work due to a bug in npm 11's git dependency preparation (creates broken symlinks). Use one of the methods above.
 
 Requires **Node >= 18**.
 
