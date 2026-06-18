@@ -1,7 +1,6 @@
 .worktrees/
 worktrees/
 node_modules/
-dist/
 tmp/
 .agentic/cache/
 .agentic/routing_log.jsonl
