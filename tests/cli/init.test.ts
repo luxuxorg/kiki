@@ -22,7 +22,7 @@ describe('cli init', () => {
   });
 
   it('scaffolds .agentic directory with all config files', async () => {
-    await init(tmpDir);
+    await init(tmpDir, { wizard: false });
 
     const config = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/config.json'), 'utf-8'));
     expect(config.projectName).toBe('my-project');
@@ -30,6 +30,13 @@ describe('cli init', () => {
     expect(config.commands.build).toBe('npm run build');
     expect(config.riskMatrix.highRiskPaths).toContain('src/auth/');
     expect(config.riskMatrix.criticalRiskPaths).toContain('src/security/');
+    expect(config.paths).toBeDefined();
+    expect(config.paths.source).toBe('src/');
+    expect(config.paths.tests).toBe('tests/');
+    expect(config.paths.changelog).toBe('CHANGELOG.md');
+    expect(config.models).toBeDefined();
+    expect(config.models.standard).toBeDefined();
+    expect(config.models.critical).toBeDefined();
     expect(config.routingPreferences).toBeUndefined();
 
     const alignment = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/alignment.json'), 'utf-8'));
@@ -55,7 +62,7 @@ describe('cli init', () => {
     const customDir = path.join(tmpDir, 'subproject');
     await fs.mkdir(customDir, { recursive: true });
 
-    await init(customDir);
+    await init(customDir, { wizard: false });
 
     const config = JSON.parse(await fs.readFile(path.join(customDir, '.agentic/config.json'), 'utf-8'));
     expect(config.projectName).toBe('my-project');
@@ -65,28 +72,31 @@ describe('cli init', () => {
     await fs.mkdir(path.join(tmpDir, '.agentic'), { recursive: true });
     await fs.writeFile(path.join(tmpDir, '.agentic/existing.txt'), 'hello');
 
-    await init(tmpDir);
+    await init(tmpDir, { wizard: false });
 
     const existing = await fs.readFile(path.join(tmpDir, '.agentic/existing.txt'), 'utf-8');
     expect(existing).toBe('hello');
   });
 
   it('scaffolds .opencode directory with agents, plugin, package.json, docs, and .gitignore', async () => {
-    await init(tmpDir);
+    await init(tmpDir, { wizard: false });
 
     // Agents exist with correct content
     const orchestrator = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-orchestrator.md'), 'utf-8');
     expect(orchestrator).toContain('mode: primary');
     expect(orchestrator).toContain('Kiki Orchestrator');
     expect(orchestrator).toContain('kiki-historian');
+    expect(orchestrator).not.toContain('permission:');
 
     const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
     expect(brainstormer).toContain('mode: subagent');
     expect(brainstormer).toContain('docs/superpowers/*');
+    expect(brainstormer).toContain('read:');
 
     const planner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-planner.md'), 'utf-8');
     expect(planner).toContain('mode: subagent');
     expect(planner).toContain('docs/superpowers/*');
+    expect(planner).toContain('Task Metadata');
 
     const implementer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-implementer.md'), 'utf-8');
     expect(implementer).toContain('mode: subagent');
@@ -103,6 +113,7 @@ describe('cli init', () => {
     const historian = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-historian.md'), 'utf-8');
     expect(historian).toContain('mode: subagent');
     expect(historian).toContain('CHANGELOG');
+    expect(historian).toContain('.agentic/*');
 
     // Plugin is self-contained (no external imports)
     const plugin = await fs.readFile(path.join(tmpDir, '.opencode/plugins/kiki.ts'), 'utf-8');

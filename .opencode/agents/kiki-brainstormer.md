@@ -2,6 +2,12 @@
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
 permission:
+  read:
+    "docs/superpowers/*": allow
+    "*": deny
+  write:
+    "docs/superpowers/*": allow
+    "*": deny
   edit:
     "docs/superpowers/*": allow
     "src/*": deny

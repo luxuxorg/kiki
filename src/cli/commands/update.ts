@@ -1,11 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
+  KikiConfig,
   DEFAULT_CONFIG,
   DEFAULT_ALIGNMENT,
   DEFAULT_ROUTING_TABLE,
   writeOpencodeFiles,
-} from './init.js';
+  loadConfig,
+} from '../config.js';
 
 function smartMerge<T extends Record<string, unknown>>(
   existing: T | undefined,
@@ -16,7 +18,12 @@ function smartMerge<T extends Record<string, unknown>>(
 
   for (const key of Object.keys(defaults)) {
     if (key in existing) {
-      if (JSON.stringify(existing[key]) !== JSON.stringify(defaults[key])) {
+      if (typeof defaults[key] === 'object' && defaults[key] !== null && !Array.isArray(defaults[key])) {
+        (result as Record<string, unknown>)[key] = smartMerge(
+          existing[key] as Record<string, unknown>,
+          defaults[key] as Record<string, unknown>,
+        );
+      } else if (JSON.stringify(existing[key]) !== JSON.stringify(defaults[key])) {
         (result as Record<string, unknown>)[key] = existing[key];
       }
     }
@@ -35,8 +42,20 @@ export async function update(targetPath: string): Promise<void> {
   const updated: string[] = [];
   const merged: string[] = [];
 
-  // Overwrite .opencode/ files fresh
-  writeOpencodeFiles(targetPath);
+  // Load existing config and smart-merge with defaults (only keeps keys defined in defaults)
+  const existingRaw = loadConfig(targetPath);
+  const mergedConfig = smartMerge(
+    existingRaw as unknown as Record<string, unknown>,
+    DEFAULT_CONFIG as unknown as Record<string, unknown>,
+  ) as unknown as KikiConfig;
+
+  // Write merged config
+  const configPath = join(agenticDir, 'config.json');
+  writeFileSync(configPath, JSON.stringify(mergedConfig, null, 2));
+  merged.push('.agentic/config.json');
+
+  // Regenerate .opencode/ files from merged config
+  writeOpencodeFiles(targetPath, mergedConfig);
   updated.push('.opencode/agents/kiki-orchestrator.md');
   updated.push('.opencode/agents/kiki-brainstormer.md');
   updated.push('.opencode/agents/kiki-planner.md');
@@ -63,20 +82,6 @@ export async function update(targetPath: string): Promise<void> {
   const mergedRouting = { rules: mergedRules };
   writeFileSync(routingPath, JSON.stringify(mergedRouting, null, 2));
   merged.push('.agentic/routing.json');
-
-  // Smart-merge config.json
-  const configPath = join(agenticDir, 'config.json');
-  let userConfig: Record<string, unknown> | undefined;
-  if (existsSync(configPath)) {
-    try {
-      userConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
-    } catch {
-      // ignore parse errors
-    }
-  }
-  const mergedConfig = smartMerge(userConfig, DEFAULT_CONFIG);
-  writeFileSync(configPath, JSON.stringify(mergedConfig, null, 2));
-  merged.push('.agentic/config.json');
 
   // Smart-merge alignment.json
   const alignmentPath = join(agenticDir, 'alignment.json');

@@ -2,6 +2,15 @@
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
 permission:
+  read:
+    "src/*": allow
+    "tests/*": allow
+    "docs/superpowers/*": allow
+    "*": deny
+  write:
+    "src/*": allow
+    "tests/*": allow
+    "*": deny
   edit:
     "src/*": allow
     "tests/*": allow

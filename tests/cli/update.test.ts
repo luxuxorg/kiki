@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { init, DEFAULT_CONFIG, DEFAULT_ALIGNMENT, DEFAULT_ROUTING_TABLE, ORCHESTRATOR_TEMPLATE } from '../../src/cli/commands/init';
+import { init } from '../../src/cli/commands/init';
 import { update } from '../../src/cli/commands/update';
+import { DEFAULT_CONFIG, DEFAULT_ALIGNMENT, DEFAULT_ROUTING_TABLE, generateOrchestratorTemplate } from '../../src/cli/config';
 import { setRoutingPath } from '../../src/core/routing-table';
 
 describe('cli update', () => {
@@ -33,7 +34,7 @@ describe('cli update', () => {
   });
 
   it('overwrites .opencode files', async () => {
-    await init(tmpDir);
+    await init(tmpDir, { wizard: false });
     // Modify an .opencode file
     await fs.writeFile(path.join(tmpDir, '.opencode/agents/kiki-orchestrator.md'), 'CUSTOM CONTENT');
 
@@ -42,11 +43,12 @@ describe('cli update', () => {
     logSpy.mockRestore();
 
     const orchestrator = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-orchestrator.md'), 'utf-8');
-    expect(orchestrator).toBe(ORCHESTRATOR_TEMPLATE);
+    const expected = generateOrchestratorTemplate(DEFAULT_CONFIG);
+    expect(orchestrator).toBe(expected);
   });
 
   it('smart-merges routing.json: keeps user overrides, adds new rules, removes old rules', async () => {
-    await init(tmpDir);
+    await init(tmpDir, { wizard: false });
     
     // Modify routing.json: change existing rule, add custom rule
     const userRouting = {
@@ -77,7 +79,7 @@ describe('cli update', () => {
   });
 
   it('smart-merges config.json: keeps user values, adds new keys, removes old keys', async () => {
-    await init(tmpDir);
+    await init(tmpDir, { wizard: false });
     
     // Modify config.json: change existing key, add custom key
     const userConfig = {
@@ -98,13 +100,16 @@ describe('cli update', () => {
     
     // Default keys present
     expect(config.language).toBe(DEFAULT_CONFIG.language);
+    expect(config.paths).toBeDefined();
+    expect(config.paths.source).toBe(DEFAULT_CONFIG.paths.source);
+    expect(config.models).toBeDefined();
     
     // Custom key removed
     expect(config.customKey).toBeUndefined();
   });
 
   it('smart-merges alignment.json: keeps user values, adds new keys, removes old keys', async () => {
-    await init(tmpDir);
+    await init(tmpDir, { wizard: false });
     
     // Modify alignment.json: change existing key, add custom key
     const userAlignment = {
@@ -131,7 +136,7 @@ describe('cli update', () => {
   });
 
   it('does NOT touch TASK_REGISTRY.json', async () => {
-    await init(tmpDir);
+    await init(tmpDir, { wizard: false });
     
     const userRegistry = { tasks: [{ taskId: '1', status: 'completed' }] };
     await fs.writeFile(path.join(tmpDir, '.agentic/TASK_REGISTRY.json'), JSON.stringify(userRegistry, null, 2));

@@ -3,6 +3,7 @@ import { init } from './commands/init.js';
 import { update } from './commands/update.js';
 import { status } from './commands/status.js';
 import { verify } from './commands/verify.js';
+import { doctor } from './commands/doctor.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -21,13 +22,17 @@ async function main() {
     case 'verify':
       await verify(args[1]);
       break;
+    case 'doctor':
+      await doctor(args[1] ?? '.');
+      break;
     default:
       console.log(`Usage: kiki <command>
 Commands:
-  init [path]    Scaffold .agentic/ directory with static routing table
+  init [path]    Scaffold Kiki with interactive wizard (paths, models, docs)
   update [path]  Update an existing Kiki installation to the latest version
   status         Show task registry + routing summary
-  verify <file>  Check for TBDs/TODOs/placeholders`);
+  verify <file>  Check for TBDs/TODOs/placeholders
+  doctor [path]  Validate config, paths, models, and agent file consistency`);
       process.exit(1);
   }
 }

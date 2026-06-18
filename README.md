@@ -1,13 +1,21 @@
-# Kiki — Static-Routing Dev Pipeline for OpenCode
+# Kiki v2.0.0 — OpenCode Agent Orchestration
 
 Kiki is a CLI tool and OpenCode plugin that adds a disciplined, multi-agent development pipeline to any project. It scaffolds a set of role-based subagents (orchestrator, brainstormer, planner, implementer, reviewer, etc.) and routes each one to the best model for its domain and risk level — all from static configuration, with no runtime model guessing.
 
 ## Installation
 
+Install directly from GitHub:
+
+```bash
+npm install -g github:luxuxorg/kiki
+```
+
+Or clone and link locally:
+
 ```bash
 git clone https://github.com/luxuxorg/kiki.git
 cd kiki
-npm install && npm run build && npm link
+npm install && npm link
 ```
 
 Requires **Node >= 18**.
@@ -16,20 +24,46 @@ Requires **Node >= 18**.
 
 ### `kiki init [path]`
 
-Scaffolds a Kiki installation in the given directory (defaults to `.`). Creates two directories:
+Scaffolds a Kiki installation in the given directory (defaults to `.`). Starts an **interactive wizard** that asks about:
+
+- Project name, language, source/tests/docs paths
+- Changelog, decisions, and knowledge base paths (with option to create them)
+- Standard and critical models
+- Build, test, and lint commands
+
+Creates two directories:
 
 | Directory | Contents |
 |---|---|
 | `.agentic/` | `config.json`, `alignment.json`, `routing.json`, `TASK_REGISTRY.json` |
 | `.opencode/` | `agents/` (7 subagents), `plugins/kiki.ts`, `package.json`, `docs/agentic-workflow.md` |
 
+To skip the wizard and use defaults:
+
+```bash
+# Not yet implemented — always uses wizard
+```
+
 ### `kiki update [path]`
 
 Updates an existing Kiki installation:
 
-- **Overwrites** `.opencode/` templates fresh (agents, plugin, workflow docs)
+- **Overwrites** `.opencode/` templates fresh (agents, plugin, workflow docs) — regenerated from your `config.json` paths
 - **Smart-merges** `.agentic/routing.json`, `config.json`, `alignment.json` — preserves user overrides, adds new defaults, removes stale keys
 - **Never touches** `TASK_REGISTRY.json`
+
+### `kiki doctor [path]`
+
+Validates a Kiki installation:
+
+- Config fields (projectName, commands, paths customized)
+- All paths exist
+- Models are set
+- Routing rules are valid
+- Agent files are present
+- Orchestrator has no `permission:` blocks (OpenCode safety check)
+
+Reports pass/fail for each check and exits with code 1 if anything is broken.
 
 ### `kiki status`
 
@@ -43,7 +77,7 @@ Scans a markdown file for unfinished work: `TODO`, `TBD`, `placeholder`, uncheck
 
 All in `.agentic/`:
 
-### `config.json` — Project metadata and risk paths
+### `config.json` — Project configuration
 
 ```json
 {
@@ -57,6 +91,23 @@ All in `.agentic/`:
   "riskMatrix": {
     "highRiskPaths": ["src/auth/", "src/db/schema.ts"],
     "criticalRiskPaths": ["src/security/", "migrations/"]
+  },
+  "paths": {
+    "source": "src/",
+    "tests": "tests/",
+    "docs": "docs/",
+    "superpowers": "docs/superpowers/",
+    "specs": "docs/superpowers/specs/",
+    "plans": "docs/superpowers/plans/",
+    "changelog": "CHANGELOG.md",
+    "readme": "README.md",
+    "decisions": ".opencode/docs/decisions.md",
+    "knowledge": "docs/knowledge/",
+    "taskRegistry": ".agentic/TASK_REGISTRY.json"
+  },
+  "models": {
+    "standard": "moonshotai/kimi-k2.6",
+    "critical": "anthropic/claude-sonnet-4.6"
   }
 }
 ```
@@ -105,11 +156,23 @@ Seven role-based subagents live in `.opencode/agents/`:
 | `kiki-implementer` | Implements code per the approved plan using executing-plans + test-driven-development (TDD) |
 | `kiki-reviewer` | Read-only code and security review against the approved plan |
 | `kiki-escalation` | Diagnoses pipeline failures and recommends: Redesign, Split, or Stop |
-| `kiki-historian` | Maintains `README.md`, `CHANGELOG.md`, and project docs |
+| `kiki-historian` | Maintains `README.md`, `CHANGELOG.md`, decisions, knowledge base, and project docs |
 
 ### Delegate Mode
 
 The orchestrator is **coordination-only** — enforced through its prompt. It does not write code, edit files, or run commands. Its sole job is dispatching the correct subagent via the `task` tool.
+
+### Parallel Task Execution
+
+The orchestrator can dispatch independent tasks in parallel using **wave-based execution**:
+
+- Tasks include metadata: `risk` ('low' | 'medium' | 'high'), `parallel` (boolean), and `depends_on` (string[])
+- The planner defines these fields in each task's **Metadata** subsection
+- The orchestrator groups tasks into waves: Wave 0 has no dependencies, Wave N waits for all `depends_on` tasks to complete
+- Tasks with `parallel: true` run concurrently in the same wave; `parallel: false` tasks run alone
+- Circular dependencies are detected and fall back to sequential execution
+
+The reviewer validates parallelization logic: no circular dependencies, all `depends_on` references exist, parallel tasks don't modify the same files, and sequential tasks are properly isolated.
 
 ## Kiki Plugin
 

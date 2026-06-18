@@ -1,9 +1,9 @@
 {
   "name": "kiki",
-  "version": "1.0.0",
-  "description": "Thin OpenCode plugin + CLI with benchmark-driven model routing",
+  "version": "2.0.0",
+  "description": "OpenCode agent orchestration framework with static routing, parallel execution, and structured workflow",
   "license": "MIT",
-  "keywords": ["opencode", "ai", "routing"],
+  "keywords": ["opencode", "ai", "routing", "agent", "orchestration"],
   "repository": {
     "type": "git",
     "url": "https://github.com/luxuxorg/kiki.git"
@@ -22,6 +22,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepare": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "cli": "node dist/cli/index.js"
