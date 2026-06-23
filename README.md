@@ -1,4 +1,4 @@
-# Kiki v2.0.0 — OpenCode Agent Orchestration
+# Kiki v2.1.0 — OpenCode Agent Orchestration
 
 Kiki is a CLI tool and OpenCode plugin that adds a disciplined, multi-agent development pipeline to any project. It scaffolds a set of role-based subagents (orchestrator, brainstormer, planner, implementer, reviewer, etc.) and routes each one to the best model for its domain and risk level — all from static configuration, with no runtime model guessing.
 
@@ -31,7 +31,7 @@ Scaffolds a Kiki installation in the given directory (defaults to `.`). Starts a
 - Project name, language, source/tests/docs paths
 - Changelog, decisions, and knowledge base paths (with option to create them)
 - Standard and critical models
-- Build, test, and lint commands
+- Build, test, lint, and security commands
 
 Creates two directories:
 
@@ -59,6 +59,7 @@ Updates an existing Kiki installation:
 Validates a Kiki installation:
 
 - Config fields (projectName, commands, paths customized)
+- Build, test, lint, and security commands are configured
 - All paths exist
 - Models are set
 - Routing rules are valid
@@ -88,7 +89,8 @@ All in `.agentic/`:
   "commands": {
     "build": "npm run build",
     "test": "npm test",
-    "lint": "npm run lint"
+    "lint": "npm run lint",
+    "security": "npm audit"
   },
   "riskMatrix": {
     "highRiskPaths": ["src/auth/", "src/db/schema.ts"],

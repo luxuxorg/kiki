@@ -109,6 +109,7 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
   const buildCmd = await ask(lr, 'Build command', language === 'python' ? 'python -m build' : 'npm run build');
   const testCmd = await ask(lr, 'Test command', language === 'python' ? 'pytest' : 'npm test');
   const lintCmd = await ask(lr, 'Lint command', language === 'python' ? 'ruff check .' : 'npm run lint');
+  const securityCmd = await ask(lr, 'Security command', language === 'python' ? 'bandit -r .' : 'npm audit');
 
   lr.close();
 
@@ -119,6 +120,7 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
       build: buildCmd,
       test: testCmd,
       lint: lintCmd,
+      security: securityCmd,
     },
     riskMatrix: DEFAULT_CONFIG.riskMatrix,
     paths: {

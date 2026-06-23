@@ -91,4 +91,43 @@ describe('cli doctor', () => {
     logSpy.mockRestore();
     exitSpy.mockRestore();
   });
+
+  it('fails when commands.security is empty', async () => {
+    await init(tmpDir, { wizard: false });
+    await scaffoldMinimalProject(tmpDir);
+
+    const config = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/config.json'), 'utf-8'));
+    config.commands.security = '';
+    await fs.writeFile(path.join(tmpDir, '.agentic/config.json'), JSON.stringify(config, null, 2));
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await expect(doctor(tmpDir)).rejects.toThrow('process.exit(1)');
+
+    logSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
+
+  it('reports config.commands.security when configured', async () => {
+    await init(tmpDir, { wizard: false });
+    await scaffoldMinimalProject(tmpDir);
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit called');
+    });
+    const logs: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((msg: string) => {
+      logs.push(msg);
+    });
+
+    await doctor(tmpDir);
+
+    expect(logs.some((line) => line.includes('config.commands.security'))).toBe(true);
+
+    logSpy.mockRestore();
+    exitSpy.mockRestore();
+  });
 });

@@ -147,6 +147,12 @@ function checkConfigFields(config) {
     else {
         results.push(check(`config.commands.lint (${config.commands.lint})`, true));
     }
+    if (!config.commands.security) {
+        results.push(check('config.commands.security', false, 'Security command is empty'));
+    }
+    else {
+        results.push(check(`config.commands.security (${config.commands.security})`, true));
+    }
     const defaultPaths = JSON.stringify(DEFAULT_CONFIG.paths);
     const configPaths = JSON.stringify(config.paths);
     if (defaultPaths === configPaths) {

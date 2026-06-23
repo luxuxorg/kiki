@@ -24,6 +24,7 @@ export interface KikiConfig {
         readonly build: string;
         readonly test: string;
         readonly lint: string;
+        readonly security: string;
     };
     readonly riskMatrix: {
         readonly highRiskPaths: readonly string[];

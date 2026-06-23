@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.1.0] — 2026-06-23
+
+### Added
+- **Security command** (`commands.security`) — default `npm audit`, configurable per project, validated by `kiki doctor`
+- **Rollback safety** in implementer template — records pre-implementation state and safely reverts tracked changes and newly created untracked files without touching existing user files
+- **Implementation Summary** in implementer template — short handoff summary for reviewer and historian
+- **Reviewer verdict format** — `PASS/FAIL` with numbered blockers instead of verbose prose reviews
+
+### Changed
+- **Reduced token consumption** — agent prompts streamlined by removing redundant footers and compressing instructions (approx. 21% fewer characters in agent templates)
+- **Init wizard** now asks for security command alongside build, test, and lint
+- **Doctor** validates `commands.lint` and `commands.security`
+
 ## [2.0.0] — 2026-06-18
 
 ### Added

@@ -28,6 +28,7 @@ describe('cli init', () => {
     expect(config.projectName).toBe('my-project');
     expect(config.language).toBe('typescript');
     expect(config.commands.build).toBe('npm run build');
+    expect(config.commands.security).toBe('npm audit');
     expect(config.riskMatrix.highRiskPaths).toContain('src/auth/');
     expect(config.riskMatrix.criticalRiskPaths).toContain('src/security/');
     expect(config.paths).toBeDefined();
@@ -103,12 +104,17 @@ describe('cli init', () => {
     expect(implementer).toContain('src/*');
     expect(implementer).toContain('lint command');
     expect(implementer).toContain('commands.lint');
+    expect(implementer).toContain('commands.security');
+    expect(implementer).toContain('Rollback Safety');
+    expect(implementer).toContain('kiki-untracked-before.txt');
+    expect(implementer).toContain('git checkout -- .');
+    expect(implementer).toContain('Do NOT use `git clean -fd`');
 
     const reviewer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-reviewer.md'), 'utf-8');
     expect(reviewer).toContain('mode: subagent');
     expect(reviewer).toContain('edit: deny');
     expect(reviewer).toContain('Linting compliance');
-    expect(reviewer).toContain('Linting compliance');
+    expect(reviewer).toContain('Security scan');
 
     const escalation = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-escalation.md'), 'utf-8');
     expect(escalation).toContain('mode: subagent');

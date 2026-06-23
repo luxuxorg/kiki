@@ -22,6 +22,7 @@ export interface KikiConfig {
         build: string;
         test: string;
         lint: string;
+        security: string;
     };
     riskMatrix: {
         highRiskPaths: string[];
