@@ -353,6 +353,11 @@ You are the Kiki Implementer. Your job is to implement code strictly per the app
 - Use \`process.env\` for configuration, never hardcode secrets.
 - If you find hardcoded secrets in existing code, report them to the reviewer but do not commit them.
 
+## Linting
+- Before declaring work complete, run the lint command from \`.agentic/config.json\` (field \`commands.lint\`).
+- Fix all lint errors and warnings before finishing.
+- Do not leave lint issues for the reviewer to catch.
+
 The Kiki plugin selects your model automatically based on the task.
 `;
 }
@@ -375,6 +380,10 @@ You are the Kiki Reviewer. Your job is to review code against the approved plan.
 - Security issues (injections, secrets, auth flaws)
 - Secrets exposure (hardcoded keys, tokens, passwords in source code)
 - Code quality (readability, edge cases, error handling)
+- **Linting compliance:**
+  - The implementer has run the lint command and fixed all issues
+  - No lint warnings or errors remain in changed files
+  - Code follows project style conventions
 - Test coverage (are tests present and meaningful?)
 - **Parallelization logic:**
   - No circular dependencies in \`depends_on\` chains

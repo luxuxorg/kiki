@@ -171,6 +171,12 @@ function checkConfigFields(config: KikiConfig): CheckResult[] {
     results.push(check(`config.commands.test (${config.commands.test})`, true));
   }
 
+  if (!config.commands.lint) {
+    results.push(check('config.commands.lint', false, 'Lint command is empty'));
+  } else {
+    results.push(check(`config.commands.lint (${config.commands.lint})`, true));
+  }
+
   const defaultPaths = JSON.stringify(DEFAULT_CONFIG.paths);
   const configPaths = JSON.stringify(config.paths);
   if (defaultPaths === configPaths) {

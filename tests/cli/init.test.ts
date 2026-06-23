@@ -101,10 +101,14 @@ describe('cli init', () => {
     const implementer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-implementer.md'), 'utf-8');
     expect(implementer).toContain('mode: subagent');
     expect(implementer).toContain('src/*');
+    expect(implementer).toContain('lint command');
+    expect(implementer).toContain('commands.lint');
 
     const reviewer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-reviewer.md'), 'utf-8');
     expect(reviewer).toContain('mode: subagent');
     expect(reviewer).toContain('edit: deny');
+    expect(reviewer).toContain('Linting compliance');
+    expect(reviewer).toContain('Linting compliance');
 
     const escalation = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-escalation.md'), 'utf-8');
     expect(escalation).toContain('mode: subagent');
