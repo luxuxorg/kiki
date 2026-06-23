@@ -90,8 +90,8 @@ describe('cli init', () => {
 
     const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
     expect(brainstormer).toContain('mode: subagent');
-    expect(brainstormer).toContain('docs/superpowers/*');
-    expect(brainstormer).toContain('read:');
+    expect(brainstormer).toContain('write:');
+    expect(brainstormer).not.toContain('read:');
 
     const planner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-planner.md'), 'utf-8');
     expect(planner).toContain('mode: subagent');

@@ -110,9 +110,6 @@ function buildBrainstormerPermissions(p) {
     const src = dirGlob(p.source);
     const tst = dirGlob(p.tests);
     return `permission:
-  read:
-    "${sw}": allow
-    "*": deny
   write:
     "${sw}": allow
     "*": deny
@@ -131,11 +128,6 @@ function buildImplementerPermissions(p) {
     const tst = dirGlob(p.tests);
     const sw = dirGlob(p.superpowers);
     return `permission:
-  read:
-    "${src}": allow
-    "${tst}": allow
-    "${sw}": allow
-    "*": deny
   write:
     "${src}": allow
     "${tst}": allow
@@ -147,16 +139,8 @@ function buildImplementerPermissions(p) {
     "*": deny
   bash: allow`;
 }
-function buildReviewerPermissions(p) {
-    const src = dirGlob(p.source);
-    const tst = dirGlob(p.tests);
-    const docs = dirGlob(p.docs);
+function buildReviewerPermissions(_p) {
     return `permission:
-  read:
-    "${src}": allow
-    "${tst}": allow
-    "${docs}": allow
-    "*": deny
   edit: deny
   bash:
     "git diff*": allow
