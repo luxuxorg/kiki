@@ -2,7 +2,18 @@
 description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
 permission:
-  edit: deny
+  read:
+    ".agentic/*": allow
+    "docs/*": allow
+    "*": deny
+  write:
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
+    "*": deny
+  edit:
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
+    "*": deny
   bash:
     "git diff*": allow
     "git log*": allow

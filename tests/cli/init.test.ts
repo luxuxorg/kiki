@@ -112,7 +112,7 @@ describe('cli init', () => {
 
     const reviewer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-reviewer.md'), 'utf-8');
     expect(reviewer).toContain('mode: subagent');
-    expect(reviewer).toContain('edit: deny');
+    expect(reviewer).toContain('".agentic/reviews/*": allow');
     expect(reviewer).toContain('Linting compliance');
     expect(reviewer).toContain('Security scan');
 

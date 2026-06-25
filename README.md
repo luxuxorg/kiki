@@ -105,7 +105,7 @@ All in `.agentic/`:
     "plans": "docs/superpowers/plans/",
     "changelog": "CHANGELOG.md",
     "readme": "README.md",
-    "decisions": ".opencode/docs/decisions.md",
+    "decisions": "docs/DECISIONS.md",
     "knowledge": "docs/knowledge/",
     "taskRegistry": ".agentic/TASK_REGISTRY.json"
   },

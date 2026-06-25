@@ -98,7 +98,7 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
 
   console.log('\n--- Documentation Paths ---\n');
   const changelogResult = await askPathWithStatus(lr, 'Changelog file', 'CHANGELOG.md', targetPath);
-  const decisionsResult = await askPathWithStatus(lr, 'Decisions file', '.opencode/docs/decisions.md', targetPath);
+  const decisionsResult = await askPathWithStatus(lr, 'Decisions file', 'docs/DECISIONS.md', targetPath);
   const knowledgeResult = await askPathWithStatus(lr, 'Knowledge base directory', 'docs/knowledge/', targetPath);
 
   console.log('\n--- Models ---\n');

@@ -46,7 +46,7 @@ export const DEFAULT_PATHS: KikiPaths = {
   plans: 'docs/superpowers/plans/',
   changelog: 'CHANGELOG.md',
   readme: 'README.md',
-  decisions: '.opencode/docs/decisions.md',
+  decisions: 'docs/DECISIONS.md',
   knowledge: null,
   taskRegistry: '.agentic/TASK_REGISTRY.json',
 };
@@ -187,7 +187,22 @@ function buildImplementerPermissions(p: KikiPaths): string {
 
 function buildReviewerPermissions(_p: KikiPaths): string {
   return `permission:
-  edit: deny
+  read:
+    "src/*": allow
+    "tests/*": allow
+    "docs/*": allow
+    ".agentic/*": allow
+    "*": deny
+  write:
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
+    "*": deny
+  edit:
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
+    "src/*": deny
+    "tests/*": deny
+    "*": deny
   bash:
     "git diff*": allow
     "git log*": allow
@@ -196,7 +211,18 @@ function buildReviewerPermissions(_p: KikiPaths): string {
 
 function buildEscalationPermissions(): string {
   return `permission:
-  edit: deny
+  read:
+    ".agentic/*": allow
+    "docs/*": allow
+    "*": deny
+  write:
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
+    "*": deny
+  edit:
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
+    "*": deny
   bash:
     "git diff*": allow
     "git log*": allow

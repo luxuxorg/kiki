@@ -6,8 +6,18 @@ permission:
     "src/*": allow
     "tests/*": allow
     "docs/*": allow
+    ".agentic/*": allow
     "*": deny
-  edit: deny
+  write:
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
+    "*": deny
+  edit:
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
+    "src/*": deny
+    "tests/*": deny
+    "*": deny
   bash:
     "git diff*": allow
     "git log*": allow

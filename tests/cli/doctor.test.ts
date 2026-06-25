@@ -18,10 +18,10 @@ async function scaffoldMinimalProject(dir: string): Promise<void> {
   await fs.mkdir(path.join(dir, 'tests'), { recursive: true });
   await fs.mkdir(path.join(dir, 'documentation', 'superpowers', 'specs'), { recursive: true });
   await fs.mkdir(path.join(dir, 'documentation', 'superpowers', 'plans'), { recursive: true });
-  await fs.mkdir(path.join(dir, '.opencode', 'docs'), { recursive: true });
+  await fs.mkdir(path.join(dir, 'docs'), { recursive: true });
   await fs.writeFile(path.join(dir, 'README.md'), '# Project\n');
   await fs.writeFile(path.join(dir, 'CHANGELOG.md'), '# Changelog\n');
-  await fs.writeFile(path.join(dir, '.opencode', 'docs', 'decisions.md'), '# Decisions\n');
+  await fs.writeFile(path.join(dir, 'docs', 'DECISIONS.md'), '# Decisions\n');
 }
 
 describe('cli doctor', () => {
