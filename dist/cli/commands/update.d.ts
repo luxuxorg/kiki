@@ -1,2 +1,2 @@
-export declare function update(targetPath: string): Promise<void>;
+export declare function update(args: string[] | string): Promise<void>;
 //# sourceMappingURL=update.d.ts.map

@@ -31,8 +31,10 @@ function smartMerge<T extends Record<string, unknown>>(
   return result;
 }
 
-export async function update(targetPath: string): Promise<void> {
+export async function update(args: string[] | string): Promise<void> {
+  const targetPath = typeof args === 'string' ? args : (args[0] ?? '.');
   const agenticDir = join(targetPath, '.agentic');
+  const kikiDir = join(agenticDir, 'kiki');
 
   if (!existsSync(agenticDir)) {
     console.error("No Kiki installation found. Run 'kiki init' first.");
@@ -42,16 +44,23 @@ export async function update(targetPath: string): Promise<void> {
   const updated: string[] = [];
   const merged: string[] = [];
 
-  // Load existing config and smart-merge with defaults (only keeps keys defined in defaults)
+  // Load existing config and smart-merge with defaults
   const existingRaw = loadConfig(targetPath);
   const mergedConfig = smartMerge(
     existingRaw as unknown as Record<string, unknown>,
     DEFAULT_CONFIG as unknown as Record<string, unknown>,
   ) as unknown as KikiConfig;
 
-  // Write merged config
+  // Write merged config to both legacy and new locations
   const configPath = join(agenticDir, 'config.json');
+  const kikiConfigPath = join(kikiDir, 'config.json');
   writeFileSync(configPath, JSON.stringify(mergedConfig, null, 2));
+  if (!existsSync(kikiDir)) {
+    // If no kiki dir, user is on legacy setup — don't create it automatically
+    // (they can run `kiki install --project .` to migrate)
+  } else {
+    writeFileSync(kikiConfigPath, JSON.stringify(mergedConfig, null, 2));
+  }
   merged.push('.agentic/config.json');
 
   // Regenerate .opencode/ files from merged config
@@ -83,6 +92,12 @@ export async function update(targetPath: string): Promise<void> {
   writeFileSync(routingPath, JSON.stringify(mergedRouting, null, 2));
   merged.push('.agentic/routing.json');
 
+  // Also update .agentic/kiki/routing.json if it exists
+  const kikiRoutingPath = join(kikiDir, 'routing.json');
+  if (existsSync(kikiDir)) {
+    writeFileSync(kikiRoutingPath, JSON.stringify(mergedRouting, null, 2));
+  }
+
   // Smart-merge alignment.json
   const alignmentPath = join(agenticDir, 'alignment.json');
   let userAlignment: Record<string, unknown> | undefined;
@@ -96,6 +111,12 @@ export async function update(targetPath: string): Promise<void> {
   const mergedAlignment = smartMerge(userAlignment, DEFAULT_ALIGNMENT);
   writeFileSync(alignmentPath, JSON.stringify(mergedAlignment, null, 2));
   merged.push('.agentic/alignment.json');
+
+  // Also update .agentic/kiki/alignment.json if it exists
+  const kikiAlignmentPath = join(kikiDir, 'alignment.json');
+  if (existsSync(kikiDir)) {
+    writeFileSync(kikiAlignmentPath, JSON.stringify(mergedAlignment, null, 2));
+  }
 
   // Print summary
   console.log(`Updated Kiki in ${targetPath}`);

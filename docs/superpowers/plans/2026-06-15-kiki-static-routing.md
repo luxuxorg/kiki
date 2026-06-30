@@ -355,7 +355,7 @@ export default function KikiPlugin({ client }: { client: any }) {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
 
-      const subagentType = output.args?.subagent_type ?? '';
+      const subagentType = output.args?.agent ?? '';
       const skill = getSkillFromSubagentType(subagentType);
 
       if (!skill) {
@@ -657,7 +657,7 @@ export default function KikiPlugin({ client }: { client: any }) {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
 
-      const subagentType = output.args?.subagent_type ?? '';
+      const subagentType = output.args?.agent ?? '';
       const skill = getSkillFromSubagentType(subagentType);
 
       if (!skill) {
@@ -1132,7 +1132,7 @@ describe('routing pipeline integration', () => {
   it('intercepts task tool with kiki subagent type and sets model', async () => {
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
+    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
     expect(output.args.model).toBeDefined();
     // gui + no file paths → standard → claude-4
@@ -1142,7 +1142,7 @@ describe('routing pipeline integration', () => {
   it('uses critical model for security paths', async () => {
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Fix src/security/crypto.ts encryption' } };
+    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Fix src/security/crypto.ts encryption' } };
     await (plugin as any)['tool.execute.before'](input, output);
     expect(output.args.model).toBe('claude-4-critical');
   });
@@ -1150,7 +1150,7 @@ describe('routing pipeline integration', () => {
   it('ignores non-kiki subagent types', async () => {
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'general', prompt: 'Do something' } };
+    const output = { args: { agent: 'general', prompt: 'Do something' } };
     await (plugin as any)['tool.execute.before'](input, output);
     expect(output.args.model).toBeUndefined();
   });
@@ -1158,7 +1158,7 @@ describe('routing pipeline integration', () => {
   it('ignores non-task tools', async () => {
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'bash' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
+    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
     expect(output.args.model).toBeUndefined();
   });
@@ -1166,7 +1166,7 @@ describe('routing pipeline integration', () => {
   it('falls back to any model for the skill when no exact rule matches', async () => {
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a backend API' } };
+    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Build a backend API' } };
     await (plugin as any)['tool.execute.before'](input, output);
     expect(output.args.model).toBeDefined();
   });
@@ -1177,7 +1177,7 @@ describe('routing pipeline integration', () => {
 
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
+    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No routing table found'));

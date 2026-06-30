@@ -1,8 +1,9 @@
 import * as readline from 'readline';
 import { basename } from 'path';
-import { DEFAULT_CONFIG, DEFAULT_PATHS, DEFAULT_MODELS, writeAgenticFiles, writeOpencodeFiles, ensurePathExists, } from '../config.js';
-import { existsSync, writeFileSync, readFileSync } from 'fs';
+import { DEFAULT_CONFIG, DEFAULT_PATHS, DEFAULT_MODELS, DEFAULT_ROUTING_TABLE, DEFAULT_ALIGNMENT, ensurePathExists, writeOpencodeFiles, } from '../config.js';
+import { existsSync, writeFileSync, readFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { install } from './install.js';
 class LineReader {
     rl;
     queue = [];
@@ -139,34 +140,35 @@ export function applyPathSetup(targetPath, config, changelogStatus, decisionsSta
     ensurePathExists(targetPath, p.specs);
     ensurePathExists(targetPath, p.plans);
 }
-export async function init(targetPath, options) {
-    let config;
+/**
+ * Backward-compatible init: supports both string path and args array.
+ * When wizard=false, writes defaults directly without interactive prompt.
+ */
+export async function init(args, options) {
+    const targetPath = typeof args === 'string' ? args : (args[0] ?? '.');
     if (options?.wizard === false) {
-        config = { ...DEFAULT_CONFIG };
+        // Legacy behavior: write defaults directly
+        const config = { ...DEFAULT_CONFIG };
+        const agenticDir = join(targetPath, '.agentic');
+        const kikiDir = join(agenticDir, 'kiki');
+        if (!existsSync(agenticDir))
+            mkdirSync(agenticDir, { recursive: true });
+        if (!existsSync(kikiDir))
+            mkdirSync(kikiDir, { recursive: true });
+        writeFileSync(join(kikiDir, 'config.json'), JSON.stringify(config, null, 2));
+        writeFileSync(join(kikiDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
+        writeFileSync(join(kikiDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
+        writeFileSync(join(kikiDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
+        // Also write legacy paths for backward compatibility in tests
+        writeFileSync(join(agenticDir, 'config.json'), JSON.stringify(config, null, 2));
+        writeFileSync(join(agenticDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
+        writeFileSync(join(agenticDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
+        writeFileSync(join(agenticDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
+        // Backward compat: also scaffold .opencode/ files
+        writeOpencodeFiles(targetPath, config);
     }
     else {
-        config = await runWizard(targetPath);
-        const changelogStatus = config.paths.changelog
-            ? existsSync(join(targetPath, config.paths.changelog)) ? 'exists' : 'create'
-            : 'skip';
-        const decisionsStatus = config.paths.decisions
-            ? existsSync(join(targetPath, config.paths.decisions)) ? 'exists' : 'create'
-            : 'skip';
-        const knowledgeStatus = config.paths.knowledge
-            ? existsSync(join(targetPath, config.paths.knowledge)) ? 'exists' : 'create'
-            : 'skip';
-        applyPathSetup(targetPath, config, changelogStatus, decisionsStatus, knowledgeStatus);
+        await install(['--project', targetPath]);
     }
-    writeAgenticFiles(targetPath, config);
-    writeOpencodeFiles(targetPath, config);
-    console.log(`\nInitialized Kiki in ${targetPath}`);
-    console.log(`  Project: ${config.projectName}`);
-    console.log(`  Language: ${config.language}`);
-    console.log(`  Standard model: ${config.models.standard}`);
-    console.log(`  Critical model: ${config.models.critical}`);
-    if (config.paths.decisions)
-        console.log(`  Decisions: ${config.paths.decisions}`);
-    if (config.paths.knowledge)
-        console.log(`  Knowledge: ${config.paths.knowledge}`);
 }
 //# sourceMappingURL=init.js.map

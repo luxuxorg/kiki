@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { install } from './commands/install.js';
 import { init } from './commands/init.js';
 import { update } from './commands/update.js';
 import { status } from './commands/status.js';
@@ -8,11 +9,14 @@ const args = process.argv.slice(2);
 const command = args[0];
 async function main() {
     switch (command) {
+        case 'install':
+            await install(args.slice(1));
+            break;
         case 'init':
-            await init(args[1] ?? '.');
+            await init(args.slice(1));
             break;
         case 'update':
-            await update(args[1] ?? '.');
+            await update(args.slice(1));
             break;
         case 'status':
             await status();
@@ -26,11 +30,14 @@ async function main() {
         default:
             console.log(`Usage: kiki <command>
 Commands:
-  init [path]    Scaffold Kiki with interactive wizard (paths, models, docs)
-  update [path]  Update an existing Kiki installation to the latest version
-  status         Show task registry + routing summary
-  verify <file>  Check for TBDs/TODOs/placeholders
-  doctor [path]  Validate config, paths, models, and agent file consistency`);
+  install              Install Kiki globally (agents + plugin + defaults)
+  install --project <path>  Scaffold .agentic/kiki/ in a project
+  install --force      Overwrite existing global files
+  init [path]          Alias for install --project [path]
+  update [path]        Alias for install --project [path] --force
+  status               Show task registry + routing summary
+  verify <file>        Check for TBDs/TODOs/placeholders
+  doctor [path]        Validate config, paths, models, and agent files`);
             process.exit(1);
     }
 }

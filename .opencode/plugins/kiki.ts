@@ -52,7 +52,7 @@ export default function KikiPlugin({ client }: { client: any }) {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
 
-      const subagentType = output.args?.subagent_type ?? '';
+      const subagentType = output.args?.agent ?? '';
       const skill = getSkillFromSubagentType(subagentType);
 
       if (!skill) {
