@@ -55,7 +55,7 @@ export default function KikiPlugin({ client }: { client: any }) {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
 
-      const subagentType = output.args?.agent ?? '';
+      const subagentType = output.args?.subagent_type ?? '';
       const skill = getSkillFromSubagentType(subagentType);
 
       if (!skill) {
@@ -121,7 +121,8 @@ export default function KikiPlugin({ client }: { client: any }) {
         if (!output.args) {
           output.args = {};
         }
-        output.args.model = selectedModel;
+        // Diagnostic: task tool does not accept "model" param; SDk has session.update later
+        console.log('[Kiki DIAG] selected model:', selectedModel, '| skill:', skill, '| domain:', domain, '| risk:', risk, '| reason:', reason);
 
         logRoutingDecision({
           timestamp: new Date().toISOString(),

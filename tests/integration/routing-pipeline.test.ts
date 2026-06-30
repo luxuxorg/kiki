@@ -76,46 +76,64 @@ describe('routing pipeline integration', () => {
     expect(classifyRisk([], configData.riskMatrix)).toBe('standard');
   });
 
-  it('intercepts task tool with kiki subagent type and sets model', async () => {
+  it('intercepts task tool with kiki subagent type and logs model', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Build a React component' } };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
-    expect(output.args.model).toBeDefined();
     // gui + no file paths -> standard -> claude-4
-    expect(output.args.model).toBe('claude-4');
+    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
+    expect(logs).toContain('claude-4');
+    expect(logs).toContain('brainstorming');
+    expect(logs).toContain('gui');
+    logSpy.mockRestore();
   });
 
   it('uses critical model for security paths', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Fix src/security/crypto.ts encryption' } };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Fix src/security/crypto.ts encryption' } };
     await (plugin as any)['tool.execute.before'](input, output);
-    expect(output.args.model).toBe('claude-4-critical');
+    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
+    expect(logs).toContain('claude-4-critical');
+    logSpy.mockRestore();
   });
 
   it('ignores non-kiki subagent types', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { agent: 'general', prompt: 'Do something' } };
+    const output = { args: { subagent_type: 'general', prompt: 'Do something' } };
     await (plugin as any)['tool.execute.before'](input, output);
-    expect(output.args.model).toBeUndefined();
+    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
+    expect(logs).not.toContain('[Kiki] Routed');
+    logSpy.mockRestore();
   });
 
   it('ignores non-task tools', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'bash' };
-    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Build a React component' } };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
-    expect(output.args.model).toBeUndefined();
+    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
+    expect(logs).not.toContain('[Kiki] Routed');
+    logSpy.mockRestore();
   });
 
   it('falls back to any model for the skill when no exact rule matches', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Build a backend API' } };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a backend API' } };
     await (plugin as any)['tool.execute.before'](input, output);
-    expect(output.args.model).toBeDefined();
+    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
+    expect(logs).toContain('claude-4');
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it('logs error but does not crash when routing table is missing', async () => {
@@ -124,11 +142,10 @@ describe('routing pipeline integration', () => {
 
     const plugin = KikiPlugin({ client: {} });
     const input = { tool: 'task' };
-    const output = { args: { agent: 'kiki-brainstormer', prompt: 'Build a React component' } };
+    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
     await (plugin as any)['tool.execute.before'](input, output);
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No routing table found'));
-    expect(output.args.model).toBeUndefined();
 
     consoleSpy.mockRestore();
   });

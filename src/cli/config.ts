@@ -683,7 +683,7 @@ export default function KikiPlugin({ client }: { client: any }) {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
 
-      const subagentType = output.args?.agent ?? '';
+      const subagentType = output.args?.subagent_type ?? '';
       const skill = getSkillFromSubagentType(subagentType);
 
       if (!skill) {
@@ -748,7 +748,6 @@ export default function KikiPlugin({ client }: { client: any }) {
         if (!output.args) {
           output.args = {};
         }
-        output.args.model = selectedModel;
 
         logRoutingDecision({
           timestamp: new Date().toISOString(),
@@ -761,6 +760,7 @@ export default function KikiPlugin({ client }: { client: any }) {
         });
 
         console.log('[Kiki] Routed ' + subagentType + ' → ' + selectedModel + ' (' + skill + ', ' + domain + ', ' + risk + ')');
+        console.log('[Kiki DIAG] NOTE: model not set on task args (task tool uses agent model frontmatter)');
       } else {
         console.error('[Kiki] CRITICAL: Could not select any model for ' + subagentType + '. Task will use OpenCode default.');
       }
