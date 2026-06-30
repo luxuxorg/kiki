@@ -8,10 +8,10 @@ import KikiPlugin from '../../.opencode/plugins/kiki';
 
 describe('routing pipeline integration', () => {
   beforeEach(() => {
-    setRoutingPath('.agentic/routing.json');
-    mkdirSync('.agentic', { recursive: true });
+    setRoutingPath('.agentic/kiki/routing.json');
+    mkdirSync('.agentic/kiki', { recursive: true });
 
-    writeFileSync('.agentic/config.json', JSON.stringify({
+    writeFileSync('.agentic/kiki/config.json', JSON.stringify({
       riskMatrix: {
         highRiskPaths: ['src/auth/'],
         criticalRiskPaths: ['src/security/']
@@ -30,7 +30,7 @@ describe('routing pipeline integration', () => {
 
   afterEach(() => {
     rmSync('.agentic', { recursive: true, force: true });
-    setRoutingPath('.agentic/routing.json');
+    setRoutingPath('.agentic/kiki/routing.json');
   });
 
   it('classifies domain and looks up standard model', () => {
@@ -56,7 +56,7 @@ describe('routing pipeline integration', () => {
   });
 
   it('returns null when routing table is missing', () => {
-    rmSync('.agentic/routing.json');
+    rmSync('.agentic/kiki/routing.json');
     const table = loadRoutingTable();
     expect(table).toBeNull();
   });
@@ -68,7 +68,7 @@ describe('routing pipeline integration', () => {
   });
 
   it('classifies risk with only standard/critical', () => {
-    const configData = JSON.parse(readFileSync('.agentic/config.json', 'utf-8'));
+    const configData = JSON.parse(readFileSync('.agentic/kiki/config.json', 'utf-8'));
 
     expect(classifyRisk(['src/auth/login.ts'], configData.riskMatrix)).toBe('standard');
     expect(classifyRisk(['src/security/crypto.ts'], configData.riskMatrix)).toBe('critical');
@@ -119,7 +119,7 @@ describe('routing pipeline integration', () => {
   });
 
   it('logs error but does not crash when routing table is missing', async () => {
-    rmSync('.agentic/routing.json');
+    rmSync('.agentic/kiki/routing.json');
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const plugin = KikiPlugin({ client: {} });

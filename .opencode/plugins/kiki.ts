@@ -1,8 +1,11 @@
 import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { loadRoutingTable, lookupModel } from '../../src/core/routing-table';
+import { homedir } from 'os';
+import { join } from 'path';
+import { loadRoutingTable, lookupModel, mergeRoutingTables } from '../../src/core/routing-table';
 import { classifyDomain } from '../../src/core/domain-classifier';
 import { classifyRisk } from '../../src/core/risk-classifier';
 import { loadStabilizerState, lockTaskModel, getLockedModel } from '../../src/core/stabilizer';
+import { resolveKikiFile } from '../../src/core/path-resolver';
 import type { Skill, Domain, Risk, StaticRoutingTable, RoutingLogEntry } from '../../src/types';
 
 const SUBAGENT_TYPE_TO_SKILL: Record<string, Skill> = {
@@ -66,7 +69,8 @@ export default function KikiPlugin({ client }: { client: any }) {
 
       let risk: Risk = 'standard';
       try {
-        const config = JSON.parse(readFileSync('.agentic/config.json', 'utf-8'));
+        const configPath = resolveKikiFile('config.json', '.');
+        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
         const pathMatches = taskDesc.match(/[\w/.-]+\.(ts|js|tsx|jsx|py|rs|go)/g) ?? [];
         risk = classifyRisk(pathMatches, config.riskMatrix);
       } catch {
@@ -80,9 +84,11 @@ export default function KikiPlugin({ client }: { client: any }) {
       if (selectedModel) {
         reason = 'task locked';
       } else {
-        const table = loadRoutingTable();
+        const projectTable = loadRoutingTable('.agentic/kiki/routing.json');
+        const globalTable = loadRoutingTable(join(homedir(), '.config', 'opencode', 'kiki', 'defaults', 'routing.json'));
+        const table = mergeRoutingTables(projectTable, globalTable);
 
-        if (!table) {
+        if (!table || Object.keys(table.rules).length === 0) {
           console.error('[Kiki] CRITICAL: No routing table found. Check .agentic/routing.json exists.');
           reason = 'missing routing table';
         } else {

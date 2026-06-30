@@ -27,12 +27,14 @@ describe('cli status', () => {
       throw new Error(`process.exit(${code})`);
     });
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await expect(status(tmpDir)).rejects.toThrow('process.exit(1)');
-    expect(errorSpy).toHaveBeenCalledWith('No .agentic/ directory found. Run "kiki init" first.');
+    expect(errorSpy).toHaveBeenCalledWith('\nNo .agentic/ directory found. Run "kiki init" or "kiki install --project ." first.');
 
     exitSpy.mockRestore();
     errorSpy.mockRestore();
+    logSpy.mockRestore();
   });
 
   it('shows task registry summary', async () => {
@@ -53,6 +55,8 @@ describe('cli status', () => {
     await status(tmpDir);
 
     const logs = logSpy.mock.calls.map(c => c[0]).join('\n');
+    expect(logs).toContain('=== Global Installation ===');
+    expect(logs).toContain('=== Project State ===');
     expect(logs).toContain('Total tasks: 3');
     expect(logs).toContain('completed: 1');
     expect(logs).toContain('in_progress: 2');
@@ -61,33 +65,34 @@ describe('cli status', () => {
   });
 
   it('shows routing table when present', async () => {
-    await fs.mkdir(path.join(tmpDir, '.agentic'), { recursive: true });
-    await fs.writeFile(path.join(tmpDir, '.agentic/TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
+    await fs.mkdir(path.join(tmpDir, '.agentic', 'kiki'), { recursive: true });
+    await fs.writeFile(path.join(tmpDir, '.agentic', 'kiki', 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
 
     const table: StaticRoutingTable = {
       rules: {
         'brainstorming:general': { standard: 'openai/gpt-4o' }
       }
     };
-    saveRoutingTable(table);
+    const routingPath = path.join(tmpDir, '.agentic', 'kiki', 'routing.json');
+    await fs.writeFile(routingPath, JSON.stringify(table, null, 2));
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     await status(tmpDir);
 
     const logs = logSpy.mock.calls.map(c => c[0]).join('\n');
-    expect(logs).toContain('Routing Table');
-    expect(logs).toContain('Static routing table (manually maintained)');
-    expect(logs).toContain('Rules: 1');
-    expect(logs).toContain('brainstorming:general: standard=openai/gpt-4o');
+    expect(logs).toContain('Routing Tables');
+    expect(logs).toContain('Project rules: 1');
+    expect(logs).toContain('Effective rules: 1');
+    expect(logs).toContain('brainstorming:general: standard=openai/gpt-4o [project]');
     expect(logs).toContain('brainstorming:');
 
     logSpy.mockRestore();
   });
 
   it('shows no routing table message when missing', async () => {
-    await fs.mkdir(path.join(tmpDir, '.agentic'), { recursive: true });
-    await fs.writeFile(path.join(tmpDir, '.agentic/TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
+    await fs.mkdir(path.join(tmpDir, '.agentic', 'kiki'), { recursive: true });
+    await fs.writeFile(path.join(tmpDir, '.agentic', 'kiki', 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -95,6 +100,8 @@ describe('cli status', () => {
 
     const logs = logSpy.mock.calls.map(c => c[0]).join('\n');
     expect(logs).toContain('No routing table found');
+    expect(logs).toContain('Project rules: 0');
+    expect(logs).toContain('Effective rules: 0');
 
     logSpy.mockRestore();
   });
