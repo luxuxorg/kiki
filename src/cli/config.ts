@@ -528,6 +528,8 @@ ${responsibilities}
 
 export function generatePluginTemplate(): string {
   return `import { readFileSync, appendFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 
 type Skill = 'brainstorming' | 'writing-plans' | 'executing-plans' | 'reviewing' | 'documenting';
 type Domain = 'gui' | 'backend' | 'security' | 'database' | 'general';
@@ -569,13 +571,25 @@ function getSkillFromSubagentType(subagentType: string): Skill | null {
   return SUBAGENT_TYPE_TO_SKILL[subagentType] ?? null;
 }
 
-function loadRoutingTable(): StaticRoutingTable | null {
-  try {
-    const raw = readFileSync('.agentic/routing.json', 'utf-8');
-    return JSON.parse(raw) as StaticRoutingTable;
-  } catch {
-    return null;
+function loadRoutingTable(filePath?: string): StaticRoutingTable | null {
+  const paths = filePath
+    ? [filePath]
+    : ['.agentic/kiki/routing.json', '.agentic/routing.json'];
+  for (const p of paths) {
+    try {
+      const raw = readFileSync(p, 'utf-8');
+      return JSON.parse(raw) as StaticRoutingTable;
+    } catch {
+      // try next path
+    }
   }
+  return null;
+}
+
+function mergeRoutingTables(project: StaticRoutingTable | null, global: StaticRoutingTable | null): StaticRoutingTable {
+  return {
+    rules: Object.assign({}, global?.rules ?? {}, project?.rules ?? {})
+  };
 }
 
 function lookupModel(table: StaticRoutingTable, skill: Skill, domain: Domain, risk: Risk): string | null {
@@ -654,6 +668,14 @@ function findFallbackModel(table: StaticRoutingTable, skill: Skill, domain: Doma
   return null;
 }
 
+function resolveConfigPath(): string | null {
+  const paths = ['.agentic/kiki/config.json', '.agentic/config.json'];
+  for (const p of paths) {
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
 export default function KikiPlugin({ client }: { client: any }) {
   const stabilizerState = loadStabilizerState();
 
@@ -675,9 +697,12 @@ export default function KikiPlugin({ client }: { client: any }) {
 
       let risk: Risk = 'standard';
       try {
-        const config = JSON.parse(readFileSync('.agentic/config.json', 'utf-8'));
-        const pathMatches = taskDesc.match(/[\\w/.-]+\\.(ts|js|tsx|jsx|py|rs|go)/g) ?? [];
-        risk = classifyRisk(pathMatches, config.riskMatrix);
+        const configPath = resolveConfigPath();
+        if (configPath) {
+          const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+          const pathMatches = taskDesc.match(/[\\w/.-]+\\.(ts|js|tsx|jsx|py|rs|go)/g) ?? [];
+          risk = classifyRisk(pathMatches, config.riskMatrix);
+        }
       } catch {
         // Config missing, use default standard
       }
@@ -688,10 +713,12 @@ export default function KikiPlugin({ client }: { client: any }) {
       if (selectedModel) {
         reason = 'task locked';
       } else {
-        const table = loadRoutingTable();
+        const projectTable = loadRoutingTable('.agentic/kiki/routing.json');
+        const globalTable = loadRoutingTable(join(homedir(), '.config', 'opencode', 'kiki', 'defaults', 'routing.json'));
+        const table = mergeRoutingTables(projectTable, globalTable);
 
-        if (!table) {
-          console.error('[Kiki] CRITICAL: No routing table found. Check .agentic/routing.json exists.');
+        if (!table || Object.keys(table.rules).length === 0) {
+          console.error('[Kiki] CRITICAL: No routing table found. Check .agentic/kiki/routing.json exists.');
           reason = 'missing routing table';
         } else {
           selectedModel = lookupModel(table, skill, domain, risk);
