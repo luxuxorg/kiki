@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { rmSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'node:path';
-import { loadRoutingTable, saveRoutingTable, lookupModel, setRoutingPath } from '../../src/core/routing-table';
+import { loadRoutingTable, saveRoutingTable, lookupModel, setRoutingPath, mergeRoutingTables } from '../../src/core/routing-table';
 import type { StaticRoutingTable } from '../../src/types';
 
 describe('routing-table', () => {
@@ -25,7 +25,7 @@ describe('routing-table', () => {
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
-    setRoutingPath('.agentic/routing.json');
+    setRoutingPath('.agentic/kiki/routing.json');
   });
 
   it('loads and saves a static routing table', () => {
@@ -74,5 +74,33 @@ describe('routing-table', () => {
     writeFileSync(path.join(tmpDir, 'routing.json'), JSON.stringify({ foo: 'bar' }));
     const loaded = loadRoutingTable();
     expect(loaded).toBeNull();
+  });
+});
+
+describe('mergeRoutingTables', () => {
+  it('project overrides global', () => {
+    const global = { rules: { 'reviewing:backend': { standard: 'global-model' } } };
+    const project = { rules: { 'reviewing:backend': { standard: 'project-model' } } };
+    const merged = mergeRoutingTables(project, global);
+    expect(merged.rules['reviewing:backend'].standard).toBe('project-model');
+  });
+
+  it('fills missing project rules from global', () => {
+    const global = { rules: { 'brainstorming:gui': { standard: 'claude-4' } } };
+    const project = { rules: {} };
+    const merged = mergeRoutingTables(project, global);
+    expect(merged.rules['brainstorming:gui'].standard).toBe('claude-4');
+  });
+
+  it('handles null inputs', () => {
+    const merged = mergeRoutingTables(null, null);
+    expect(merged.rules).toEqual({});
+  });
+
+  it('project-only rules are preserved', () => {
+    const global = { rules: {} };
+    const project = { rules: { 'reviewing:backend': { standard: 'project-only' } } };
+    const merged = mergeRoutingTables(project, global);
+    expect(merged.rules['reviewing:backend'].standard).toBe('project-only');
   });
 });

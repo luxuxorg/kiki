@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'node:path';
 import type { StaticRoutingTable, Skill, Domain, Risk } from '../types.js';
 
-export let ROUTING_PATH = '.agentic/routing.json';
+export let ROUTING_PATH = '.agentic/kiki/routing.json';
 
 export function setRoutingPath(newPath: string): void {
   if (newPath.includes('..') || newPath.startsWith('/')) {
@@ -11,10 +11,11 @@ export function setRoutingPath(newPath: string): void {
   ROUTING_PATH = newPath;
 }
 
-export function loadRoutingTable(): StaticRoutingTable | null {
-  if (!existsSync(ROUTING_PATH)) return null;
+export function loadRoutingTable(filePath?: string): StaticRoutingTable | null {
+  const targetPath = filePath ?? ROUTING_PATH;
+  if (!existsSync(targetPath)) return null;
   try {
-    const raw = readFileSync(ROUTING_PATH, 'utf-8');
+    const raw = readFileSync(targetPath, 'utf-8');
     const parsed = JSON.parse(raw);
     if (!parsed || !parsed.rules || typeof parsed.rules !== 'object') {
       return null;
@@ -50,4 +51,21 @@ export function lookupModel(
 
   // Otherwise fall back to standard
   return rule.standard ?? null;
+}
+
+export function mergeRoutingTables(
+  project: StaticRoutingTable | null,
+  global: StaticRoutingTable | null
+): StaticRoutingTable {
+  const result: StaticRoutingTable = { rules: {} };
+
+  if (global) {
+    Object.assign(result.rules, global.rules);
+  }
+
+  if (project) {
+    Object.assign(result.rules, project.rules);
+  }
+
+  return result;
 }
