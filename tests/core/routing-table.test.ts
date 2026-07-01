@@ -1,26 +1,33 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { rmSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'node:path';
-import { loadRoutingTable, saveRoutingTable, lookupModel, setRoutingPath, mergeRoutingTables } from '../../src/core/routing-table';
+import {
+  loadRoutingTable,
+  saveRoutingTable,
+  lookupAgentModel,
+  setRoutingPath,
+  mergeRoutingTables,
+} from '../../src/core/routing-table';
 import type { StaticRoutingTable } from '../../src/types';
 
 describe('routing-table', () => {
   let tmpDir: string;
+  let routingPath: string;
 
   const testTable: StaticRoutingTable = {
-    rules: {
-      'brainstorming:gui': { standard: 'claude-sonnet-4.6' },
-      'brainstorming:backend': { standard: 'kimi-k2.6' },
-      'brainstorming:security': { standard: 'deepseek-v4-pro', critical: 'claude-opus-4' },
-      'executing-plans:gui': { standard: 'claude-sonnet-4.6' },
-    }
+    agents: {
+      'kiki-orchestrator': 'anthropic/claude-opus-4-8',
+      'kiki-implementer': 'deepseek/deepseek-v4-pro',
+      'kiki-brainstormer': 'kimi/kimi-k2.6',
+    },
   };
 
   beforeEach(() => {
     tmpDir = `tmp/routing-table-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     mkdirSync(tmpDir, { recursive: true });
-    setRoutingPath(path.join(tmpDir, 'routing.json'));
-    saveRoutingTable(testTable);
+    routingPath = path.join(tmpDir, 'routing.json');
+    setRoutingPath(routingPath);
+    saveRoutingTable(routingPath, testTable);
   });
 
   afterEach(() => {
@@ -28,79 +35,78 @@ describe('routing-table', () => {
     setRoutingPath('.agentic/kiki/routing.json');
   });
 
-  it('loads and saves a static routing table', () => {
+  it('loads and saves an agents-only routing table', () => {
     const loaded = loadRoutingTable();
     expect(loaded).not.toBeNull();
-    expect(loaded!.rules['brainstorming:gui'].standard).toBe('claude-sonnet-4.6');
+    expect(loaded!.agents['kiki-implementer']).toBe('deepseek/deepseek-v4-pro');
   });
 
-  it('looks up standard model for a skill+domain', () => {
+  it('looks up the model for a known agent', () => {
     const loaded = loadRoutingTable()!;
-    const model = lookupModel(loaded, 'brainstorming', 'gui', 'standard');
-    expect(model).toBe('claude-sonnet-4.6');
+    const model = lookupAgentModel(loaded, 'kiki-brainstormer');
+    expect(model).toBe('kimi/kimi-k2.6');
   });
 
-  it('returns critical model when defined and risk is critical', () => {
+  it('returns null for an unknown agent', () => {
     const loaded = loadRoutingTable()!;
-    const model = lookupModel(loaded, 'brainstorming', 'security', 'critical');
-    expect(model).toBe('claude-opus-4');
-  });
-
-  it('falls back to standard when critical is not defined', () => {
-    const loaded = loadRoutingTable()!;
-    const model = lookupModel(loaded, 'brainstorming', 'gui', 'critical');
-    expect(model).toBe('claude-sonnet-4.6');
-  });
-
-  it('returns null for unknown skill+domain', () => {
-    const loaded = loadRoutingTable()!;
-    const model = lookupModel(loaded, 'reviewing', 'database', 'standard');
+    const model = lookupAgentModel(loaded, 'kiki-unknown');
     expect(model).toBeNull();
   });
 
   it('returns null when routing table does not exist', () => {
-    rmSync(path.join(tmpDir, 'routing.json'));
+    rmSync(routingPath);
     const loaded = loadRoutingTable();
     expect(loaded).toBeNull();
   });
 
   it('returns null for invalid JSON', () => {
-    writeFileSync(path.join(tmpDir, 'routing.json'), 'not json');
+    writeFileSync(routingPath, 'not json');
     const loaded = loadRoutingTable();
     expect(loaded).toBeNull();
   });
 
-  it('returns null for JSON without rules key', () => {
-    writeFileSync(path.join(tmpDir, 'routing.json'), JSON.stringify({ foo: 'bar' }));
+  it('returns null for tables with only rules (no agents)', () => {
+    writeFileSync(
+      routingPath,
+      JSON.stringify({ rules: { 'brainstorming:gui': { standard: 'claude-4' } } })
+    );
     const loaded = loadRoutingTable();
     expect(loaded).toBeNull();
   });
 });
 
 describe('mergeRoutingTables', () => {
-  it('project overrides global', () => {
-    const global = { rules: { 'reviewing:backend': { standard: 'global-model' } } };
-    const project = { rules: { 'reviewing:backend': { standard: 'project-model' } } };
+  it('project agents override global agents', () => {
+    const global: StaticRoutingTable = {
+      agents: { 'kiki-planner': 'global-planner' },
+    };
+    const project: StaticRoutingTable = {
+      agents: { 'kiki-planner': 'project-planner' },
+    };
     const merged = mergeRoutingTables(project, global);
-    expect(merged.rules['reviewing:backend'].standard).toBe('project-model');
+    expect(merged.agents['kiki-planner']).toBe('project-planner');
   });
 
-  it('fills missing project rules from global', () => {
-    const global = { rules: { 'brainstorming:gui': { standard: 'claude-4' } } };
-    const project = { rules: {} };
+  it('fills missing project agents from global', () => {
+    const global: StaticRoutingTable = {
+      agents: { 'kiki-brainstormer': 'global-brainstormer' },
+    };
+    const project: StaticRoutingTable = { agents: {} };
     const merged = mergeRoutingTables(project, global);
-    expect(merged.rules['brainstorming:gui'].standard).toBe('claude-4');
+    expect(merged.agents['kiki-brainstormer']).toBe('global-brainstormer');
+  });
+
+  it('preserves project-only agents', () => {
+    const global: StaticRoutingTable = { agents: {} };
+    const project: StaticRoutingTable = {
+      agents: { 'kiki-reviewer': 'project-reviewer' },
+    };
+    const merged = mergeRoutingTables(project, global);
+    expect(merged.agents['kiki-reviewer']).toBe('project-reviewer');
   });
 
   it('handles null inputs', () => {
     const merged = mergeRoutingTables(null, null);
-    expect(merged.rules).toEqual({});
-  });
-
-  it('project-only rules are preserved', () => {
-    const global = { rules: {} };
-    const project = { rules: { 'reviewing:backend': { standard: 'project-only' } } };
-    const merged = mergeRoutingTables(project, global);
-    expect(merged.rules['reviewing:backend'].standard).toBe('project-only');
+    expect(merged.agents).toEqual({});
   });
 });

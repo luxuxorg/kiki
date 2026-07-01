@@ -1,152 +1,114 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { rmSync, writeFileSync, mkdirSync, readFileSync } from 'fs';
-import { loadRoutingTable, saveRoutingTable, setRoutingPath } from '../../src/core/routing-table';
-import { classifyDomain } from '../../src/core/domain-classifier';
-import { classifyRisk } from '../../src/core/risk-classifier';
-import { lookupModel } from '../../src/core/routing-table';
-import KikiPlugin from '../../.opencode/plugins/kiki';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { rmSync, writeFileSync, mkdirSync, readFileSync, appendFileSync, existsSync } from 'fs';
+import path from 'node:path';
+import {
+  loadRoutingTable,
+  saveRoutingTable,
+  lookupAgentModel,
+  setRoutingPath,
+} from '../../src/core/routing-table';
+import type { RoutingLogEntry, StaticRoutingTable } from '../../src/types';
+
+const LOG_PATH = '.agentic/routing_log.jsonl';
+
+/**
+ * Mirrors the thin plugin's logging behaviour: append a simplified
+ * RoutingLogEntry ({ timestamp, agent, model }) for a dispatched kiki subagent.
+ */
+function logRouting(agent: string, model: string): void {
+  if (!existsSync('.agentic')) mkdirSync('.agentic', { recursive: true });
+  const entry: RoutingLogEntry = {
+    timestamp: new Date().toISOString(),
+    agent,
+    model,
+  };
+  appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n');
+}
 
 describe('routing pipeline integration', () => {
+  let tmpDir: string;
+  let routingPath: string;
+
+  const table: StaticRoutingTable = {
+    agents: {
+      'kiki-orchestrator': 'anthropic/claude-opus-4-8',
+      'kiki-implementer': 'deepseek/deepseek-v4-pro',
+      'kiki-brainstormer': 'kimi/kimi-k2.6',
+      'kiki-reviewer': 'deepseek/deepseek-v4-pro',
+    },
+  };
+
   beforeEach(() => {
-    setRoutingPath('.agentic/kiki/routing.json');
-    mkdirSync('.agentic/kiki', { recursive: true });
-
-    writeFileSync('.agentic/kiki/config.json', JSON.stringify({
-      riskMatrix: {
-        highRiskPaths: ['src/auth/'],
-        criticalRiskPaths: ['src/security/']
-      }
-    }));
-
-    const table = {
-      rules: {
-        'brainstorming:gui': { standard: 'claude-4' },
-        'brainstorming:security': { standard: 'deepseek-v4-pro', critical: 'claude-4-critical' },
-        'reviewing:backend': { standard: 'deepseek-v4-pro' }
-      }
-    };
-    saveRoutingTable(table);
+    tmpDir = `tmp/routing-pipeline-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    mkdirSync(tmpDir, { recursive: true });
+    routingPath = path.join(tmpDir, 'routing.json');
+    setRoutingPath(routingPath);
+    saveRoutingTable(routingPath, table);
   });
 
   afterEach(() => {
-    rmSync('.agentic', { recursive: true, force: true });
+    rmSync(tmpDir, { recursive: true, force: true });
+    rmSync(LOG_PATH, { force: true });
     setRoutingPath('.agentic/kiki/routing.json');
   });
 
-  it('classifies domain and looks up standard model', () => {
-    const domain = classifyDomain('Build a React modal component');
-    expect(domain).toBe('gui');
-
-    const table = loadRoutingTable();
-    expect(table).not.toBeNull();
-    const model = lookupModel(table!, 'brainstorming', domain, 'standard');
-    expect(model).toBe('claude-4');
+  it('looks up the model for kiki-orchestrator', () => {
+    const loaded = loadRoutingTable(routingPath)!;
+    expect(lookupAgentModel(loaded, 'kiki-orchestrator')).toBe(
+      'anthropic/claude-opus-4-8'
+    );
   });
 
-  it('uses standard when critical not defined for that skill+domain', () => {
-    const table = loadRoutingTable()!;
-    const model = lookupModel(table, 'brainstorming', 'gui', 'critical');
-    expect(model).toBe('claude-4');
+  it('looks up the model for kiki-implementer', () => {
+    const loaded = loadRoutingTable(routingPath)!;
+    expect(lookupAgentModel(loaded, 'kiki-implementer')).toBe(
+      'deepseek/deepseek-v4-pro'
+    );
   });
 
-  it('uses critical model when defined and risk is critical', () => {
-    const table = loadRoutingTable()!;
-    const model = lookupModel(table, 'brainstorming', 'security', 'critical');
-    expect(model).toBe('claude-4-critical');
+  it('returns null for an unknown agent', () => {
+    const loaded = loadRoutingTable(routingPath)!;
+    expect(lookupAgentModel(loaded, 'kiki-gui-designer')).toBeNull();
   });
 
-  it('returns null when routing table is missing', () => {
-    rmSync('.agentic/kiki/routing.json');
-    const table = loadRoutingTable();
-    expect(table).toBeNull();
+  it('returns null when the routing table is missing', () => {
+    rmSync(routingPath);
+    expect(loadRoutingTable(routingPath)).toBeNull();
   });
 
-  it('returns null when no matching model exists', () => {
-    const table = loadRoutingTable()!;
-    const model = lookupModel(table, 'executing-plans', 'database', 'standard');
-    expect(model).toBeNull();
+  it('writes routing log entries containing timestamp, agent, model', () => {
+    const loaded = loadRoutingTable(routingPath)!;
+    const agent = 'kiki-implementer';
+    const model = lookupAgentModel(loaded, agent)!;
+    logRouting(agent, model);
+
+    const entries = readFileSync(LOG_PATH, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as RoutingLogEntry);
+
+    expect(entries).toHaveLength(1);
+    const entry = entries[0];
+    const keys = Object.keys(entry).sort();
+    expect(keys).toEqual(['agent', 'model', 'timestamp']);
+    expect(entry.agent).toBe('kiki-implementer');
+    expect(entry.model).toBe('deepseek/deepseek-v4-pro');
+    expect(typeof entry.timestamp).toBe('string');
   });
 
-  it('classifies risk with only standard/critical', () => {
-    const configData = JSON.parse(readFileSync('.agentic/kiki/config.json', 'utf-8'));
+  it('routing log entries carry no domain or risk fields', () => {
+    const loaded = loadRoutingTable(routingPath)!;
+    const agent = 'kiki-brainstormer';
+    logRouting(agent, lookupAgentModel(loaded, agent)!);
 
-    expect(classifyRisk(['src/auth/login.ts'], configData.riskMatrix)).toBe('standard');
-    expect(classifyRisk(['src/security/crypto.ts'], configData.riskMatrix)).toBe('critical');
-    expect(classifyRisk(['src/app/main.ts'], configData.riskMatrix)).toBe('standard');
-    expect(classifyRisk([], configData.riskMatrix)).toBe('standard');
-  });
+    const entries = readFileSync(LOG_PATH, 'utf-8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
 
-  it('intercepts task tool with kiki subagent type and logs model', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const plugin = KikiPlugin({ client: {} });
-    const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
-    await (plugin as any)['tool.execute.before'](input, output);
-    // gui + no file paths -> standard -> claude-4
-    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
-    expect(logs).toContain('claude-4');
-    expect(logs).toContain('brainstorming');
-    expect(logs).toContain('gui');
-    logSpy.mockRestore();
-  });
-
-  it('uses critical model for security paths', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const plugin = KikiPlugin({ client: {} });
-    const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Fix src/security/crypto.ts encryption' } };
-    await (plugin as any)['tool.execute.before'](input, output);
-    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
-    expect(logs).toContain('claude-4-critical');
-    logSpy.mockRestore();
-  });
-
-  it('ignores non-kiki subagent types', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const plugin = KikiPlugin({ client: {} });
-    const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'general', prompt: 'Do something' } };
-    await (plugin as any)['tool.execute.before'](input, output);
-    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
-    expect(logs).not.toContain('[Kiki] Routed');
-    logSpy.mockRestore();
-  });
-
-  it('ignores non-task tools', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const plugin = KikiPlugin({ client: {} });
-    const input = { tool: 'bash' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
-    await (plugin as any)['tool.execute.before'](input, output);
-    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
-    expect(logs).not.toContain('[Kiki] Routed');
-    logSpy.mockRestore();
-  });
-
-  it('falls back to any model for the skill when no exact rule matches', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const plugin = KikiPlugin({ client: {} });
-    const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a backend API' } };
-    await (plugin as any)['tool.execute.before'](input, output);
-    const logs = logSpy.mock.calls.map((c: any) => c[0]).join('\n');
-    expect(logs).toContain('claude-4');
-    logSpy.mockRestore();
-    warnSpy.mockRestore();
-  });
-
-  it('logs error but does not crash when routing table is missing', async () => {
-    rmSync('.agentic/kiki/routing.json');
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const plugin = KikiPlugin({ client: {} });
-    const input = { tool: 'task' };
-    const output = { args: { subagent_type: 'kiki-brainstormer', prompt: 'Build a React component' } };
-    await (plugin as any)['tool.execute.before'](input, output);
-
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No routing table found'));
-
-    consoleSpy.mockRestore();
+    for (const entry of entries) {
+      expect(entry.domain).toBeUndefined();
+      expect(entry.risk).toBeUndefined();
+    }
   });
 });

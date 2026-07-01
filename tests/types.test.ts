@@ -1,33 +1,45 @@
 import { describe, it, expect } from 'vitest';
-import type { RoutingRule, KikiConfig } from '../src/types';
+import type { Skill, StaticRoutingTable, KikiConfig, RoutingLogEntry } from '../src/types';
 
 describe('types', () => {
-  it('RoutingRule has required fields', () => {
-    const rule: RoutingRule = {
-      skill: 'brainstorming',
-      domain: 'gui',
-      risk: 'medium',
-      model: 'anthropic/claude-opus-4-8',
-      scorePerDollar: 145.2,
-      benchmarkScore: 92.0,
-      costPer1k: 0.05,
-      reason: 'Best UI reasoning'
-    };
-    expect(rule.model).toBe('anthropic/claude-opus-4-8');
+  it('Skill covers the supported skill set', () => {
+    const skills: Skill[] = [
+      'brainstorming',
+      'writing-plans',
+      'executing-plans',
+      'reviewing',
+      'documenting',
+    ];
+    expect(skills).toHaveLength(5);
   });
 
-  it('KikiConfig has required fields', () => {
+  it('StaticRoutingTable is an agents-only map', () => {
+    const table: StaticRoutingTable = {
+      agents: {
+        'kiki-orchestrator': 'anthropic/claude-opus-4-8',
+        'kiki-implementer': 'deepseek/deepseek-v4-pro',
+      },
+    };
+    expect(table.agents['kiki-orchestrator']).toBe('anthropic/claude-opus-4-8');
+  });
+
+  it('KikiConfig has no riskMatrix', () => {
     const config: KikiConfig = {
       projectName: 'test',
       language: 'typescript',
-      commands: { build: '', test: '', lint: '' },
-      riskMatrix: { highRiskPaths: [], criticalRiskPaths: [] },
-      routingPreferences: {
-        refreshIntervalHours: 24,
-        minBenchmarkRank: 20,
-        costCeilingPer1kTokens: 0.05
-      }
+      commands: { build: 'npm run build', test: 'npm test', lint: 'npm run lint', security: 'npm audit' },
     };
-    expect(config.routingPreferences.minBenchmarkRank).toBe(20);
+    expect(config.projectName).toBe('test');
+    expect((config as unknown as Record<string, unknown>).riskMatrix).toBeUndefined();
+  });
+
+  it('RoutingLogEntry carries only timestamp, agent, model', () => {
+    const entry: RoutingLogEntry = {
+      timestamp: '2026-07-01T00:00:00.000Z',
+      agent: 'kiki-implementer',
+      model: 'deepseek/deepseek-v4-pro',
+    };
+    const keys = Object.keys(entry).sort();
+    expect(keys).toEqual(['agent', 'model', 'timestamp']);
   });
 });
