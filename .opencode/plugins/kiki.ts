@@ -1,143 +1,27 @@
-import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
-import { loadRoutingTable, lookupModel, mergeRoutingTables } from '../../src/core/routing-table';
-import { classifyDomain } from '../../src/core/domain-classifier';
-import { classifyRisk } from '../../src/core/risk-classifier';
-import { loadStabilizerState, lockTaskModel, getLockedModel } from '../../src/core/stabilizer';
-import { resolveKikiFile } from '../../src/core/path-resolver';
-import type { Skill, Domain, Risk, StaticRoutingTable, RoutingLogEntry } from '../../src/types';
+import { appendFileSync, existsSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 
-const SUBAGENT_TYPE_TO_SKILL: Record<string, Skill> = {
-  'kiki-brainstormer': 'brainstorming',
-  'kiki-planner': 'writing-plans',
-  'kiki-implementer': 'executing-plans',
-  'kiki-reviewer': 'reviewing',
-  'kiki-escalation': 'brainstorming',
-  'kiki-historian': 'documenting',
-};
-
-function getSkillFromSubagentType(subagentType: string): Skill | null {
-  return SUBAGENT_TYPE_TO_SKILL[subagentType] ?? null;
-}
-
-function logRoutingDecision(entry: RoutingLogEntry): void {
-  try {
-    mkdirSync('.agentic', { recursive: true });
-    const logLine = JSON.stringify(entry) + '\n';
-    appendFileSync('.agentic/routing_log.jsonl', logLine);
-  } catch {
-    // Silently ignore logging failures
-  }
-}
-
-function findFallbackModel(table: StaticRoutingTable, skill: Skill, domain: Domain): string | null {
-  // Try exact match first
-  const key = `${skill}:${domain}`;
-  const rule = table.rules[key];
-  if (rule) return rule.standard;
-
-  // Try any domain for this skill
-  const skillKeys = Object.keys(table.rules).filter(k => k.startsWith(`${skill}:`));
-  if (skillKeys.length > 0) return table.rules[skillKeys[0]].standard;
-
-  // Try any rule at all
-  const allKeys = Object.keys(table.rules);
-  if (allKeys.length > 0) return table.rules[allKeys[0]].standard;
-
-  return null;
+interface RoutingLogEntry {
+  timestamp: string;
+  agent: string;
+  model: string;
 }
 
 export default function KikiPlugin({ client }: { client: any }) {
-  const stabilizerState = loadStabilizerState();
+  client.tool.execute.before(async ({ input, output }: any) => {
+    if (input.tool !== 'task') return;
+    const subagentType = output.args?.subagent_type ?? '';
+    if (!subagentType.startsWith('kiki-')) return;
 
-  return {
-    'tool.execute.before': async (input: any, output: any) => {
-      if (input.tool !== 'task') return;
+    const logPath = join(process.cwd(), '.agentic', 'routing_log.jsonl');
+    const dir = dirname(logPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-      const subagentType = output.args?.subagent_type ?? '';
-      const skill = getSkillFromSubagentType(subagentType);
-
-      if (!skill) {
-        return;
-      }
-
-      const taskDesc = output.args?.prompt ?? '';
-      const taskId = output.args?.taskId;
-
-      const domain = classifyDomain(taskDesc);
-
-      let risk: Risk = 'standard';
-      try {
-        const configPath = resolveKikiFile('config.json', '.');
-        const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-        const pathMatches = taskDesc.match(/[\w/.-]+\.(ts|js|tsx|jsx|py|rs|go)/g) ?? [];
-        risk = classifyRisk(pathMatches, config.riskMatrix);
-      } catch {
-        // Config missing, use default standard
-      }
-
-      // Check if this task is already locked to a model
-      let selectedModel: string | null = getLockedModel(stabilizerState, taskId ?? null);
-      let reason: string;
-
-      if (selectedModel) {
-        reason = 'task locked';
-      } else {
-        const projectTable = loadRoutingTable('.agentic/kiki/routing.json');
-        const globalTable = loadRoutingTable(join(homedir(), '.config', 'opencode', 'kiki', 'defaults', 'routing.json'));
-        const table = mergeRoutingTables(projectTable, globalTable);
-
-        if (!table || Object.keys(table.rules).length === 0) {
-          console.error('[Kiki] CRITICAL: No routing table found. Check .agentic/routing.json exists.');
-          reason = 'missing routing table';
-        } else {
-          selectedModel = lookupModel(table, skill, domain, risk);
-
-          if (selectedModel) {
-            // Lock the task to this model
-            if (taskId) {
-              lockTaskModel(stabilizerState, taskId, selectedModel);
-            }
-            reason = `static routing (${risk})`;
-          } else {
-            // Fallback
-            selectedModel = findFallbackModel(table, skill, domain);
-            if (selectedModel) {
-              console.warn(`[Kiki] No exact rule for ${skill}/${domain}. Falling back to ${selectedModel}.`);
-              if (taskId) {
-                lockTaskModel(stabilizerState, taskId, selectedModel);
-              }
-              reason = 'fallback (no exact match)';
-            } else {
-              console.error(`[Kiki] CRITICAL: Routing table has no models at all for ${skill}/${domain}.`);
-              reason = 'no models in routing table';
-            }
-          }
-        }
-      }
-
-      if (selectedModel) {
-        if (!output.args) {
-          output.args = {};
-        }
-        // Diagnostic: task tool does not accept "model" param; SDk has session.update later
-        console.log('[Kiki DIAG] selected model:', selectedModel, '| skill:', skill, '| domain:', domain, '| risk:', risk, '| reason:', reason);
-
-        logRoutingDecision({
-          timestamp: new Date().toISOString(),
-          taskId,
-          skill,
-          domain,
-          risk,
-          selectedModel,
-          reason
-        });
-
-        console.log(`[Kiki] Routed ${subagentType} → ${selectedModel} (${skill}, ${domain}, ${risk})`);
-      } else {
-        console.error(`[Kiki] CRITICAL: Could not select any model for ${subagentType}. Task will use OpenCode default.`);
-      }
-    }
-  };
+    const entry: RoutingLogEntry = {
+      timestamp: new Date().toISOString(),
+      agent: subagentType,
+      model: output.args?.model ?? 'unknown',
+    };
+    appendFileSync(logPath, JSON.stringify(entry) + '\n');
+  });
 }
