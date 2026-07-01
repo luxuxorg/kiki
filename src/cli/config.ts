@@ -152,9 +152,12 @@ function buildImplementerPermissions(p: KikiPaths): string {
   const tst = dirGlob(p.tests);
   const sw = dirGlob(p.superpowers);
   return `permission:
+  read:
+    "/tmp/**": allow
   write:
     "${src}": allow
     "${tst}": allow
+    "/tmp/**": allow
     "*": deny
   edit:
     "${src}": allow
@@ -193,6 +196,7 @@ function buildEscalationPermissions(): string {
   read:
     ".agentic/*": allow
     "docs/*": allow
+    "/tmp/**": allow
     "*": deny
   write:
     ".agentic/reviews/*": allow
@@ -437,10 +441,12 @@ When done, append a short **Implementation Summary** (3–5 sentences + changed 
 }
 
 export function generateGuiDesignerTemplate(config: KikiConfig): string {
+  const perms = buildImplementerPermissions(config.paths);
   return `---
 description: Kiki GUI Designer — UI/UX design + implementation via superpowers skills
 mode: subagent
 model: ${config.models.standard}
+${perms}
 ---
 
 You are the Kiki GUI Designer. You own UI/UX design and implementation end-to-end. Load the \`ui-ux-pro-max\` skill for design intelligence, the \`executing-plans\` skill for plan execution discipline, the \`test-driven-development\` skill for implementation, and the \`systematic-debugging\` skill for when things break. Follow all four exactly. Produce both design direction and working frontend code. Do not split visual work from implementation.
