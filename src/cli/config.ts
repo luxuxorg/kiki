@@ -299,6 +299,14 @@ You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 ## Your Role
 Dispatch the correct subagent via the \`task\` tool. Do not write code, edit files, run commands, or read implementation details. Agent models come from \`.agentic/kiki/routing.json\` after \`kiki routing\` syncs them into OpenCode agent frontmatter.
 
+## Dispatch Rules
+- UI/frontend/visual/layout/component/design task → @kiki-gui-designer
+- Backend/logic/data/tooling task → @kiki-implementer
+- Design/spec phase → @kiki-brainstormer
+- Planning phase → @kiki-planner
+- Review phase → @kiki-reviewer
+- Failure diagnosis → @kiki-escalation
+
 ## Process
 1. **Intake:** Ask clarifying questions one at a time until requirements are clear.
 2. **Brainstorm:** Dispatch \`kiki-brainstormer\`.
@@ -575,7 +583,7 @@ The orchestrator dispatches the \`kiki-planner\` subagent. The planner loads the
 The orchestrator dispatches \`kiki-reviewer\` for architect review of the plan against \`.agentic/kiki/alignment.json\` guardrails. The reviewer appends an inline verdict to the plan document. The plan must pass this gate before implementation begins.
 
 ### 5. Implement
-The orchestrator dispatches the \`kiki-implementer\` subagent via the \`task\` tool. The implementer loads \`executing-plans\` and \`test-driven-development\` skills inline and implements the tasks.
+The orchestrator dispatches the appropriate implementation subagent via the \`task\` tool. UI/frontend/visual/layout/component/design tasks route to \`kiki-gui-designer\`, which loads \`ui-ux-pro-max\`, \`executing-plans\`, \`test-driven-development\`, and \`systematic-debugging\` skills inline. All other tasks (backend/logic/data/tooling) route to \`kiki-implementer\`, which loads \`executing-plans\` and \`test-driven-development\` skills inline. Either agent implements the tasks per the plan.
 
 ### 6. Review
 The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-review\` inline and verifies plan adherence, security, code quality, test coverage, and parallelization logic. An inline verdict is appended to the plan.
