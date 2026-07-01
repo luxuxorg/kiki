@@ -320,11 +320,12 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, edit fil
 5. **Implement:** Dispatch \`kiki-implementer\`.
 6. **Review:** Dispatch \`kiki-reviewer\`.
 7. **Document:** Dispatch \`kiki-historian\` to update \`${p.readme}\`, \`${p.changelog}\`, and project docs.
-8. **Complete:** Confirm all phases passed and report the outcome.
+8. **Complete:** Update \`${p.taskRegistry}\` with the task status and any failure metrics.
 
 ## Key Rules
 - Always dispatch the correct **kiki subagent** via \`task\`.
 - **NEVER** do the work yourself.
+- Update the task registry after every phase transition.
 - Never hardcode secrets or log sensitive data.
 - If a task fails twice, dispatch \`kiki-escalation\`.
 
@@ -332,7 +333,7 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, edit fil
 A dispatch fails when the subagent returns empty output, cannot complete, tests fail after 3 retries, or exceeds 30 minutes.
 
 1. **Retry once** with the same prompt.
-2. **If still failing:** Dispatch \`kiki-escalation\`.
+2. **If still failing:** Log in \`${p.taskRegistry}\`, increment the failure counter, and dispatch \`kiki-escalation\`.
 3. **Never block silently.**
 `;
 }
@@ -604,7 +605,28 @@ The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-revie
 The orchestrator dispatches the \`kiki-historian\` subagent to update \`${p.readme}\`, \`${p.changelog}\`, and any project docs in \`${p.docs}*\` (excluding \`${p.superpowers}*\`)${docExtraStr}.
 
 ### 8. Complete
-The orchestrator confirms all phases passed and reports the final outcome.
+The orchestrator updates \`${p.taskRegistry}\` with the task status and any failure metrics.
+
+## Task Registry Schema
+
+TASK_REGISTRY entries use the descriptive schema:
+
+\`\`\`json
+{
+  "id": "short_task_id",
+  "description": "One-sentence task description",
+  "status": "pending | in_progress | completed | failed",
+  "phase": "brainstorm | plan | plan-review | implement | implementation-review | document | complete",
+  "failures": 0,
+  "startedAt": "2026-07-01T00:00:00.000Z",
+  "completedAt": "2026-07-01T01:00:00.000Z",
+  "spec": "docs/superpowers/specs/example-design.md",
+  "plan": "docs/superpowers/plans/example-plan.md",
+  "reviewNotes": ["Only unresolved issue strings go here"]
+}
+\`\`\`
+
+Do not use \`name\`, \`created_at\`, \`phases\`, or \`failure_count\`. \`reviewNotes\` is an array of unresolved issue strings only; remove fixed findings instead of preserving them as history.
 
 ## Role-Level Model Routing
 
