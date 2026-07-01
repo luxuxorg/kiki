@@ -1,3 +1,4 @@
+import type { StaticRoutingTable } from '../types.js';
 export interface KikiPaths {
     source: string;
     tests: string;
@@ -24,10 +25,6 @@ export interface KikiConfig {
         lint: string;
         security: string;
     };
-    riskMatrix: {
-        highRiskPaths: string[];
-        criticalRiskPaths: string[];
-    };
     paths: KikiPaths;
     models: KikiModels;
 }
@@ -38,96 +35,15 @@ export declare const DEFAULT_ALIGNMENT: {
     guardrails: string[];
     compliance: string[];
 };
-export declare const DEFAULT_ROUTING_TABLE: {
-    rules: {
-        'brainstorming:gui': {
-            standard: string;
-        };
-        'brainstorming:backend': {
-            standard: string;
-        };
-        'brainstorming:security': {
-            standard: string;
-            critical: string;
-        };
-        'brainstorming:database': {
-            standard: string;
-        };
-        'brainstorming:general': {
-            standard: string;
-        };
-        'writing-plans:gui': {
-            standard: string;
-        };
-        'writing-plans:backend': {
-            standard: string;
-        };
-        'writing-plans:security': {
-            standard: string;
-            critical: string;
-        };
-        'writing-plans:database': {
-            standard: string;
-        };
-        'writing-plans:general': {
-            standard: string;
-        };
-        'executing-plans:gui': {
-            standard: string;
-        };
-        'executing-plans:backend': {
-            standard: string;
-        };
-        'executing-plans:security': {
-            standard: string;
-            critical: string;
-        };
-        'executing-plans:database': {
-            standard: string;
-        };
-        'executing-plans:general': {
-            standard: string;
-        };
-        'reviewing:gui': {
-            standard: string;
-        };
-        'reviewing:backend': {
-            standard: string;
-        };
-        'reviewing:security': {
-            standard: string;
-            critical: string;
-        };
-        'reviewing:database': {
-            standard: string;
-        };
-        'reviewing:general': {
-            standard: string;
-        };
-        'documenting:gui': {
-            standard: string;
-        };
-        'documenting:backend': {
-            standard: string;
-        };
-        'documenting:security': {
-            standard: string;
-        };
-        'documenting:database': {
-            standard: string;
-        };
-        'documenting:general': {
-            standard: string;
-        };
-    };
-};
+export declare const DEFAULT_ROUTING_TABLE: StaticRoutingTable;
 export declare function loadConfig(targetPath: string): KikiConfig;
 export declare function generateOrchestratorTemplate(config: KikiConfig): string;
 export declare function generateBrainstormerTemplate(config: KikiConfig): string;
 export declare function generatePlannerTemplate(config: KikiConfig): string;
 export declare function generateImplementerTemplate(config: KikiConfig): string;
+export declare function generateGuiDesignerTemplate(config: KikiConfig): string;
 export declare function generateReviewerTemplate(config: KikiConfig): string;
-export declare function generateEscalationTemplate(_config: KikiConfig): string;
+export declare function generateEscalationTemplate(config: KikiConfig): string;
 export declare function generateHistorianTemplate(config: KikiConfig): string;
 export declare function generatePluginTemplate(): string;
 export declare function generateWorkflowTemplate(config: KikiConfig): string;
@@ -138,6 +54,7 @@ export interface GeneratedTemplates {
     brainstormer: string;
     planner: string;
     implementer: string;
+    guiDesigner: string;
     reviewer: string;
     escalation: string;
     historian: string;

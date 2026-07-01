@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { DEFAULT_CONFIG, loadConfig } from '../config.js';
+import { loadConfig } from '../config.js';
 function check(label, ok, detail) {
     return { ok, message: label, detail };
 }
@@ -20,7 +20,6 @@ function checkPathsConfig(config, targetPath) {
         ['plans', p.plans],
         ['changelog', p.changelog],
         ['readme', p.readme],
-        ['taskRegistry', p.taskRegistry],
     ];
     for (const [label, path] of requiredPaths) {
         results.push(checkPathExists(targetPath, path, `paths.${label} (${path})`));
@@ -51,39 +50,35 @@ function checkModels(config) {
 }
 function checkRoutingTable(targetPath) {
     const results = [];
-    const routingPath = join(targetPath, '.agentic', 'routing.json');
+    const routingPath = join(targetPath, '.agentic', 'kiki', 'routing.json');
     if (!existsSync(routingPath)) {
-        results.push(check('.agentic/routing.json', false, 'File missing'));
+        results.push(check('.agentic/kiki/routing.json', false, 'File missing'));
         return results;
     }
     try {
         const raw = JSON.parse(readFileSync(routingPath, 'utf-8'));
-        const rules = raw?.rules;
-        if (!rules || typeof rules !== 'object') {
-            results.push(check('routing.json rules', false, 'No rules object found'));
-            return results;
-        }
-        const ruleCount = Object.keys(rules).length;
-        if (ruleCount === 0) {
-            results.push(check('routing.json rules', false, 'No routing rules defined'));
+        const agents = raw?.agents;
+        if (!agents || typeof agents !== 'object') {
+            results.push(check('routing.json agents', false, 'No agents map found'));
         }
         else {
-            results.push(check(`routing.json rules (${ruleCount} rules)`, true));
-        }
-        let emptyModelCount = 0;
-        for (const [key, rule] of Object.entries(rules)) {
-            const r = rule;
-            if (!r.standard || r.standard.trim() === '') {
-                emptyModelCount++;
-                results.push(check(`routing rule ${key}`, false, 'standard model is empty'));
+            const agentCount = Object.keys(agents).length;
+            if (agentCount === 0) {
+                results.push(check('routing.json agents', false, 'No agents defined'));
             }
-        }
-        if (emptyModelCount === 0) {
-            results.push(check('All routing rules have standard model', true));
+            else {
+                results.push(check(`routing.json agents (${agentCount} agents)`, true));
+                for (const [name, model] of Object.entries(agents)) {
+                    const m = model;
+                    if (!m || m.trim() === '') {
+                        results.push(check(`agent ${name} model`, false, 'Empty model'));
+                    }
+                }
+            }
         }
     }
     catch {
-        results.push(check('.agentic/routing.json', false, 'Invalid JSON'));
+        results.push(check('.agentic/kiki/routing.json', false, 'Invalid JSON'));
     }
     return results;
 }
@@ -94,6 +89,7 @@ function checkAgentFiles(targetPath) {
         'kiki-brainstormer.md',
         'kiki-planner.md',
         'kiki-implementer.md',
+        'kiki-gui-designer.md',
         'kiki-reviewer.md',
         'kiki-escalation.md',
         'kiki-historian.md',
@@ -153,14 +149,7 @@ function checkConfigFields(config) {
     else {
         results.push(check(`config.commands.security (${config.commands.security})`, true));
     }
-    const defaultPaths = JSON.stringify(DEFAULT_CONFIG.paths);
-    const configPaths = JSON.stringify(config.paths);
-    if (defaultPaths === configPaths) {
-        results.push(check('config.paths customized', false, 'Still using all default paths'));
-    }
-    else {
-        results.push(check('config.paths customized', true));
-    }
+    results.push(check('config.paths present', Boolean(config.paths)));
     return results;
 }
 export async function doctor(targetPath = '.') {

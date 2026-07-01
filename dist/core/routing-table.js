@@ -14,41 +14,32 @@ export function loadRoutingTable(filePath) {
     try {
         const raw = readFileSync(targetPath, 'utf-8');
         const parsed = JSON.parse(raw);
-        if (!parsed || !parsed.rules || typeof parsed.rules !== 'object') {
+        if (!parsed?.agents || typeof parsed.agents !== 'object') {
             return null;
         }
-        return parsed;
+        return { agents: parsed.agents };
     }
     catch {
         return null;
     }
 }
-export function saveRoutingTable(table) {
-    const dir = path.dirname(ROUTING_PATH);
+export function saveRoutingTable(filePath, table) {
+    const dir = path.dirname(filePath);
     if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(ROUTING_PATH, JSON.stringify(table, null, 2));
+    writeFileSync(filePath, JSON.stringify(table, null, 2));
 }
-export function lookupModel(table, skill, domain, risk) {
-    const key = `${skill}:${domain}`;
-    const rule = table.rules[key];
-    if (!rule)
-        return null;
-    // If risk is critical and a critical model is explicitly defined, use it
-    if (risk === 'critical' && rule.critical) {
-        return rule.critical;
-    }
-    // Otherwise fall back to standard
-    return rule.standard ?? null;
+export function lookupAgentModel(table, agentName) {
+    return table.agents[agentName] ?? null;
 }
 export function mergeRoutingTables(project, global) {
-    const result = { rules: {} };
+    const result = { agents: {} };
     if (global) {
-        Object.assign(result.rules, global.rules);
+        Object.assign(result.agents, global.agents);
     }
     if (project) {
-        Object.assign(result.rules, project.rules);
+        Object.assign(result.agents, project.agents);
     }
     return result;
 }

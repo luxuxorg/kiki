@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { DEFAULT_CONFIG, DEFAULT_ROUTING_TABLE, DEFAULT_ALIGNMENT, generateAllTemplates, } from '../config.js';
@@ -37,6 +37,7 @@ async function installGlobal(force) {
         'kiki-brainstormer.md': templates.brainstormer,
         'kiki-planner.md': templates.planner,
         'kiki-implementer.md': templates.implementer,
+        'kiki-gui-designer.md': templates.guiDesigner,
         'kiki-reviewer.md': templates.reviewer,
         'kiki-escalation.md': templates.escalation,
         'kiki-historian.md': templates.historian,
@@ -61,8 +62,6 @@ async function installGlobal(force) {
 async function installProject(targetPath, force) {
     const agenticKikiDir = join(targetPath, '.agentic', 'kiki');
     ensureDir(agenticKikiDir);
-    // Check for legacy config and migrate if present
-    migrateLegacyConfig(targetPath);
     const config = await runWizard(targetPath);
     const changelogStatus = config.paths.changelog
         ? existsSync(join(targetPath, config.paths.changelog)) ? 'exists' : 'create'
@@ -99,20 +98,5 @@ async function installProject(targetPath, force) {
         console.log(`  Decisions: ${config.paths.decisions}`);
     if (config.paths.knowledge)
         console.log(`  Knowledge: ${config.paths.knowledge}`);
-}
-function migrateLegacyConfig(targetPath) {
-    const legacyDir = join(targetPath, '.agentic');
-    const kikiDir = join(legacyDir, 'kiki');
-    const files = ['config.json', 'routing.json', 'alignment.json', 'TASK_REGISTRY.json'];
-    for (const file of files) {
-        const legacy = join(legacyDir, file);
-        const modern = join(kikiDir, file);
-        if (existsSync(legacy) && !existsSync(modern)) {
-            ensureDir(kikiDir);
-            const content = readFileSync(legacy, 'utf-8');
-            writeFileSync(modern, content);
-            console.log(`  Migrated ${file} → .agentic/kiki/`);
-        }
-    }
 }
 //# sourceMappingURL=install.js.map

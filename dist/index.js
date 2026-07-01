@@ -1,5 +1,2 @@
-export { loadRoutingTable, lookupModel, saveRoutingTable } from './core/routing-table.js';
-export { classifyDomain } from './core/domain-classifier.js';
-export { classifyRisk } from './core/risk-classifier.js';
-export { lockTaskModel, getLockedModel, loadStabilizerState } from './core/stabilizer.js';
+export { loadRoutingTable, saveRoutingTable, lookupAgentModel, mergeRoutingTables, setRoutingPath, ROUTING_PATH } from './core/routing-table.js';
 //# sourceMappingURL=index.js.map
