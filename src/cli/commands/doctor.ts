@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { KikiConfig, DEFAULT_CONFIG, loadConfig } from '../config.js';
+import { KikiConfig, loadConfig } from '../config.js';
 
 interface CheckResult {
   ok: boolean;
@@ -30,7 +30,6 @@ function checkPathsConfig(config: KikiConfig, targetPath: string): CheckResult[]
     ['plans', p.plans],
     ['changelog', p.changelog],
     ['readme', p.readme],
-    ['taskRegistry', p.taskRegistry],
   ];
 
   for (const [label, path] of requiredPaths) {
@@ -68,41 +67,34 @@ function checkModels(config: KikiConfig): CheckResult[] {
 
 function checkRoutingTable(targetPath: string): CheckResult[] {
   const results: CheckResult[] = [];
-  const routingPath = join(targetPath, '.agentic', 'routing.json');
+  const routingPath = join(targetPath, '.agentic', 'kiki', 'routing.json');
 
   if (!existsSync(routingPath)) {
-    results.push(check('.agentic/routing.json', false, 'File missing'));
+    results.push(check('.agentic/kiki/routing.json', false, 'File missing'));
     return results;
   }
 
   try {
     const raw = JSON.parse(readFileSync(routingPath, 'utf-8'));
-    const rules = raw?.rules;
-    if (!rules || typeof rules !== 'object') {
-      results.push(check('routing.json rules', false, 'No rules object found'));
-      return results;
-    }
-
-    const ruleCount = Object.keys(rules).length;
-    if (ruleCount === 0) {
-      results.push(check('routing.json rules', false, 'No routing rules defined'));
+    const agents = raw?.agents;
+    if (!agents || typeof agents !== 'object') {
+      results.push(check('routing.json agents', false, 'No agents map found'));
     } else {
-      results.push(check(`routing.json rules (${ruleCount} rules)`, true));
-    }
-
-    let emptyModelCount = 0;
-    for (const [key, rule] of Object.entries(rules)) {
-      const r = rule as { standard?: string; critical?: string };
-      if (!r.standard || r.standard.trim() === '') {
-        emptyModelCount++;
-        results.push(check(`routing rule ${key}`, false, 'standard model is empty'));
+      const agentCount = Object.keys(agents).length;
+      if (agentCount === 0) {
+        results.push(check('routing.json agents', false, 'No agents defined'));
+      } else {
+        results.push(check(`routing.json agents (${agentCount} agents)`, true));
+        for (const [name, model] of Object.entries(agents)) {
+          const m = model as string;
+          if (!m || m.trim() === '') {
+            results.push(check(`agent ${name} model`, false, 'Empty model'));
+          }
+        }
       }
     }
-    if (emptyModelCount === 0) {
-      results.push(check('All routing rules have standard model', true));
-    }
   } catch {
-    results.push(check('.agentic/routing.json', false, 'Invalid JSON'));
+    results.push(check('.agentic/kiki/routing.json', false, 'Invalid JSON'));
   }
 
   return results;
@@ -115,6 +107,7 @@ function checkAgentFiles(targetPath: string): CheckResult[] {
     'kiki-brainstormer.md',
     'kiki-planner.md',
     'kiki-implementer.md',
+    'kiki-gui-designer.md',
     'kiki-reviewer.md',
     'kiki-escalation.md',
     'kiki-historian.md',
@@ -183,13 +176,7 @@ function checkConfigFields(config: KikiConfig): CheckResult[] {
     results.push(check(`config.commands.security (${config.commands.security})`, true));
   }
 
-  const defaultPaths = JSON.stringify(DEFAULT_CONFIG.paths);
-  const configPaths = JSON.stringify(config.paths);
-  if (defaultPaths === configPaths) {
-    results.push(check('config.paths customized', false, 'Still using all default paths'));
-  } else {
-    results.push(check('config.paths customized', true));
-  }
+  results.push(check('config.paths present', Boolean(config.paths)));
 
   return results;
 }
