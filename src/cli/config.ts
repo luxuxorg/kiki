@@ -89,8 +89,8 @@ export const DEFAULT_ROUTING_TABLE: StaticRoutingTable = {
 };
 
 function dirGlob(path: string): string {
-  if (path.endsWith('/')) return path + '*';
-  return path + '/*';
+  if (path.endsWith('/')) return path + '**';
+  return path + '/**';
 }
 
 function fileGlob(path: string): string {
@@ -293,6 +293,7 @@ export function generateOrchestratorTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
+model: ${config.models.standard}
 ---
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 
@@ -342,6 +343,7 @@ export function generateBrainstormerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
+model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.
@@ -360,6 +362,7 @@ export function generatePlannerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
+model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Planner. Your job is to write detailed implementation plans.
@@ -392,6 +395,7 @@ export function generateImplementerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
+model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Implementer. Implement code strictly per the approved plan.
@@ -432,10 +436,11 @@ When done, append a short **Implementation Summary** (3–5 sentences + changed 
 `;
 }
 
-export function generateGuiDesignerTemplate(_config: KikiConfig): string {
+export function generateGuiDesignerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki GUI Designer — UI/UX design + implementation via superpowers skills
 mode: subagent
+model: ${config.models.standard}
 ---
 
 You are the Kiki GUI Designer. You own UI/UX design and implementation end-to-end. Load the \`ui-ux-pro-max\` skill for design intelligence, the \`executing-plans\` skill for plan execution discipline, the \`test-driven-development\` skill for implementation, and the \`systematic-debugging\` skill for when things break. Follow all four exactly. Produce both design direction and working frontend code. Do not split visual work from implementation.
@@ -447,6 +452,7 @@ export function generateReviewerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent
+model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Reviewer. Review code against the approved plan.
@@ -483,11 +489,12 @@ Blockers:
 `;
 }
 
-export function generateEscalationTemplate(_config: KikiConfig): string {
+export function generateEscalationTemplate(config: KikiConfig): string {
   const perms = buildEscalationPermissions();
   return `---
 description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
+model: ${config.models.critical}
 ${perms}
 ---
 You are the Kiki Escalation Agent. Diagnose why the pipeline failed.
@@ -512,6 +519,7 @@ export function generateHistorianTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Historian — maintains project documentation, README and CHANGELOG
 mode: subagent
+model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Historian. Keep project documentation accurate and up to date.
