@@ -39,14 +39,14 @@ export const DEFAULT_ALIGNMENT = {
 };
 export const DEFAULT_ROUTING_TABLE = {
     agents: {
-        'kiki-orchestrator': DEFAULT_MODELS.standard,
-        'kiki-brainstormer': DEFAULT_MODELS.standard,
-        'kiki-planner': DEFAULT_MODELS.standard,
-        'kiki-implementer': DEFAULT_MODELS.standard,
-        'kiki-gui-designer': DEFAULT_MODELS.standard,
-        'kiki-reviewer': DEFAULT_MODELS.standard,
-        'kiki-escalation': DEFAULT_MODELS.critical,
-        'kiki-historian': DEFAULT_MODELS.standard,
+        'kiki-orchestrator': 'openrouter/qwen/qwen-3.7plus',
+        'kiki-brainstormer': 'openrouter/z-ai/glm-5.2',
+        'kiki-planner': 'openrouter/z-ai/glm-5.2',
+        'kiki-implementer': 'deepseek/deepseek-v4-pro',
+        'kiki-gui-designer': 'openrouter/z-ai/glm-5.2',
+        'kiki-reviewer': 'openrouter/z-ai/glm-5.2',
+        'kiki-escalation': 'anthropic/claude-sonnet-5',
+        'kiki-historian': 'deepseek/deepseek-v4-pro',
     },
 };
 function dirGlob(path) {
