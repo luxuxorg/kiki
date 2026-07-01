@@ -124,7 +124,6 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
       lint: lintCmd,
       security: securityCmd,
     },
-    riskMatrix: DEFAULT_CONFIG.riskMatrix,
     paths: {
       source,
       tests,
@@ -136,7 +135,7 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
       readme: 'README.md',
       decisions: decisionsResult.path || null,
       knowledge: knowledgeResult.path || null,
-      taskRegistry: '.agentic/TASK_REGISTRY.json',
+      taskRegistry: '.agentic/kiki/TASK_REGISTRY.json',
     },
     models: {
       standard: standardModel,
@@ -201,12 +200,6 @@ export async function init(args: string[] | string, options?: { wizard?: boolean
     writeFileSync(join(kikiDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
     writeFileSync(join(kikiDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
     writeFileSync(join(kikiDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
-
-    // Also write legacy paths for backward compatibility in tests
-    writeFileSync(join(agenticDir, 'config.json'), JSON.stringify(config, null, 2));
-    writeFileSync(join(agenticDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
-    writeFileSync(join(agenticDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
-    writeFileSync(join(agenticDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
 
     // Backward compat: also scaffold .opencode/ files
     writeOpencodeFiles(targetPath, config);
