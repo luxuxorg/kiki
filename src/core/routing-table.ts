@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'node:path';
-import type { StaticRoutingTable, Skill, Domain, Risk } from '../types.js';
+import type { StaticRoutingTable } from '../types.js';
 
 export let ROUTING_PATH = '.agentic/kiki/routing.json';
 
@@ -17,55 +17,40 @@ export function loadRoutingTable(filePath?: string): StaticRoutingTable | null {
   try {
     const raw = readFileSync(targetPath, 'utf-8');
     const parsed = JSON.parse(raw);
-    if (!parsed || !parsed.rules || typeof parsed.rules !== 'object') {
+    if (!parsed?.agents || typeof parsed.agents !== 'object') {
       return null;
     }
-    return parsed as StaticRoutingTable;
+    return { agents: parsed.agents } as StaticRoutingTable;
   } catch {
     return null;
   }
 }
 
-export function saveRoutingTable(table: StaticRoutingTable): void {
-  const dir = path.dirname(ROUTING_PATH);
+export function saveRoutingTable(filePath: string, table: StaticRoutingTable): void {
+  const dir = path.dirname(filePath);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
-  writeFileSync(ROUTING_PATH, JSON.stringify(table, null, 2));
+  writeFileSync(filePath, JSON.stringify(table, null, 2));
 }
 
-export function lookupModel(
+export function lookupAgentModel(
   table: StaticRoutingTable,
-  skill: Skill,
-  domain: Domain,
-  risk: Risk
+  agentName: string
 ): string | null {
-  const key = `${skill}:${domain}`;
-  const rule = table.rules[key];
-  if (!rule) return null;
-
-  // If risk is critical and a critical model is explicitly defined, use it
-  if (risk === 'critical' && rule.critical) {
-    return rule.critical;
-  }
-
-  // Otherwise fall back to standard
-  return rule.standard ?? null;
+  return table.agents[agentName] ?? null;
 }
 
 export function mergeRoutingTables(
   project: StaticRoutingTable | null,
   global: StaticRoutingTable | null
 ): StaticRoutingTable {
-  const result: StaticRoutingTable = { rules: {} };
-
+  const result: StaticRoutingTable = { agents: {} };
   if (global) {
-    Object.assign(result.rules, global.rules);
+    Object.assign(result.agents, global.agents);
   }
-
   if (project) {
-    Object.assign(result.rules, project.rules);
+    Object.assign(result.agents, project.agents);
   }
-
   return result;
 }
