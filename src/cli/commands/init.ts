@@ -106,6 +106,7 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
   console.log('\n--- Models ---\n');
   const standardModel = await ask(lr, 'Standard model', DEFAULT_MODELS.standard);
   const criticalModel = await ask(lr, 'Critical model', DEFAULT_MODELS.critical);
+  const workhorseModel = await ask(lr, 'Workhorse model', DEFAULT_MODELS.workhorse);
 
   console.log('\n--- Build Commands ---\n');
   const buildCmd = await ask(lr, 'Build command', language === 'python' ? 'python -m build' : 'npm run build');
@@ -140,6 +141,7 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
     models: {
       standard: standardModel,
       critical: criticalModel,
+      workhorse: workhorseModel,
     },
   };
 

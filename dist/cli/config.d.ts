@@ -15,6 +15,7 @@ export interface KikiPaths {
 export interface KikiModels {
     standard: string;
     critical: string;
+    workhorse: string;
 }
 export interface KikiConfig {
     projectName: string;

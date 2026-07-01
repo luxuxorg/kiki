@@ -62,6 +62,12 @@ function checkModels(config: KikiConfig): CheckResult[] {
     results.push(check(`models.critical (${config.models.critical})`, true));
   }
 
+  if (!config.models.workhorse || config.models.workhorse.trim() === '') {
+    results.push(check('models.workhorse', false, 'Workhorse model is empty'));
+  } else {
+    results.push(check(`models.workhorse (${config.models.workhorse})`, true));
+  }
+
   return results;
 }
 

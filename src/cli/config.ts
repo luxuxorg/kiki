@@ -19,6 +19,7 @@ export interface KikiPaths {
 export interface KikiModels {
   standard: string;
   critical: string;
+  workhorse: string;
 }
 
 export interface KikiConfig {
@@ -49,8 +50,9 @@ export const DEFAULT_PATHS: KikiPaths = {
 };
 
 export const DEFAULT_MODELS: KikiModels = {
-  standard: 'moonshotai/kimi-k2.6',
-  critical: 'anthropic/claude-sonnet-4.6',
+  standard: 'openrouter/z-ai/glm-5.2',
+  critical: 'anthropic/claude-sonnet-5',
+  workhorse: 'deepseek/deepseek-v4-pro',
 };
 
 export const DEFAULT_CONFIG: KikiConfig = {
@@ -79,9 +81,9 @@ export const DEFAULT_ROUTING_TABLE: StaticRoutingTable = {
   agents: {
     'kiki-orchestrator': DEFAULT_MODELS.standard,
     'kiki-brainstormer': DEFAULT_MODELS.standard,
-    'kiki-planner': DEFAULT_MODELS.standard,
-    'kiki-implementer': DEFAULT_MODELS.standard,
-    'kiki-gui-designer': DEFAULT_MODELS.standard,
+    'kiki-planner': DEFAULT_MODELS.workhorse,
+    'kiki-implementer': DEFAULT_MODELS.workhorse,
+    'kiki-gui-designer': DEFAULT_MODELS.workhorse,
     'kiki-reviewer': DEFAULT_MODELS.standard,
     'kiki-escalation': DEFAULT_MODELS.critical,
     'kiki-historian': DEFAULT_MODELS.standard,
@@ -110,9 +112,7 @@ function fileDir(path: string): string {
 }
 
 export function loadConfig(targetPath: string): KikiConfig {
-  const modernConfigPath = join(targetPath, '.agentic', 'kiki', 'config.json');
-  const legacyConfigPath = join(targetPath, '.agentic', 'config.json');
-  const configPath = existsSync(modernConfigPath) ? modernConfigPath : legacyConfigPath;
+  const configPath = join(targetPath, '.agentic', 'kiki', 'config.json');
   if (!existsSync(configPath)) return { ...DEFAULT_CONFIG };
   try {
     const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -344,7 +344,7 @@ export function generateBrainstormerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
-model: ${config.models.standard}
+model: ${config.models.workhorse}
 ${perms}
 ---
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.
@@ -363,7 +363,7 @@ export function generatePlannerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
-model: ${config.models.standard}
+model: ${config.models.workhorse}
 ${perms}
 ---
 You are the Kiki Planner. Your job is to write detailed implementation plans.
@@ -396,7 +396,7 @@ export function generateImplementerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
-model: ${config.models.standard}
+model: ${config.models.workhorse}
 ${perms}
 ---
 You are the Kiki Implementer. Implement code strictly per the approved plan.
@@ -555,7 +555,7 @@ export default function KikiPlugin({ client }: { client: any }) {
       const subagentType = output.args?.subagent_type ?? '';
       if (!subagentType.startsWith('kiki-')) return;
 
-      const logPath = join(process.cwd(), '.agentic', 'routing_log.jsonl');
+      const logPath = join(process.cwd(), '.agentic', 'kiki', 'routing_log.jsonl');
       const dir = dirname(logPath);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
@@ -729,19 +729,20 @@ export function writeOpencodeFiles(targetPath: string, config: KikiConfig): void
 
 export function writeAgenticFiles(targetPath: string, config: KikiConfig): string {
   const agenticDir = join(targetPath, '.agentic');
-  const cacheDir = join(agenticDir, 'cache');
+  const kikiDir = join(agenticDir, 'kiki');
+  const cacheDir = join(kikiDir, 'cache');
 
-  if (!existsSync(agenticDir)) {
-    mkdirSync(agenticDir, { recursive: true });
+  if (!existsSync(kikiDir)) {
+    mkdirSync(kikiDir, { recursive: true });
   }
   mkdirSync(cacheDir, { recursive: true });
 
-  writeFileSync(join(agenticDir, 'config.json'), JSON.stringify(config, null, 2));
-  writeFileSync(join(agenticDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
-  writeFileSync(join(agenticDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
-  writeFileSync(join(agenticDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
+  writeFileSync(join(kikiDir, 'config.json'), JSON.stringify(config, null, 2));
+  writeFileSync(join(kikiDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
+  writeFileSync(join(kikiDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
+  writeFileSync(join(kikiDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
 
-  return agenticDir;
+  return kikiDir;
 }
 
 export function ensurePathExists(targetPath: string, filePath: string): void {

@@ -44,9 +44,12 @@ export async function update(args: string[] | string): Promise<void> {
   writeFileSync(join(kikiDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
   updated.push('.agentic/kiki/routing.json');
 
-  // Write alignment to .agentic/kiki/alignment.json only
-  writeFileSync(join(kikiDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
-  updated.push('.agentic/kiki/alignment.json');
+  // Write alignment to .agentic/kiki/alignment.json only if missing (user-owned)
+  const alignmentPath = join(kikiDir, 'alignment.json');
+  if (!existsSync(alignmentPath)) {
+    writeFileSync(alignmentPath, JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
+    updated.push('.agentic/kiki/alignment.json');
+  }
 
   // Print summary
   console.log(`Updated Kiki in ${targetPath}`);

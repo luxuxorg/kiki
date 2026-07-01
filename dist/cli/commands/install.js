@@ -94,6 +94,7 @@ async function installProject(targetPath, force) {
     console.log(`  Language: ${config.language}`);
     console.log(`  Standard model: ${config.models.standard}`);
     console.log(`  Critical model: ${config.models.critical}`);
+    console.log(`  Workhorse model: ${config.models.workhorse}`);
     if (config.paths.decisions)
         console.log(`  Decisions: ${config.paths.decisions}`);
     if (config.paths.knowledge)

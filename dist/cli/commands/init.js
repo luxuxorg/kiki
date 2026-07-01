@@ -81,6 +81,7 @@ export async function runWizard(targetPath) {
     console.log('\n--- Models ---\n');
     const standardModel = await ask(lr, 'Standard model', DEFAULT_MODELS.standard);
     const criticalModel = await ask(lr, 'Critical model', DEFAULT_MODELS.critical);
+    const workhorseModel = await ask(lr, 'Workhorse model', DEFAULT_MODELS.workhorse);
     console.log('\n--- Build Commands ---\n');
     const buildCmd = await ask(lr, 'Build command', language === 'python' ? 'python -m build' : 'npm run build');
     const testCmd = await ask(lr, 'Test command', language === 'python' ? 'pytest' : 'npm test');
@@ -112,6 +113,7 @@ export async function runWizard(targetPath) {
         models: {
             standard: standardModel,
             critical: criticalModel,
+            workhorse: workhorseModel,
         },
     };
     return config;
