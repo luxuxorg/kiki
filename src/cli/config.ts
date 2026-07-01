@@ -538,22 +538,24 @@ interface RoutingLogEntry {
 }
 
 export default function KikiPlugin({ client }: { client: any }) {
-  client.tool.execute.before(async ({ input, output }: any) => {
-    if (input.tool !== 'task') return;
-    const subagentType = output.args?.subagent_type ?? '';
-    if (!subagentType.startsWith('kiki-')) return;
+  return {
+    'tool.execute.before': async (input: any, output: any) => {
+      if (input.tool !== 'task') return;
+      const subagentType = output.args?.subagent_type ?? '';
+      if (!subagentType.startsWith('kiki-')) return;
 
-    const logPath = join(process.cwd(), '.agentic', 'routing_log.jsonl');
-    const dir = dirname(logPath);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      const logPath = join(process.cwd(), '.agentic', 'routing_log.jsonl');
+      const dir = dirname(logPath);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-    const entry: RoutingLogEntry = {
-      timestamp: new Date().toISOString(),
-      agent: subagentType,
-      model: output.args?.model ?? 'unknown',
-    };
-    appendFileSync(logPath, JSON.stringify(entry) + '\\n');
-  });
+      const entry: RoutingLogEntry = {
+        timestamp: new Date().toISOString(),
+        agent: subagentType,
+        model: output.args?.model ?? 'unknown',
+      };
+      appendFileSync(logPath, JSON.stringify(entry) + '\\n');
+    }
+  };
 }
 `;
 }
