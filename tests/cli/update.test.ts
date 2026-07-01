@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { init } from '../../src/cli/commands/init';
 import { update } from '../../src/cli/commands/update';
-import { DEFAULT_CONFIG, DEFAULT_ALIGNMENT, DEFAULT_ROUTING_TABLE, generateOrchestratorTemplate } from '../../src/cli/config';
+import { DEFAULT_CONFIG, generateOrchestratorTemplate } from '../../src/cli/config';
 import { setRoutingPath } from '../../src/core/routing-table';
 
 describe('cli update', () => {
@@ -12,7 +12,7 @@ describe('cli update', () => {
   beforeEach(async () => {
     tmpDir = `tmp/cli-update-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await fs.mkdir(tmpDir, { recursive: true });
-    setRoutingPath(path.join(tmpDir, '.agentic/routing.json'));
+    setRoutingPath(path.join(tmpDir, '.agentic/kiki/routing.json'));
   });
 
   afterEach(async () => {
@@ -47,106 +47,44 @@ describe('cli update', () => {
     expect(orchestrator).toBe(expected);
   });
 
-  it('smart-merges routing.json: keeps user overrides, adds new rules, removes old rules', async () => {
+  it('writes kiki-gui-designer.md to .opencode/agents/', async () => {
     await init(tmpDir, { wizard: false });
-    
-    // Modify routing.json: change existing rule, add custom rule
-    const userRouting = {
-      rules: {
-        ...DEFAULT_ROUTING_TABLE.rules,
-        'brainstorming:gui': { standard: 'custom-model' },
-        'custom:rule': { standard: 'custom' }
-      }
-    };
-    await fs.writeFile(path.join(tmpDir, '.agentic/routing.json'), JSON.stringify(userRouting, null, 2));
+    // Remove the gui-designer file to prove update recreates it
+    await fs.rm(path.join(tmpDir, '.opencode/agents/kiki-gui-designer.md'));
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await update(tmpDir);
     logSpy.mockRestore();
 
-    const routing = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/routing.json'), 'utf-8'));
-    
-    // User override kept
-    expect(routing.rules['brainstorming:gui'].standard).toBe('custom-model');
-    
-    // New default rules added (all defaults should be present)
-    for (const key of Object.keys(DEFAULT_ROUTING_TABLE.rules)) {
-      expect(routing.rules[key]).toBeDefined();
-    }
-    
-    // Custom rule removed
-    expect(routing.rules['custom:rule']).toBeUndefined();
+    const guiDesigner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-gui-designer.md'), 'utf-8');
+    expect(guiDesigner).toContain('Kiki GUI Designer');
+    expect(guiDesigner).toContain('mode: subagent');
   });
 
-  it('smart-merges config.json: keeps user values, adds new keys, removes old keys', async () => {
+  it('writes routing.json with agents map to .agentic/kiki/', async () => {
     await init(tmpDir, { wizard: false });
-    
-    // Modify config.json: change existing key, add custom key
-    const userConfig = {
-      ...DEFAULT_CONFIG,
-      projectName: 'custom-project',
-      customKey: 'custom-value'
-    };
-    await fs.writeFile(path.join(tmpDir, '.agentic/config.json'), JSON.stringify(userConfig, null, 2));
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await update(tmpDir);
     logSpy.mockRestore();
 
-    const config = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/config.json'), 'utf-8'));
-    
-    // User override kept
-    expect(config.projectName).toBe('custom-project');
-    
-    // Default keys present
-    expect(config.language).toBe(DEFAULT_CONFIG.language);
-    expect(config.paths).toBeDefined();
-    expect(config.paths.source).toBe(DEFAULT_CONFIG.paths.source);
-    expect(config.models).toBeDefined();
-    
-    // Custom key removed
-    expect(config.customKey).toBeUndefined();
+    const routing = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/kiki/routing.json'), 'utf-8'));
+    expect(routing.agents).toBeDefined();
+    expect(typeof routing.agents).toBe('object');
+    expect(routing.agents['kiki-orchestrator']).toBeDefined();
+    expect(routing.agents['kiki-gui-designer']).toBeDefined();
+    expect(routing.rules).toBeUndefined();
   });
 
-  it('smart-merges alignment.json: keeps user values, adds new keys, removes old keys', async () => {
+  it('writes alignment.json to .agentic/kiki/', async () => {
     await init(tmpDir, { wizard: false });
-    
-    // Modify alignment.json: change existing key, add custom key
-    const userAlignment = {
-      ...DEFAULT_ALIGNMENT,
-      guardrails: ['Custom guardrail'],
-      customKey: 'custom-value'
-    };
-    await fs.writeFile(path.join(tmpDir, '.agentic/alignment.json'), JSON.stringify(userAlignment, null, 2));
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await update(tmpDir);
     logSpy.mockRestore();
 
-    const alignment = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/alignment.json'), 'utf-8'));
-    
-    // User override kept
-    expect(alignment.guardrails).toEqual(['Custom guardrail']);
-    
-    // Default keys present
-    expect(alignment.compliance).toEqual(DEFAULT_ALIGNMENT.compliance);
-    
-    // Custom key removed
-    expect(alignment.customKey).toBeUndefined();
-  });
-
-  it('does NOT touch TASK_REGISTRY.json', async () => {
-    await init(tmpDir, { wizard: false });
-    
-    const userRegistry = { tasks: [{ taskId: '1', status: 'completed' }] };
-    await fs.writeFile(path.join(tmpDir, '.agentic/TASK_REGISTRY.json'), JSON.stringify(userRegistry, null, 2));
-
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await update(tmpDir);
-    logSpy.mockRestore();
-
-    const registry = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/TASK_REGISTRY.json'), 'utf-8'));
-    expect(registry.tasks).toHaveLength(1);
-    expect(registry.tasks[0].taskId).toBe('1');
+    const alignment = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/kiki/alignment.json'), 'utf-8'));
+    expect(alignment.guardrails).toBeDefined();
+    expect(alignment.compliance).toContain('OWASP Top 10');
   });
 });

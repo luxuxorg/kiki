@@ -10,7 +10,7 @@ describe('cli init', () => {
   beforeEach(async () => {
     tmpDir = `tmp/cli-init-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await fs.mkdir(tmpDir, { recursive: true });
-    setRoutingPath(path.join(tmpDir, '.agentic/routing.json'));
+    setRoutingPath(path.join(tmpDir, '.agentic/kiki/routing.json'));
   });
 
   afterEach(async () => {
@@ -21,38 +21,39 @@ describe('cli init', () => {
     vi.restoreAllMocks();
   });
 
-  it('scaffolds .agentic directory with all config files', async () => {
+  it('scaffolds .agentic/kiki directory with all config files', async () => {
     await init(tmpDir, { wizard: false });
 
-    const config = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/config.json'), 'utf-8'));
+    const config = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/kiki/config.json'), 'utf-8'));
     expect(config.projectName).toBe('my-project');
     expect(config.language).toBe('typescript');
     expect(config.commands.build).toBe('npm run build');
     expect(config.commands.security).toBe('npm audit');
-    expect(config.riskMatrix.highRiskPaths).toContain('src/auth/');
-    expect(config.riskMatrix.criticalRiskPaths).toContain('src/security/');
+    expect(config.riskMatrix).toBeUndefined();
     expect(config.paths).toBeDefined();
     expect(config.paths.source).toBe('src/');
     expect(config.paths.tests).toBe('tests/');
     expect(config.paths.changelog).toBe('CHANGELOG.md');
+    expect(config.paths.taskRegistry).toBe('.agentic/kiki/TASK_REGISTRY.json');
     expect(config.models).toBeDefined();
     expect(config.models.standard).toBeDefined();
     expect(config.models.critical).toBeDefined();
     expect(config.routingPreferences).toBeUndefined();
 
-    const alignment = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/alignment.json'), 'utf-8'));
+    const alignment = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/kiki/alignment.json'), 'utf-8'));
     expect(alignment.guardrails).toHaveLength(3);
     expect(alignment.compliance).toContain('OWASP Top 10');
 
-    const registry = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/TASK_REGISTRY.json'), 'utf-8'));
+    const registry = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/kiki/TASK_REGISTRY.json'), 'utf-8'));
     expect(registry.tasks).toEqual([]);
 
-    const routing = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/routing.json'), 'utf-8'));
-    expect(routing.rules).toBeDefined();
-    expect(typeof routing.rules).toBe('object');
-    expect(routing.rules['brainstorming:gui'].standard).toBe('anthropic/claude-sonnet-4.6');
-    expect(routing.rules['brainstorming:security'].critical).toBe('anthropic/claude-sonnet-4.6');
-    expect(routing.rules['documenting:general']).toBeDefined();
+    const routing = JSON.parse(await fs.readFile(path.join(tmpDir, '.agentic/kiki/routing.json'), 'utf-8'));
+    expect(routing.agents).toBeDefined();
+    expect(typeof routing.agents).toBe('object');
+    expect(routing.agents['kiki-orchestrator']).toBeDefined();
+    expect(routing.agents['kiki-gui-designer']).toBeDefined();
+    expect(routing.agents['kiki-escalation']).toBeDefined();
+    expect(routing.rules).toBeUndefined();
     expect(routing.version).toBeUndefined();
     expect(routing.generatedAt).toBeUndefined();
     expect(routing.sources).toBeUndefined();
@@ -65,7 +66,7 @@ describe('cli init', () => {
 
     await init(customDir, { wizard: false });
 
-    const config = JSON.parse(await fs.readFile(path.join(customDir, '.agentic/config.json'), 'utf-8'));
+    const config = JSON.parse(await fs.readFile(path.join(customDir, '.agentic/kiki/config.json'), 'utf-8'));
     expect(config.projectName).toBe('my-project');
   });
 
@@ -125,11 +126,12 @@ describe('cli init', () => {
     expect(historian).toContain('CHANGELOG');
     expect(historian).toContain('.agentic/*');
 
-    // Plugin is self-contained (no external imports)
+    // Plugin is a thin logger (no agent names, no external imports)
     const plugin = await fs.readFile(path.join(tmpDir, '.opencode/plugins/kiki.ts'), 'utf-8');
     expect(plugin).not.toContain("from 'kiki'");
-    expect(plugin).not.toContain("../../src/core");
-    expect(plugin).toContain('kiki-historian');
+    expect(plugin).not.toContain('../../src/core');
+    expect(plugin).not.toContain('kiki-historian');
+    expect(plugin).toContain('routing_log.jsonl');
 
     // package.json has only opencode plugin dependency
     const pkg = JSON.parse(await fs.readFile(path.join(tmpDir, '.opencode/package.json'), 'utf-8'));
@@ -144,5 +146,14 @@ describe('cli init', () => {
     const workflow = await fs.readFile(path.join(tmpDir, '.opencode/docs/agentic-workflow.md'), 'utf-8');
     expect(workflow).toContain('Kiki Workflow');
     expect(workflow).toContain('kiki-historian');
+  });
+
+  it('scaffolds kiki-gui-designer.md in .opencode/agents/', async () => {
+    await init(tmpDir, { wizard: false });
+
+    const guiDesigner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-gui-designer.md'), 'utf-8');
+    expect(guiDesigner).toContain('mode: subagent');
+    expect(guiDesigner).toContain('Kiki GUI Designer');
+    expect(guiDesigner).toContain('ui-ux-pro-max');
   });
 });

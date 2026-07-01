@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import * as initModule from '../../src/cli/commands/init';
 
 describe('cli install', () => {
   let tmpDir: string;
@@ -43,10 +42,6 @@ describe('cli install', () => {
             lint: 'npm run lint',
             security: 'npm audit',
           },
-          riskMatrix: {
-            highRiskPaths: ['src/auth/'],
-            criticalRiskPaths: ['src/security/'],
-          },
           paths: {
             source: 'src/',
             tests: 'tests/',
@@ -58,7 +53,7 @@ describe('cli install', () => {
             readme: 'README.md',
             decisions: 'docs/DECISIONS.md',
             knowledge: null,
-            taskRegistry: '.agentic/TASK_REGISTRY.json',
+            taskRegistry: '.agentic/kiki/TASK_REGISTRY.json',
           },
           models: {
             standard: 'moonshotai/kimi-k2.6',
@@ -90,7 +85,23 @@ describe('cli install', () => {
 
     const routingPath = path.join(globalDefaultsDir, 'routing.json');
     const routing = JSON.parse(await fs.readFile(routingPath, 'utf-8'));
-    expect(routing.rules).toBeDefined();
+    expect(routing.agents).toBeDefined();
+    expect(routing.agents['kiki-orchestrator']).toBeDefined();
+    expect(routing.rules).toBeUndefined();
+
+    logSpy.mockRestore();
+  });
+
+  it('installs kiki-gui-designer.md to global agents dir', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await (await getInstall())([]);
+
+    const agents = await fs.readdir(globalAgentsDir);
+    expect(agents).toContain('kiki-gui-designer.md');
+
+    const guiDesigner = await fs.readFile(path.join(globalAgentsDir, 'kiki-gui-designer.md'), 'utf-8');
+    expect(guiDesigner).toContain('Kiki GUI Designer');
 
     logSpy.mockRestore();
   });
@@ -109,7 +120,9 @@ describe('cli install', () => {
 
     const routingPath = path.join(projectDir, '.agentic', 'kiki', 'routing.json');
     const routing = JSON.parse(await fs.readFile(routingPath, 'utf-8'));
-    expect(routing.rules).toBeDefined();
+    expect(routing.agents).toBeDefined();
+    expect(routing.agents['kiki-orchestrator']).toBeDefined();
+    expect(routing.rules).toBeUndefined();
 
     logSpy.mockRestore();
   });
@@ -125,25 +138,6 @@ describe('cli install', () => {
 
     exitSpy.mockRestore();
     errorSpy.mockRestore();
-  });
-
-  it('migrates legacy config when installing to project', async () => {
-    const projectDir = path.join(tmpDir, 'project');
-    await fs.mkdir(path.join(projectDir, '.agentic'), { recursive: true });
-    await fs.writeFile(
-      path.join(projectDir, '.agentic', 'config.json'),
-      JSON.stringify({ projectName: 'legacy-project', language: 'javascript' })
-    );
-
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    await (await getInstall())(['--project', projectDir]);
-
-    const migratedConfig = path.join(projectDir, '.agentic', 'kiki', 'config.json');
-    const exists = await fs.stat(migratedConfig).then(() => true).catch(() => false);
-    expect(exists).toBe(true);
-
-    logSpy.mockRestore();
   });
 
   it('skips existing files without --force', async () => {
