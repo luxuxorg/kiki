@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import {
@@ -49,6 +49,7 @@ async function installGlobal(force: boolean): Promise<void> {
     'kiki-brainstormer.md': templates.brainstormer,
     'kiki-planner.md': templates.planner,
     'kiki-implementer.md': templates.implementer,
+    'kiki-gui-designer.md': templates.guiDesigner,
     'kiki-reviewer.md': templates.reviewer,
     'kiki-escalation.md': templates.escalation,
     'kiki-historian.md': templates.historian,
@@ -85,9 +86,6 @@ async function installGlobal(force: boolean): Promise<void> {
 async function installProject(targetPath: string, force: boolean): Promise<void> {
   const agenticKikiDir = join(targetPath, '.agentic', 'kiki');
   ensureDir(agenticKikiDir);
-
-  // Check for legacy config and migrate if present
-  migrateLegacyConfig(targetPath);
 
   const config = await runWizard(targetPath);
 
@@ -133,19 +131,3 @@ async function installProject(targetPath: string, force: boolean): Promise<void>
   if (config.paths.knowledge) console.log(`  Knowledge: ${config.paths.knowledge}`);
 }
 
-function migrateLegacyConfig(targetPath: string): void {
-  const legacyDir = join(targetPath, '.agentic');
-  const kikiDir = join(legacyDir, 'kiki');
-  const files = ['config.json', 'routing.json', 'alignment.json', 'TASK_REGISTRY.json'];
-
-  for (const file of files) {
-    const legacy = join(legacyDir, file);
-    const modern = join(kikiDir, file);
-    if (existsSync(legacy) && !existsSync(modern)) {
-      ensureDir(kikiDir);
-      const content = readFileSync(legacy, 'utf-8');
-      writeFileSync(modern, content);
-      console.log(`  Migrated ${file} → .agentic/kiki/`);
-    }
-  }
-}
