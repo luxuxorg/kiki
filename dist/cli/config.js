@@ -70,7 +70,9 @@ function fileDir(path) {
     return lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '';
 }
 export function loadConfig(targetPath) {
-    const configPath = join(targetPath, '.agentic', 'kiki', 'config.json');
+    const modernConfigPath = join(targetPath, '.agentic', 'kiki', 'config.json');
+    const legacyConfigPath = join(targetPath, '.agentic', 'config.json');
+    const configPath = existsSync(modernConfigPath) ? modernConfigPath : legacyConfigPath;
     if (!existsSync(configPath))
         return { ...DEFAULT_CONFIG };
     try {

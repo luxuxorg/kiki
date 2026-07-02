@@ -112,7 +112,9 @@ function fileDir(path: string): string {
 }
 
 export function loadConfig(targetPath: string): KikiConfig {
-  const configPath = join(targetPath, '.agentic', 'kiki', 'config.json');
+  const modernConfigPath = join(targetPath, '.agentic', 'kiki', 'config.json');
+  const legacyConfigPath = join(targetPath, '.agentic', 'config.json');
+  const configPath = existsSync(modernConfigPath) ? modernConfigPath : legacyConfigPath;
   if (!existsSync(configPath)) return { ...DEFAULT_CONFIG };
   try {
     const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
