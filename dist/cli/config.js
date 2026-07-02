@@ -16,7 +16,7 @@ export const DEFAULT_PATHS = {
 export const DEFAULT_MODELS = {
     standard: 'openrouter/z-ai/glm-5.2',
     critical: 'anthropic/claude-sonnet-5',
-    workhorse: 'deepseek/deepseek-v4-pro',
+    workhorse: 'deepseek/deepseek-v4-pro-max',
 };
 export const DEFAULT_CONFIG = {
     projectName: 'my-project',
