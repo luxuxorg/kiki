@@ -16,7 +16,7 @@ export const DEFAULT_PATHS = {
 export const DEFAULT_MODELS = {
     standard: 'openrouter/z-ai/glm-5.2',
     critical: 'anthropic/claude-sonnet-5',
-    workhorse: 'deepseek/deepseek-v4-pro-max',
+    workhorse: 'deepseek/deepseek-v4-pro',
 };
 export const DEFAULT_CONFIG = {
     projectName: 'my-project',
@@ -122,6 +122,9 @@ function buildImplementerPermissions(p) {
   read:
     "/tmp/**": allow
     "tmp/**": allow
+    "${src}": allow
+    "${tst}": allow
+    "*": deny
   write:
     "${src}": allow
     "${tst}": allow
@@ -145,6 +148,13 @@ function buildReviewerPermissions(_p) {
     ".opencode/**": allow
     "package.json": allow
     "tsconfig.json": allow
+    "*.json": allow
+    "*.yml": allow
+    "*.yaml": allow
+    "*.toml": allow
+    "*.cfg": allow
+    "Dockerfile*": allow
+    ".env.example": allow
     "*.md": allow
     "*": deny
   write:
@@ -166,8 +176,9 @@ function buildReviewerPermissions(_p) {
 function buildEscalationPermissions() {
     return `permission:
   read:
-    ".agentic/*": allow
-    "docs/*": allow
+    ".agentic/**": allow
+    "docs/**": allow
+    "*.md": allow
     "/tmp/**": allow
     "*": deny
   write:
@@ -217,9 +228,9 @@ function buildHistorianPermissions(p) {
         writeLines.push(`"${kgGlob}": allow`);
         editLines.push(`"${kgGlob}": allow`);
     }
-    readLines.push(`".agentic/*": allow`);
-    writeLines.push(`".agentic/*": allow`);
-    editLines.push(`".agentic/*": allow`);
+    readLines.push(`".agentic/**": allow`);
+    writeLines.push(`".agentic/**": allow`);
+    editLines.push(`".agentic/**": allow`);
     readLines.push(`"${src}": deny`);
     readLines.push(`"${tst}": deny`);
     readLines.push(`"*": deny`);
@@ -593,13 +604,14 @@ Example:
 \`\`\`json
 {
   "agents": {
-    "kiki-orchestrator": "moonshotai/kimi-k2.6",
-    "kiki-brainstormer": "moonshotai/kimi-k2.6",
-    "kiki-planner": "moonshotai/kimi-k2.6",
-    "kiki-implementer": "moonshotai/kimi-k2.6",
-    "kiki-reviewer": "moonshotai/kimi-k2.6",
-    "kiki-escalation": "anthropic/claude-sonnet-4.6",
-    "kiki-historian": "moonshotai/kimi-k2.6"
+    "kiki-orchestrator": "openrouter/z-ai/glm-5.2",
+    "kiki-brainstormer": "openrouter/z-ai/glm-5.2",
+    "kiki-planner": "openrouter/z-ai/glm-5.2",
+    "kiki-implementer": "deepseek/deepseek-v4-pro",
+    "kiki-gui-designer": "openrouter/z-ai/glm-5.2",
+    "kiki-reviewer": "openrouter/z-ai/glm-5.2",
+    "kiki-escalation": "anthropic/claude-sonnet-5",
+    "kiki-historian": "deepseek/deepseek-v4-pro"
   }
 }
 \`\`\`
