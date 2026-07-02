@@ -189,6 +189,8 @@ function buildReviewerPermissions(_p: KikiPaths): string {
     "docs/**": allow
     ".agentic/**": allow
     ".opencode/**": allow
+    "/tmp/**": allow
+    "tmp/**": allow
     "package.json": allow
     "tsconfig.json": allow
     "*.json": allow

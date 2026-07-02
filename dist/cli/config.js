@@ -146,6 +146,8 @@ function buildReviewerPermissions(_p) {
     "docs/**": allow
     ".agentic/**": allow
     ".opencode/**": allow
+    "/tmp/**": allow
+    "tmp/**": allow
     "package.json": allow
     "tsconfig.json": allow
     "*.json": allow
