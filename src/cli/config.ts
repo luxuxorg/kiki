@@ -81,12 +81,12 @@ export const DEFAULT_ROUTING_TABLE: StaticRoutingTable = {
   agents: {
     'kiki-orchestrator': DEFAULT_MODELS.standard,
     'kiki-brainstormer': DEFAULT_MODELS.standard,
-    'kiki-planner': DEFAULT_MODELS.workhorse,
+    'kiki-planner': DEFAULT_MODELS.standard,
     'kiki-implementer': DEFAULT_MODELS.workhorse,
     'kiki-gui-designer': DEFAULT_MODELS.standard,
     'kiki-reviewer': DEFAULT_MODELS.standard,
     'kiki-escalation': DEFAULT_MODELS.critical,
-    'kiki-historian': DEFAULT_MODELS.standard,
+    'kiki-historian': DEFAULT_MODELS.workhorse,
   },
 };
 
@@ -363,7 +363,7 @@ export function generatePlannerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
-model: ${config.models.workhorse}
+model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Planner. Your job is to write detailed implementation plans.
@@ -522,7 +522,7 @@ export function generateHistorianTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Historian — maintains project documentation, README and CHANGELOG
 mode: subagent
-model: ${config.models.standard}
+model: ${config.models.workhorse}
 ${perms}
 ---
 You are the Kiki Historian. Keep project documentation accurate and up to date.
