@@ -91,20 +91,27 @@ export function loadConfig(targetPath) {
 }
 function buildBrainstormerPermissions(p) {
     const sw = dirGlob(p.superpowers);
+    const plans = dirGlob(p.plans);
+    const specs = dirGlob(p.specs);
     const src = dirGlob(p.source);
     const tst = dirGlob(p.tests);
     return `permission:
   write:
     "${sw}": allow
+    "${plans}": allow
+    "${specs}": allow
     "*": deny
   edit:
     "${sw}": allow
+    "${plans}": allow
+    "${specs}": allow
     "${src}": deny
     "${tst}": deny
     "*": deny
   bash:
     "git diff*": allow
     "git log*": allow
+    "mkdir*": allow
     "*": deny`;
 }
 function buildImplementerPermissions(p) {

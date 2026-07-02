@@ -132,20 +132,27 @@ export function loadConfig(targetPath: string): KikiConfig {
 
 function buildBrainstormerPermissions(p: KikiPaths): string {
   const sw = dirGlob(p.superpowers);
+  const plans = dirGlob(p.plans);
+  const specs = dirGlob(p.specs);
   const src = dirGlob(p.source);
   const tst = dirGlob(p.tests);
   return `permission:
   write:
     "${sw}": allow
+    "${plans}": allow
+    "${specs}": allow
     "*": deny
   edit:
     "${sw}": allow
+    "${plans}": allow
+    "${specs}": allow
     "${src}": deny
     "${tst}": deny
     "*": deny
   bash:
     "git diff*": allow
     "git log*": allow
+    "mkdir*": allow
     "*": deny`;
 }
 
