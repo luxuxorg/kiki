@@ -7,6 +7,7 @@ import {
   writeOpencodeFiles,
   loadConfig,
 } from '../config.js';
+import { routing } from './routing.js';
 
 export async function update(args: string[] | string): Promise<void> {
   const targetPath = typeof args === 'string' ? args : (args[0] ?? '.');
@@ -57,4 +58,8 @@ export async function update(args: string[] | string): Promise<void> {
   for (const file of updated) {
     console.log(`  - ${file}`);
   }
+
+  // Sync agent frontmatter from routing.json
+  console.log('\nSyncing agent models from routing.json...');
+  await routing([targetPath]);
 }

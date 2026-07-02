@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { DEFAULT_ALIGNMENT, DEFAULT_ROUTING_TABLE, writeOpencodeFiles, loadConfig, } from '../config.js';
+import { routing } from './routing.js';
 export async function update(args) {
     const targetPath = typeof args === 'string' ? args : (args[0] ?? '.');
     const agenticDir = join(targetPath, '.agentic');
@@ -42,5 +43,8 @@ export async function update(args) {
     for (const file of updated) {
         console.log(`  - ${file}`);
     }
+    // Sync agent frontmatter from routing.json
+    console.log('\nSyncing agent models from routing.json...');
+    await routing([targetPath]);
 }
 //# sourceMappingURL=update.js.map
