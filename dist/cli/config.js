@@ -131,10 +131,14 @@ function buildImplementerPermissions(p) {
 function buildReviewerPermissions(_p) {
     return `permission:
   read:
-    "src/*": allow
-    "tests/*": allow
-    "docs/*": allow
-    ".agentic/*": allow
+    "src/**": allow
+    "tests/**": allow
+    "docs/**": allow
+    ".agentic/**": allow
+    ".opencode/**": allow
+    "package.json": allow
+    "tsconfig.json": allow
+    "*.md": allow
     "*": deny
   write:
     ".agentic/reviews/*": allow
@@ -143,8 +147,9 @@ function buildReviewerPermissions(_p) {
   edit:
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
-    "src/*": deny
-    "tests/*": deny
+    "src/**": deny
+    "tests/**": deny
+    "docs/**": deny
     "*": deny
   bash:
     "git diff*": allow
