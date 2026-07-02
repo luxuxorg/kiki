@@ -154,10 +154,12 @@ function buildImplementerPermissions(p: KikiPaths): string {
   return `permission:
   read:
     "/tmp/**": allow
+    "tmp/**": allow
   write:
     "${src}": allow
     "${tst}": allow
     "/tmp/**": allow
+    "tmp/**": allow
     "*": deny
   edit:
     "${src}": allow
