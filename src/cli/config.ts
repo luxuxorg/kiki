@@ -83,7 +83,7 @@ export const DEFAULT_ROUTING_TABLE: StaticRoutingTable = {
     'kiki-brainstormer': DEFAULT_MODELS.standard,
     'kiki-planner': DEFAULT_MODELS.workhorse,
     'kiki-implementer': DEFAULT_MODELS.workhorse,
-    'kiki-gui-designer': DEFAULT_MODELS.workhorse,
+    'kiki-gui-designer': DEFAULT_MODELS.standard,
     'kiki-reviewer': DEFAULT_MODELS.standard,
     'kiki-escalation': DEFAULT_MODELS.critical,
     'kiki-historian': DEFAULT_MODELS.standard,
@@ -344,7 +344,7 @@ export function generateBrainstormerTemplate(config: KikiConfig): string {
   return `---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
-model: ${config.models.workhorse}
+model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.

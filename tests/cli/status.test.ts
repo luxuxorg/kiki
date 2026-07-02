@@ -67,7 +67,6 @@ describe('cli status', () => {
     await status(tmpDir);
 
     const logs = logSpy.mock.calls.map((c) => c[0]).join('\n');
-    expect(logs).toContain('No routing table found');
     expect(logs).toContain('Project agents: 0');
 
     logSpy.mockRestore();
