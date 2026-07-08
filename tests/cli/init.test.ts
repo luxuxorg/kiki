@@ -28,11 +28,30 @@ function permissionAction(agent: string, section: string, targetPath: string): s
 
 function permissionPatternMatches(pattern: string, targetPath: string): boolean {
   if (pattern === '*') return true;
+  if (pattern.startsWith('**/*') && pattern.endsWith('*')) {
+    return targetPath.includes(pattern.slice(4, -1));
+  }
+  if (pattern.startsWith('**/*.')) {
+    return targetPath.endsWith(pattern.slice(4));
+  }
+  if (pattern.startsWith('**/') && pattern.endsWith('*')) {
+    return targetPath.split('/').some((part) => part.startsWith(pattern.slice(3, -1)));
+  }
   if (pattern.endsWith('/**')) return targetPath.startsWith(pattern.slice(0, -3));
   if (pattern.endsWith('/*')) return targetPath.startsWith(pattern.slice(0, -1));
   if (pattern.endsWith('*')) return targetPath.startsWith(pattern.slice(0, -1));
   return pattern === targetPath;
 }
+
+const SUBAGENT_FILES = [
+  'kiki-brainstormer.md',
+  'kiki-planner.md',
+  'kiki-implementer.md',
+  'kiki-gui-designer.md',
+  'kiki-reviewer.md',
+  'kiki-escalation.md',
+  'kiki-historian.md',
+];
 
 describe('cli init', () => {
   let tmpDir: string;
@@ -122,7 +141,7 @@ describe('cli init', () => {
 
     const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
     expect(brainstormer).toContain('mode: subagent');
-    expect(brainstormer).toContain('write:');
+    expect(brainstormer).toContain('edit:');
     expect(brainstormer).toContain('read:');
 
     const planner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-planner.md'), 'utf-8');
@@ -187,15 +206,64 @@ describe('cli init', () => {
     expect(guiDesigner).toContain('ui-ux-pro-max');
   });
 
-  it('allows brainstormer to write specs under opencode last-match permission rules', async () => {
+  it('allows brainstormer to create specs through edit permissions under opencode last-match rules', async () => {
     await init(tmpDir, { wizard: false });
 
     const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
     const specPath = 'docs/superpowers/specs/example-design.md';
 
     expect(permissionAction(brainstormer, 'read', specPath)).toBe('allow');
-    expect(permissionAction(brainstormer, 'write', specPath)).toBe('allow');
     expect(permissionAction(brainstormer, 'edit', specPath)).toBe('allow');
     expect(permissionAction(brainstormer, 'edit', 'src/index.ts')).toBe('deny');
+  });
+
+  it('does not emit unsupported write permission blocks for subagents', async () => {
+    await init(tmpDir, { wizard: false });
+
+    for (const fileName of SUBAGENT_FILES) {
+      const agent = await fs.readFile(path.join(tmpDir, '.opencode/agents', fileName), 'utf-8');
+
+      expect(agent).not.toContain('\n  write:\n');
+      expect(agent).toContain('\n  edit:\n');
+    }
+  });
+
+  it('requires artifact agents to persist files or report tool unavailability', async () => {
+    await init(tmpDir, { wizard: false });
+
+    const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
+    const planner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-planner.md'), 'utf-8');
+
+    for (const agent of [brainstormer, planner]) {
+      expect(agent).toContain('Use the available file-editing tool');
+      expect(agent).toContain('STATUS: WRITTEN');
+      expect(agent).toContain('STATUS: TOOL_UNAVAILABLE');
+      expect(agent).toContain('do not paste the full artifact into your final response');
+    }
+  });
+
+  it('documents the orchestrator registry-edit exception and failure logging rule', async () => {
+    await init(tmpDir, { wizard: false });
+
+    const orchestrator = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-orchestrator.md'), 'utf-8');
+
+    expect(orchestrator).toContain('The only direct file edit you may perform is');
+    expect(orchestrator).toContain('.agentic/kiki/TASK_REGISTRY.json');
+    expect(orchestrator).toContain('Before dispatching `kiki-escalation`');
+  });
+
+  it('gives all subagents broad read access while denying secret-like paths', async () => {
+    await init(tmpDir, { wizard: false });
+
+    for (const fileName of SUBAGENT_FILES) {
+      const agent = await fs.readFile(path.join(tmpDir, '.opencode/agents', fileName), 'utf-8');
+
+      expect(permissionAction(agent, 'read', 'scripts/deploy.sh')).toBe('allow');
+      expect(permissionAction(agent, 'read', 'src/index.ts')).toBe('allow');
+      expect(permissionAction(agent, 'read', '.env.local')).toBe('deny');
+      expect(permissionAction(agent, 'read', 'config/.env.production')).toBe('deny');
+      expect(permissionAction(agent, 'read', 'config/credentials.json')).toBe('deny');
+      expect(permissionAction(agent, 'read', 'keys/deploy.key')).toBe('deny');
+    }
   });
 });

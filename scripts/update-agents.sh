@@ -16,6 +16,7 @@ AGENTS=(
   kiki-brainstormer.md
   kiki-planner.md
   kiki-implementer.md
+  kiki-gui-designer.md
   kiki-reviewer.md
   kiki-escalation.md
   kiki-historian.md

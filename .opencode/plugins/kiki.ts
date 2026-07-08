@@ -14,7 +14,7 @@ export default function KikiPlugin({ client }: { client: any }) {
       const subagentType = output.args?.subagent_type ?? '';
       if (!subagentType.startsWith('kiki-')) return;
 
-      const logPath = join(process.cwd(), '.agentic', 'routing_log.jsonl');
+      const logPath = join(process.cwd(), '.agentic', 'kiki', 'routing_log.jsonl');
       const dir = dirname(logPath);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 

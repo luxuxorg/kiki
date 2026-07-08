@@ -130,6 +130,18 @@ export function loadConfig(targetPath: string): KikiConfig {
   }
 }
 
+function buildBroadReadPermissions(): string {
+  return `  read:
+    "*": allow
+    ".env*": deny
+    "**/.env*": deny
+    "**/*secret*": deny
+    "**/*credential*": deny
+    "**/*.pem": deny
+    "**/*.key": deny
+    "**/id_rsa*": deny`;
+}
+
 function buildBrainstormerPermissions(p: KikiPaths): string {
   const sw = dirGlob(p.superpowers);
   const plans = dirGlob(p.plans);
@@ -137,27 +149,7 @@ function buildBrainstormerPermissions(p: KikiPaths): string {
   const src = dirGlob(p.source);
   const tst = dirGlob(p.tests);
   return `permission:
-  read:
-    "*": deny
-    "${src}": allow
-    "${tst}": allow
-    "docs/**": allow
-    ".agentic/**": allow
-    ".opencode/**": allow
-    "package.json": allow
-    "tsconfig.json": allow
-    "*.json": allow
-    "*.yml": allow
-    "*.yaml": allow
-    "*.toml": allow
-    "*.cfg": allow
-    "Dockerfile*": allow
-    "*.md": allow
-  write:
-    "*": deny
-    "${sw}": allow
-    "${plans}": allow
-    "${specs}": allow
+${buildBroadReadPermissions()}
   edit:
     "*": deny
     "${src}": deny
@@ -177,18 +169,7 @@ function buildImplementerPermissions(p: KikiPaths): string {
   const tst = dirGlob(p.tests);
   const sw = dirGlob(p.superpowers);
   return `permission:
-  read:
-    "*": deny
-    "/tmp/**": allow
-    "tmp/**": allow
-    "${src}": allow
-    "${tst}": allow
-  write:
-    "*": deny
-    "${src}": allow
-    "${tst}": allow
-    "/tmp/**": allow
-    "tmp/**": allow
+${buildBroadReadPermissions()}
   edit:
     "*": deny
     "${sw}": deny
@@ -201,29 +182,7 @@ function buildImplementerPermissions(p: KikiPaths): string {
 
 function buildReviewerPermissions(_p: KikiPaths): string {
   return `permission:
-  read:
-    "*": deny
-    "src/**": allow
-    "tests/**": allow
-    "docs/**": allow
-    ".agentic/**": allow
-    ".opencode/**": allow
-    "/tmp/**": allow
-    "tmp/**": allow
-    "package.json": allow
-    "tsconfig.json": allow
-    "*.json": allow
-    "*.yml": allow
-    "*.yaml": allow
-    "*.toml": allow
-    "*.cfg": allow
-    "Dockerfile*": allow
-    ".env.example": allow
-    "*.md": allow
-  write:
-    "*": deny
-    ".agentic/reviews/*": allow
-    ".opencode/docs/reviews/*": allow
+${buildBroadReadPermissions()}
   edit:
     "*": deny
     "src/**": deny
@@ -239,16 +198,7 @@ function buildReviewerPermissions(_p: KikiPaths): string {
 
 function buildEscalationPermissions(): string {
   return `permission:
-  read:
-    "*": deny
-    ".agentic/**": allow
-    "docs/**": allow
-    "*.md": allow
-    "/tmp/**": allow
-  write:
-    "*": deny
-    ".agentic/reviews/*": allow
-    ".opencode/docs/reviews/*": allow
+${buildBroadReadPermissions()}
   edit:
     "*": deny
     ".agentic/reviews/*": allow
@@ -266,53 +216,33 @@ function buildHistorianPermissions(p: KikiPaths): string {
   const changelogGlob = fileGlob(p.changelog);
   const docsGlob = dirGlob(p.docs);
 
-  const readLines: string[] = [
-    `"*": deny`,
-    `"${readmeGlob}": allow`,
-    `"${changelogGlob}": allow`,
-    `"${docsGlob}": allow`,
-    `"package.json": allow`,
-    `"${p.taskRegistry}": allow`,
-  ];
-  const writeLines: string[] = [
+  const editLines: string[] = [
     `"*": deny`,
     `"${readmeGlob}": allow`,
     `"${changelogGlob}": allow`,
     `"${docsGlob}": allow`,
   ];
-  const editLines: string[] = [...writeLines];
 
   if (p.decisions) {
     const decDir = fileDir(p.decisions);
     if (decDir) {
       const decGlob = dirGlob(decDir);
-      readLines.push(`"${decGlob}": allow`);
-      writeLines.push(`"${decGlob}": allow`);
       editLines.push(`"${decGlob}": allow`);
     }
   }
 
   if (p.knowledge) {
     const kgGlob = dirGlob(p.knowledge);
-    readLines.push(`"${kgGlob}": allow`);
-    writeLines.push(`"${kgGlob}": allow`);
     editLines.push(`"${kgGlob}": allow`);
   }
 
-  readLines.push(`".agentic/**": allow`);
-  writeLines.push(`".agentic/**": allow`);
   editLines.push(`".agentic/**": allow`);
 
-  readLines.push(`"${src}": deny`);
-  readLines.push(`"${tst}": deny`);
   editLines.push(`"${src}": deny`);
   editLines.push(`"${tst}": deny`);
 
   return `permission:
-  read:
-    ${readLines.join('\n    ')}
-  write:
-    ${writeLines.join('\n    ')}
+${buildBroadReadPermissions()}
   edit:
     ${editLines.join('\n    ')}
   bash:
@@ -348,7 +278,7 @@ model: ${config.models.standard}
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 
 ## Your Role
-Dispatch the correct subagent via the \`task\` tool. Do not write code, edit files, run commands, or read implementation details. Agent models come from \`.agentic/kiki/routing.json\` after \`kiki routing\` syncs them into OpenCode agent frontmatter.
+Dispatch the correct subagent via the \`task\` tool. Do not write code, implementation files, docs, or run commands. The only direct file edit you may perform is updating \`${p.taskRegistry}\` for task state, phase transitions, and failure counts. Agent models come from \`.agentic/kiki/routing.json\` after \`kiki routing\` syncs them into OpenCode agent frontmatter.
 
 ## Dispatch Rules
 - UI/frontend/visual/layout/component/design task → @kiki-gui-designer
@@ -370,7 +300,7 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, edit fil
 
 ## Key Rules
 - Always dispatch the correct **kiki subagent** via \`task\`.
-- **NEVER** do the work yourself.
+- **NEVER** do implementation, spec, plan, review, or documentation work yourself.
 - Update the task registry after every phase transition.
 - Never hardcode secrets or log sensitive data.
 - If a task fails twice, dispatch \`kiki-escalation\`.
@@ -379,7 +309,7 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, edit fil
 A dispatch fails when the subagent returns empty output, cannot complete, tests fail after 3 retries, or exceeds 30 minutes.
 
 1. **Retry once** with the same prompt.
-2. **If still failing:** Log in \`${p.taskRegistry}\`, increment the failure counter, and dispatch \`kiki-escalation\`.
+2. Before dispatching \`kiki-escalation\`, log the failure in \`${p.taskRegistry}\`, increment the failure counter, and include the failed phase and reason.
 3. **Never block silently.**
 `;
 }
@@ -396,15 +326,21 @@ ${perms}
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.
 
 ## Tool Usage
-- Use ONLY tools from the provided tool list: read, write, edit, bash, glob, grep, skill, task, todowrite, webfetch.
+- Use ONLY tools from the provided tool list: read, edit, bash, glob, grep, skill, task, todowrite, webfetch.
 - NEVER invent tool names. If you are unsure which tool to use, re-read the available tool list.
 - Use \`read\` to inspect source files, \`glob\` to find files by pattern, \`grep\` to search code.
+- Use the available file-editing tool to create or update the spec file. Do not claim the spec is saved unless the file-editing tool call succeeded.
 - Format every tool call exactly as instructed. Malformed tool calls will fail the task.
+
+## Artifact Persistence
+- If a file-editing tool is available, create or update \`${p.specs}YYYY-MM-DD-<topic>-design.md\` with the complete spec.
+- After a successful file edit, your final response MUST include \`STATUS: WRITTEN\` and the exact spec path.
+- If no file-editing tool is available, output exactly \`STATUS: TOOL_UNAVAILABLE\`, state the missing tool boundary, and do not paste the full artifact into your final response.
 
 ## Instructions
 1. **Load the \`brainstorming\` superpowers skill** and follow it **inline**.
 2. Do the work yourself; do not dispatch the skill to another subagent.
-3. Write the spec to \`${p.specs}YYYY-MM-DD-<topic>-design.md\`.
+3. Persist the spec using the file-editing tool as described above.
 4. You do NOT write source code. Only design docs.
 `;
 }
@@ -421,15 +357,21 @@ ${perms}
 You are the Kiki Planner. Your job is to write detailed implementation plans.
 
 ## Tool Usage
-- Use ONLY tools from the provided tool list: read, write, edit, bash, glob, grep, skill, task, todowrite, webfetch.
+- Use ONLY tools from the provided tool list: read, edit, bash, glob, grep, skill, task, todowrite, webfetch.
 - NEVER invent tool names. If you are unsure which tool to use, re-read the available tool list.
 - Use \`read\` to inspect source files, \`glob\` to find files by pattern, \`grep\` to search code.
+- Use the available file-editing tool to create or update the plan file. Do not claim the plan is saved unless the file-editing tool call succeeded.
 - Format every tool call exactly as instructed. Malformed tool calls will fail the task.
+
+## Artifact Persistence
+- If a file-editing tool is available, create or update \`${p.plans}YYYY-MM-DD-<topic>-plan.md\` with the complete plan.
+- After a successful file edit, your final response MUST include \`STATUS: WRITTEN\` and the exact plan path.
+- If no file-editing tool is available, output exactly \`STATUS: TOOL_UNAVAILABLE\`, state the missing tool boundary, and do not paste the full artifact into your final response.
 
 ## Instructions
 1. **Load the \`writing-plans\` superpowers skill** and follow it **inline**.
 2. Do the work yourself; do not dispatch the skill to another subagent.
-3. Write the plan to \`${p.plans}YYYY-MM-DD-<topic>-plan.md\`.
+3. Persist the plan using the file-editing tool as described above.
 4. You do NOT write source code. Only plans.
 
 ## Task Metadata
