@@ -266,4 +266,18 @@ describe('cli init', () => {
       expect(permissionAction(agent, 'read', 'keys/deploy.key')).toBe('deny');
     }
   });
+
+  it('grants implementer, reviewer, and escalation external_directory for /tmp', async () => {
+    await init(tmpDir, { wizard: false });
+
+    const tmpAgents = ['kiki-implementer.md', 'kiki-gui-designer.md', 'kiki-reviewer.md', 'kiki-escalation.md'];
+
+    for (const fileName of tmpAgents) {
+      const agent = await fs.readFile(path.join(tmpDir, '.opencode/agents', fileName), 'utf-8');
+
+      expect(agent).toContain('\n  external_directory:\n');
+      expect(permissionAction(agent, 'external_directory', '/tmp/test-output.log')).toBe('allow');
+      expect(permissionAction(agent, 'external_directory', 'tmp/test-output.log')).toBe('allow');
+    }
+  });
 });

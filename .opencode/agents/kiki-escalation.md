@@ -16,6 +16,9 @@ permission:
     "*": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
+  external_directory:
+    "/tmp/**": allow
+    "tmp/**": allow
   bash:
     "*": deny
     "git diff*": allow

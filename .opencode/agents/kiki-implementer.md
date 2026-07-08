@@ -19,6 +19,9 @@ permission:
     "tests/**": allow
     "/tmp/**": allow
     "tmp/**": allow
+  external_directory:
+    "/tmp/**": allow
+    "tmp/**": allow
   bash: allow
 ---
 You are the Kiki Implementer. Implement code strictly per the approved plan.

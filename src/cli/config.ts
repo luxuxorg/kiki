@@ -177,6 +177,9 @@ ${buildBroadReadPermissions()}
     "${tst}": allow
     "/tmp/**": allow
     "tmp/**": allow
+  external_directory:
+    "/tmp/**": allow
+    "tmp/**": allow
   bash: allow`;
 }
 
@@ -190,6 +193,9 @@ ${buildBroadReadPermissions()}
     "docs/**": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
+  external_directory:
+    "/tmp/**": allow
+    "tmp/**": allow
   bash:
     "*": deny
     "git diff*": allow
@@ -203,6 +209,9 @@ ${buildBroadReadPermissions()}
     "*": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
+  external_directory:
+    "/tmp/**": allow
+    "tmp/**": allow
   bash:
     "*": deny
     "git diff*": allow
