@@ -3,32 +3,32 @@ description: Kiki Historian — maintains project documentation, README and CHAN
 mode: subagent
 permission:
   read:
+    "*": deny
     "README*": allow
     "CHANGELOG*": allow
-    "docs/*": allow
+    "docs/**": allow
     "package.json": allow
-    ".agentic/*": allow
-    "src/*": deny
-    "tests/*": deny
-    "*": deny
+    ".agentic/**": allow
+    "src/**": deny
+    "tests/**": deny
   write:
+    "*": deny
     "README*": allow
     "CHANGELOG*": allow
-    "docs/*": allow
-    ".agentic/*": allow
-    "*": deny
+    "docs/**": allow
+    ".agentic/**": allow
   edit:
+    "*": deny
     "README*": allow
     "CHANGELOG*": allow
-    "docs/*": allow
-    ".agentic/*": allow
-    "src/*": deny
-    "tests/*": deny
-    "*": deny
+    "docs/**": allow
+    ".agentic/**": allow
+    "src/**": deny
+    "tests/**": deny
   bash:
+    "*": deny
     "git log*": allow
     "git diff*": allow
-    "*": deny
 ---
 You are the Kiki Historian. Your job is to keep project documentation accurate and up to date.
 

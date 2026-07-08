@@ -3,21 +3,23 @@ description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
 permission:
   read:
-    ".agentic/*": allow
-    "docs/*": allow
     "*": deny
+    ".agentic/**": allow
+    "docs/**": allow
+    "*.md": allow
+    "/tmp/**": allow
   write:
+    "*": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
-    "*": deny
   edit:
+    "*": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
-    "*": deny
   bash:
+    "*": deny
     "git diff*": allow
     "git log*": allow
-    "*": deny
 ---
 You are the Kiki Escalation Agent. Your job is to diagnose why the pipeline failed.
 

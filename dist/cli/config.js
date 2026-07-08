@@ -96,23 +96,39 @@ function buildBrainstormerPermissions(p) {
     const src = dirGlob(p.source);
     const tst = dirGlob(p.tests);
     return `permission:
-  write:
-    "${sw}": allow
-    "${plans}": allow
-    "${specs}": allow
+  read:
     "*": deny
-  edit:
+    "${src}": allow
+    "${tst}": allow
+    "docs/**": allow
+    ".agentic/**": allow
+    ".opencode/**": allow
+    "package.json": allow
+    "tsconfig.json": allow
+    "*.json": allow
+    "*.yml": allow
+    "*.yaml": allow
+    "*.toml": allow
+    "*.cfg": allow
+    "Dockerfile*": allow
+    "*.md": allow
+  write:
+    "*": deny
     "${sw}": allow
     "${plans}": allow
     "${specs}": allow
+  edit:
+    "*": deny
     "${src}": deny
     "${tst}": deny
-    "*": deny
+    "${sw}": allow
+    "${plans}": allow
+    "${specs}": allow
   bash:
+    "*": deny
     "git diff*": allow
     "git log*": allow
-    "mkdir*": allow
-    "*": deny`;
+    "mkdir*": allow`;
 }
 function buildImplementerPermissions(p) {
     const src = dirGlob(p.source);
@@ -120,27 +136,30 @@ function buildImplementerPermissions(p) {
     const sw = dirGlob(p.superpowers);
     return `permission:
   read:
+    "*": deny
     "/tmp/**": allow
     "tmp/**": allow
     "${src}": allow
     "${tst}": allow
-    "*": deny
   write:
+    "*": deny
     "${src}": allow
     "${tst}": allow
     "/tmp/**": allow
     "tmp/**": allow
-    "*": deny
   edit:
+    "*": deny
+    "${sw}": deny
     "${src}": allow
     "${tst}": allow
-    "${sw}": deny
-    "*": deny
+    "/tmp/**": allow
+    "tmp/**": allow
   bash: allow`;
 }
 function buildReviewerPermissions(_p) {
     return `permission:
   read:
+    "*": deny
     "src/**": allow
     "tests/**": allow
     "docs/**": allow
@@ -158,43 +177,42 @@ function buildReviewerPermissions(_p) {
     "Dockerfile*": allow
     ".env.example": allow
     "*.md": allow
-    "*": deny
   write:
-    ".agentic/reviews/*": allow
-    ".opencode/docs/reviews/*": allow
     "*": deny
-  edit:
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
+  edit:
+    "*": deny
     "src/**": deny
     "tests/**": deny
     "docs/**": deny
-    "*": deny
+    ".agentic/reviews/*": allow
+    ".opencode/docs/reviews/*": allow
   bash:
+    "*": deny
     "git diff*": allow
-    "git log*": allow
-    "*": deny`;
+    "git log*": allow`;
 }
 function buildEscalationPermissions() {
     return `permission:
   read:
+    "*": deny
     ".agentic/**": allow
     "docs/**": allow
     "*.md": allow
     "/tmp/**": allow
-    "*": deny
   write:
+    "*": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
-    "*": deny
   edit:
+    "*": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
-    "*": deny
   bash:
+    "*": deny
     "git diff*": allow
-    "git log*": allow
-    "*": deny`;
+    "git log*": allow`;
 }
 function buildHistorianPermissions(p) {
     const src = dirGlob(p.source);
@@ -203,6 +221,7 @@ function buildHistorianPermissions(p) {
     const changelogGlob = fileGlob(p.changelog);
     const docsGlob = dirGlob(p.docs);
     const readLines = [
+        `"*": deny`,
         `"${readmeGlob}": allow`,
         `"${changelogGlob}": allow`,
         `"${docsGlob}": allow`,
@@ -210,6 +229,7 @@ function buildHistorianPermissions(p) {
         `"${p.taskRegistry}": allow`,
     ];
     const writeLines = [
+        `"*": deny`,
         `"${readmeGlob}": allow`,
         `"${changelogGlob}": allow`,
         `"${docsGlob}": allow`,
@@ -235,11 +255,8 @@ function buildHistorianPermissions(p) {
     editLines.push(`".agentic/**": allow`);
     readLines.push(`"${src}": deny`);
     readLines.push(`"${tst}": deny`);
-    readLines.push(`"*": deny`);
-    writeLines.push(`"*": deny`);
     editLines.push(`"${src}": deny`);
     editLines.push(`"${tst}": deny`);
-    editLines.push(`"*": deny`);
     return `permission:
   read:
     ${readLines.join('\n    ')}
@@ -248,9 +265,9 @@ function buildHistorianPermissions(p) {
   edit:
     ${editLines.join('\n    ')}
   bash:
+    "*": deny
     "git log*": allow
-    "git diff*": allow
-    "*": deny`;
+    "git diff*": allow`;
 }
 function buildHistorianResponsibilities(p) {
     const lines = [
@@ -324,6 +341,12 @@ ${perms}
 ---
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.
 
+## Tool Usage
+- Use ONLY tools from the provided tool list: read, write, edit, bash, glob, grep, skill, task, todowrite, webfetch.
+- NEVER invent tool names. If you are unsure which tool to use, re-read the available tool list.
+- Use \`read\` to inspect source files, \`glob\` to find files by pattern, \`grep\` to search code.
+- Format every tool call exactly as instructed. Malformed tool calls will fail the task.
+
 ## Instructions
 1. **Load the \`brainstorming\` superpowers skill** and follow it **inline**.
 2. Do the work yourself; do not dispatch the skill to another subagent.
@@ -341,6 +364,12 @@ model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Planner. Your job is to write detailed implementation plans.
+
+## Tool Usage
+- Use ONLY tools from the provided tool list: read, write, edit, bash, glob, grep, skill, task, todowrite, webfetch.
+- NEVER invent tool names. If you are unsure which tool to use, re-read the available tool list.
+- Use \`read\` to inspect source files, \`glob\` to find files by pattern, \`grep\` to search code.
+- Format every tool call exactly as instructed. Malformed tool calls will fail the task.
 
 ## Instructions
 1. **Load the \`writing-plans\` superpowers skill** and follow it **inline**.

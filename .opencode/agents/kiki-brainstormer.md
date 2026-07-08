@@ -3,20 +3,38 @@ description: Kiki Brainstormer — produces design specs via superpowers brainst
 mode: subagent
 permission:
   read:
-    "docs/superpowers/*": allow
     "*": deny
+    "src/**": allow
+    "tests/**": allow
+    "docs/**": allow
+    ".agentic/**": allow
+    ".opencode/**": allow
+    "package.json": allow
+    "tsconfig.json": allow
+    "*.json": allow
+    "*.yml": allow
+    "*.yaml": allow
+    "*.toml": allow
+    "*.cfg": allow
+    "Dockerfile*": allow
+    "*.md": allow
   write:
-    "docs/superpowers/*": allow
     "*": deny
+    "docs/superpowers/**": allow
+    "docs/superpowers/plans/**": allow
+    "docs/superpowers/specs/**": allow
   edit:
-    "docs/superpowers/*": allow
-    "src/*": deny
-    "tests/*": deny
     "*": deny
+    "src/**": deny
+    "tests/**": deny
+    "docs/superpowers/**": allow
+    "docs/superpowers/plans/**": allow
+    "docs/superpowers/specs/**": allow
   bash:
+    "*": deny
     "git diff*": allow
     "git log*": allow
-    "*": deny
+    "mkdir*": allow
 ---
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.
 

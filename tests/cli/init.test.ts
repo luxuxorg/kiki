@@ -4,6 +4,36 @@ import path from 'node:path';
 import { init } from '../../src/cli/commands/init';
 import { setRoutingPath } from '../../src/core/routing-table';
 
+function permissionAction(agent: string, section: string, targetPath: string): string | null {
+  const lines = agent.split('\n');
+  const sectionStart = lines.findIndex((line) => line === `  ${section}:`);
+  if (sectionStart === -1) return null;
+
+  let action: string | null = null;
+  for (let i = sectionStart + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith('  ') && !line.startsWith('    ')) break;
+
+    const match = line.match(/^    "(.+)": (allow|deny|ask)$/);
+    if (!match) continue;
+
+    const [, pattern, ruleAction] = match;
+    if (permissionPatternMatches(pattern, targetPath)) {
+      action = ruleAction;
+    }
+  }
+
+  return action;
+}
+
+function permissionPatternMatches(pattern: string, targetPath: string): boolean {
+  if (pattern === '*') return true;
+  if (pattern.endsWith('/**')) return targetPath.startsWith(pattern.slice(0, -3));
+  if (pattern.endsWith('/*')) return targetPath.startsWith(pattern.slice(0, -1));
+  if (pattern.endsWith('*')) return targetPath.startsWith(pattern.slice(0, -1));
+  return pattern === targetPath;
+}
+
 describe('cli init', () => {
   let tmpDir: string;
 
@@ -93,7 +123,7 @@ describe('cli init', () => {
     const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
     expect(brainstormer).toContain('mode: subagent');
     expect(brainstormer).toContain('write:');
-    expect(brainstormer).not.toContain('read:');
+    expect(brainstormer).toContain('read:');
 
     const planner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-planner.md'), 'utf-8');
     expect(planner).toContain('mode: subagent');
@@ -155,5 +185,17 @@ describe('cli init', () => {
     expect(guiDesigner).toContain('mode: subagent');
     expect(guiDesigner).toContain('Kiki GUI Designer');
     expect(guiDesigner).toContain('ui-ux-pro-max');
+  });
+
+  it('allows brainstormer to write specs under opencode last-match permission rules', async () => {
+    await init(tmpDir, { wizard: false });
+
+    const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
+    const specPath = 'docs/superpowers/specs/example-design.md';
+
+    expect(permissionAction(brainstormer, 'read', specPath)).toBe('allow');
+    expect(permissionAction(brainstormer, 'write', specPath)).toBe('allow');
+    expect(permissionAction(brainstormer, 'edit', specPath)).toBe('allow');
+    expect(permissionAction(brainstormer, 'edit', 'src/index.ts')).toBe('deny');
   });
 });

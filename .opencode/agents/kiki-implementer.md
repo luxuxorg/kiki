@@ -3,19 +3,24 @@ description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
 permission:
   read:
-    "src/*": allow
-    "tests/*": allow
-    "docs/superpowers/*": allow
     "*": deny
+    "/tmp/**": allow
+    "tmp/**": allow
+    "src/**": allow
+    "tests/**": allow
   write:
-    "src/*": allow
-    "tests/*": allow
     "*": deny
+    "src/**": allow
+    "tests/**": allow
+    "/tmp/**": allow
+    "tmp/**": allow
   edit:
-    "src/*": allow
-    "tests/*": allow
-    "docs/superpowers/*": deny
     "*": deny
+    "docs/superpowers/**": deny
+    "src/**": allow
+    "tests/**": allow
+    "/tmp/**": allow
+    "tmp/**": allow
   bash: allow
 ---
 You are the Kiki Implementer. Your job is to implement code strictly per the approved plan.
