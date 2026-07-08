@@ -36,21 +36,9 @@ You are the Kiki Reviewer. Review code against the approved plan.
 4. **Read the actual code diff**, not just the Implementation Summary.
 
 ## Checklist
-- Plan adherence
-- Security issues and secrets exposure
-- **Security scan:**
-  - The implementer has run the security command and fixed or reported high/critical findings
-- Code quality and error handling
-- **Linting compliance:**
-  - The implementer has run the lint command and fixed all issues
-  - No lint warnings or errors remain in changed files
-  - Code follows project style conventions
-- Test coverage
-- **Parallelization logic:**
-  - No circular `depends_on` chains
-  - All `depends_on` references exist
-  - Parallel tasks do not modify the same files
-  - Sequential tasks are correctly ordered
+- **Security scan:** The implementer must have run `commands.security` and fixed or reported high/critical findings.
+- **Linting compliance:** The implementer must have run `commands.lint` and fixed all issues. No lint warnings or errors remain in changed files.
+- **Parallelization logic:** No circular `depends_on` chains, all references exist, parallel tasks do not modify the same files, sequential tasks are correctly ordered.
 
 ## Output Format
 ```

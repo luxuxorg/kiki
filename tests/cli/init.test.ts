@@ -152,9 +152,6 @@ describe('cli init', () => {
     const implementer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-implementer.md'), 'utf-8');
     expect(implementer).toContain('mode: subagent');
     expect(implementer).toContain('src/*');
-    expect(implementer).toContain('lint command');
-    expect(implementer).toContain('commands.lint');
-    expect(implementer).toContain('commands.security');
     expect(implementer).toContain('Rollback Safety');
     expect(implementer).toContain('kiki-untracked-before.txt');
     expect(implementer).toContain('git checkout -- .');
@@ -228,17 +225,20 @@ describe('cli init', () => {
     }
   });
 
-  it('requires artifact agents to persist files or report tool unavailability', async () => {
+  it('keeps brainstormer and planner lean, deferring to superpowers skills', async () => {
     await init(tmpDir, { wizard: false });
 
     const brainstormer = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-brainstormer.md'), 'utf-8');
     const planner = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-planner.md'), 'utf-8');
 
     for (const agent of [brainstormer, planner]) {
-      expect(agent).toContain('Use the available file-editing tool');
-      expect(agent).toContain('STATUS: WRITTEN');
-      expect(agent).toContain('STATUS: TOOL_UNAVAILABLE');
-      expect(agent).toContain('do not paste the full artifact into your final response');
+      expect(agent).toContain('Load');
+      expect(agent).toContain('superpowers');
+      expect(agent).toContain('follow it **inline**');
+      expect(agent).not.toContain('Tool Usage');
+      expect(agent).not.toContain('Artifact Persistence');
+      expect(agent).not.toContain('STATUS: WRITTEN');
+      expect(agent).not.toContain('STATUS: TOOL_UNAVAILABLE');
     }
   });
 
