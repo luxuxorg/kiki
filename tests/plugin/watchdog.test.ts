@@ -171,3 +171,105 @@ describe('watchdog activity signals', () => {
     expect(state.lastActivityAt).toBe(1_000_000 + 2000);
   });
 });
+
+describe('watchdog stuck detection and abort', () => {
+  function createBusyChild(watchdog: ReturnType<typeof buildWatchdog>['watchdog'], id = 'child-1') {
+    watchdog.handleEvent({ type: 'session.created', properties: { info: { id, parentID: 'p', title: 'kiki-planner' } } });
+    watchdog.handleEvent({ type: 'session.status', properties: { sessionID: id, status: { type: 'busy' } } });
+    return watchdog._sessions.get(id);
+  }
+
+  it('does not abort during the grace period', () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog);
+    setTime(getTime() + 500); // < gracePeriodMs (1000)
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('does not abort a busy session with recent activity', () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog);
+    setTime(getTime() + 4000); // past grace, < stuckThresholdMs (5000)
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('aborts a stuck session and logs warn + info health entries', async () => {
+    const { watchdog, client, fakes, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog);
+    setTime(getTime() + 6000); // > stuckThresholdMs (5000), < absoluteMaxMs (60000)
+    watchdog.checkNow();
+    await flushPromises();
+    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: 'child-1' } });
+    const written = fakes.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).join('');
+    expect(written).toContain('watchdog-abort');
+    expect(written).toContain('"reason":"stuck"');
+    expect(written).toContain('watchdog-abort-ok');
+    expect(watchdog._sessions.has('child-1')).toBe(false);
+  });
+
+  it('aborts on absolute timeout even with recent activity', () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog);
+    setTime(getTime() + 59000);
+    watchdog.handleEvent({
+      type: 'message.part.updated',
+      properties: { part: { id: 'p1', sessionID: 'child-1', messageID: 'm1', type: 'text', text: 'still working' } },
+    });
+    setTime(getTime() + 2000); // age 61000 > absoluteMaxMs (60000), silence only 2000
+    watchdog.checkNow();
+    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: 'child-1' } });
+  });
+
+  it('emits a debug warning at 50% silence before aborting', () => {
+    const { watchdog, client, fakes, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog);
+    setTime(getTime() + 3000); // 50% of stuckThresholdMs=5000 is 2500; 3000 >= 2500, < 5000
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+    const written = fakes.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).join('');
+    expect(written).toContain('watchdog-quiet');
+  });
+
+  it('does not abort a session in retry status', () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog);
+    watchdog.handleEvent({ type: 'session.status', properties: { sessionID: 'child-1', status: { type: 'retry', attempt: 2, message: 'm', next: 0 } } });
+    setTime(getTime() + 30000);
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op when watchdogEnabled is false', () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog({}, { watchdogEnabled: false });
+    createBusyChild(watchdog);
+    setTime(getTime() + 30000);
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('logs an error entry when abort fails and does not throw', async () => {
+    const { watchdog, client, fakes, setTime, getTime } = buildWatchdog();
+    client.session.abort.mockRejectedValueOnce(new Error('boom'));
+    createBusyChild(watchdog);
+    setTime(getTime() + 6000);
+    watchdog.checkNow();
+    await flushPromises();
+    const written = fakes.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).join('');
+    expect(written).toContain('watchdog-abort-failed');
+    expect(written).toContain('boom');
+  });
+
+  it('falls back to client.app.log when the health log write fails', async () => {
+    const { watchdog, client, fakes, setTime, getTime } = buildWatchdog();
+    fakes.appendFileSync.mockImplementation(() => { throw new Error('disk full'); });
+    createBusyChild(watchdog);
+    setTime(getTime() + 6000);
+    watchdog.checkNow();
+    await flushPromises();
+    expect(client.app.log).toHaveBeenCalled();
+    const logCalls = client.app.log.mock.calls.map((c: unknown[]) => (c[0] as { body: { service: string } }).body.service);
+    expect(logCalls).toContain('kiki-watchdog');
+  });
+});

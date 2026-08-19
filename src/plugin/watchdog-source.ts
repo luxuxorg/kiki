@@ -126,6 +126,75 @@ function createWatchdog(deps) {
     while (arr.length > max) arr.shift();
   }
 
+  function tailAllSame(arr, n) {
+    if (n <= 0 || arr.length < n) return false;
+    var first = arr[arr.length - 1];
+    for (var i = arr.length - n; i < arr.length; i++) {
+      if (arr[i] !== first) return false;
+    }
+    return true;
+  }
+
+  function shouldWatch(state) {
+    if (cfg.watchAllSubagents) return true;
+    if (state.agentName == null) return true;
+    return String(state.agentName).indexOf('kiki-') === 0;
+  }
+
+  function evaluate(state) {
+    if (!shouldWatch(state)) return null;
+    if (state.status !== 'busy') return null;
+    var t = now();
+    var age = t - state.startedAt;
+    if (age < cfg.gracePeriodMs) return null;
+    if (age >= cfg.absoluteMaxMs) return 'absolute-timeout';
+    if (tailAllSame(state.partHashes, cfg.loopRepeatCount)) return 'content-loop';
+    if (tailAllSame(state.toolSignatures, cfg.loopRepeatCount)) return 'tool-loop';
+    var silentMs = t - state.lastActivityAt;
+    if (silentMs >= cfg.stuckThresholdMs) return 'stuck';
+    if (!state.warned50 && silentMs >= cfg.stuckThresholdMs / 2) {
+      state.warned50 = true;
+      writeHealth('debug', {
+        event: 'watchdog-quiet',
+        sessionId: state.sessionId,
+        agent: state.agentName,
+        silentMs: silentMs
+      });
+    }
+    return null;
+  }
+
+  function abortSession(state, reason) {
+    sessions.delete(state.sessionId);
+    writeHealth('warn', {
+      event: 'watchdog-abort',
+      sessionId: state.sessionId,
+      agent: state.agentName,
+      reason: reason,
+      elapsedMs: now() - state.startedAt
+    });
+    try {
+      var p = client.session.abort({ path: { id: state.sessionId } });
+      if (p && typeof p.then === 'function') {
+        p.then(function () {
+          writeHealth('info', { event: 'watchdog-abort-ok', sessionId: state.sessionId });
+        }, function (err) {
+          writeHealth('error', {
+            event: 'watchdog-abort-failed',
+            sessionId: state.sessionId,
+            message: String((err && err.message) || err)
+          });
+        });
+      }
+    } catch (e) {
+      writeHealth('error', {
+        event: 'watchdog-abort-failed',
+        sessionId: state.sessionId,
+        message: String((e && e.message) || e)
+      });
+    }
+  }
+
   function handleEvent(event) {
     if (!event || !event.type || !event.properties) return;
     var props = event.properties;
@@ -168,7 +237,15 @@ function createWatchdog(deps) {
   }
 
   function checkNow() {
-    // populated in later tasks
+    if (!cfg.watchdogEnabled) return;
+    var toAbort = [];
+    sessions.forEach(function (state) {
+      var verdict = evaluate(state);
+      if (verdict) toAbort.push([state, verdict]);
+    });
+    for (var i = 0; i < toAbort.length; i++) {
+      abortSession(toAbort[i][0], toAbort[i][1]);
+    }
   }
 
   function start() {
