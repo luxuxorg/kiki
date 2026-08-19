@@ -535,12 +535,30 @@ ${WATCHDOG_SOURCE}
 
 const DEFAULT_HEALTH = ${JSON.stringify(DEFAULT_HEALTH, null, 2)};
 
+function isPositiveInt(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 && Math.floor(v) === v;
+}
+
+function sanitizeHealth(raw: any): typeof DEFAULT_HEALTH {
+  const out = Object.assign({}, DEFAULT_HEALTH);
+  if (!raw || typeof raw !== 'object') return out;
+  if (typeof raw.watchdogEnabled === 'boolean') out.watchdogEnabled = raw.watchdogEnabled;
+  if (typeof raw.watchAllSubagents === 'boolean') out.watchAllSubagents = raw.watchAllSubagents;
+  if (typeof raw.logPath === 'string' && raw.logPath.length > 0) out.logPath = raw.logPath;
+  if (isPositiveInt(raw.stuckThresholdMs)) out.stuckThresholdMs = raw.stuckThresholdMs;
+  if (isPositiveInt(raw.gracePeriodMs)) out.gracePeriodMs = raw.gracePeriodMs;
+  if (isPositiveInt(raw.absoluteMaxMs)) out.absoluteMaxMs = raw.absoluteMaxMs;
+  if (isPositiveInt(raw.checkIntervalMs)) out.checkIntervalMs = raw.checkIntervalMs;
+  if (isPositiveInt(raw.loopRepeatCount) && raw.loopRepeatCount >= 2) out.loopRepeatCount = raw.loopRepeatCount;
+  return out;
+}
+
 function loadHealthConfig(directory: string) {
   try {
     const raw = JSON.parse(readFileSync(join(directory, '.agentic', 'kiki', 'config.json'), 'utf-8'));
-    return Object.assign({}, DEFAULT_HEALTH, raw.health || {});
+    return sanitizeHealth(raw.health);
   } catch {
-    return Object.assign({}, DEFAULT_HEALTH);
+    return sanitizeHealth(null);
   }
 }
 

@@ -40,4 +40,10 @@ describe('generatePluginTemplate', () => {
     expect(WATCHDOG_SOURCE).not.toMatch(/[`]/);
     expect(WATCHDOG_SOURCE).not.toMatch(/\$\{/);
   });
+
+  it('sanitizes invalid health values at load time', () => {
+    expect(template).toContain('function isPositiveInt(v: unknown)');
+    expect(template).toContain('function sanitizeHealth(raw: any)');
+    expect(template).toContain('raw.loopRepeatCount >= 2');
+  });
 });
