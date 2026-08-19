@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { WATCHDOG_SOURCE } from '../../src/plugin/watchdog-source';
 
 interface Fakes {
