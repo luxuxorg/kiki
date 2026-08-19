@@ -5,6 +5,7 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_PATHS,
   DEFAULT_MODELS,
+  DEFAULT_HEALTH,
   DEFAULT_ROUTING_TABLE,
   DEFAULT_ALIGNMENT,
   ensurePathExists,
@@ -143,6 +144,7 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
       critical: criticalModel,
       workhorse: workhorseModel,
     },
+    health: { ...DEFAULT_HEALTH },
   };
 
   return config;

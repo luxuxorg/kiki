@@ -22,6 +22,17 @@ export interface KikiModels {
   workhorse: string;
 }
 
+export interface KikiHealthConfig {
+  watchdogEnabled: boolean;
+  stuckThresholdMs: number;
+  gracePeriodMs: number;
+  absoluteMaxMs: number;
+  checkIntervalMs: number;
+  loopRepeatCount: number;
+  watchAllSubagents: boolean;
+  logPath: string;
+}
+
 export interface KikiConfig {
   projectName: string;
   language: string;
@@ -33,6 +44,7 @@ export interface KikiConfig {
   };
   paths: KikiPaths;
   models: KikiModels;
+  health: KikiHealthConfig;
 }
 
 export const DEFAULT_PATHS: KikiPaths = {
@@ -55,6 +67,17 @@ export const DEFAULT_MODELS: KikiModels = {
   workhorse: 'deepseek/deepseek-v4-pro',
 };
 
+export const DEFAULT_HEALTH: KikiHealthConfig = {
+  watchdogEnabled: true,
+  stuckThresholdMs: 300_000,
+  gracePeriodMs: 120_000,
+  absoluteMaxMs: 3_600_000,
+  checkIntervalMs: 30_000,
+  loopRepeatCount: 3,
+  watchAllSubagents: false,
+  logPath: '.agentic/kiki/health_log.jsonl',
+};
+
 export const DEFAULT_CONFIG: KikiConfig = {
   projectName: 'my-project',
   language: 'typescript',
@@ -66,6 +89,7 @@ export const DEFAULT_CONFIG: KikiConfig = {
   },
   paths: DEFAULT_PATHS,
   models: DEFAULT_MODELS,
+  health: DEFAULT_HEALTH,
 };
 
 export const DEFAULT_ALIGNMENT = {
@@ -124,6 +148,7 @@ export function loadConfig(targetPath: string): KikiConfig {
       ...rest,
       paths: { ...DEFAULT_PATHS, ...(rest.paths ?? {}) },
       models: { ...DEFAULT_MODELS, ...(rest.models ?? {}) },
+      health: { ...DEFAULT_HEALTH, ...(rest.health ?? {}) },
     };
   } catch {
     return { ...DEFAULT_CONFIG };
