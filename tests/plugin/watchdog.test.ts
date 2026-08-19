@@ -95,3 +95,79 @@ describe('watchdog session lifecycle', () => {
     expect(watchdog._sessions.size).toBe(0);
   });
 });
+
+describe('watchdog activity signals', () => {
+  function createChild(watchdog: ReturnType<typeof buildWatchdog>['watchdog'], id = 'child-1') {
+    watchdog.handleEvent({ type: 'session.created', properties: { info: { id, parentID: 'p', title: 'kiki-planner' } } });
+    return watchdog._sessions.get(id);
+  }
+
+  it('message.part.updated updates lastActivityAt', () => {
+    const { watchdog, setTime } = buildWatchdog();
+    const state = createChild(watchdog);
+    setTime(1_000_000 + 4000);
+    watchdog.handleEvent({
+      type: 'message.part.updated',
+      properties: { part: { id: 'p1', sessionID: 'child-1', messageID: 'm1', type: 'text', text: 'hello' } },
+    });
+    expect(state.lastActivityAt).toBe(1_000_000 + 4000);
+  });
+
+  it('message.updated with token growth updates lastActivityAt', () => {
+    const { watchdog, setTime } = buildWatchdog();
+    const state = createChild(watchdog);
+    setTime(1_000_000 + 4000);
+    watchdog.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          id: 'm1', sessionID: 'child-1', role: 'assistant',
+          tokens: { input: 10, output: 5, reasoning: 3, cache: { read: 0, write: 0 } },
+        },
+      },
+    });
+    expect(state.lastActivityAt).toBe(1_000_000 + 4000);
+  });
+
+  it('message.updated without token growth does NOT update lastActivityAt', () => {
+    const { watchdog, setTime } = buildWatchdog();
+    const state = createChild(watchdog);
+    const msg = {
+      id: 'm1', sessionID: 'child-1', role: 'assistant',
+      tokens: { input: 10, output: 5, reasoning: 3, cache: { read: 0, write: 0 } },
+    };
+    watchdog.handleEvent({ type: 'message.updated', properties: { info: msg } });
+    const first = state.lastActivityAt;
+    setTime(1_000_000 + 9000);
+    watchdog.handleEvent({ type: 'message.updated', properties: { info: msg } });
+    expect(state.lastActivityAt).toBe(first);
+  });
+
+  it('reasoning token growth counts as activity (thinking is not a hang)', () => {
+    const { watchdog, setTime } = buildWatchdog();
+    const state = createChild(watchdog);
+    watchdog.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: { id: 'm1', sessionID: 'child-1', role: 'assistant', tokens: { input: 10, output: 0, reasoning: 1, cache: { read: 0, write: 0 } } },
+      },
+    });
+    setTime(1_000_000 + 8000);
+    watchdog.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: { id: 'm1', sessionID: 'child-1', role: 'assistant', tokens: { input: 10, output: 0, reasoning: 50, cache: { read: 0, write: 0 } } },
+      },
+    });
+    expect(state.lastActivityAt).toBe(1_000_000 + 8000);
+  });
+
+  it('session.status updates status and activity', () => {
+    const { watchdog, setTime } = buildWatchdog();
+    const state = createChild(watchdog);
+    setTime(1_000_000 + 2000);
+    watchdog.handleEvent({ type: 'session.status', properties: { sessionID: 'child-1', status: { type: 'retry', attempt: 1, message: 'x', next: 0 } } });
+    expect(state.status).toBe('retry');
+    expect(state.lastActivityAt).toBe(1_000_000 + 2000);
+  });
+});

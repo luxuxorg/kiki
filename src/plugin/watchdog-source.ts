@@ -51,6 +51,81 @@ function createWatchdog(deps) {
     sessions.set(info.id, state);
   }
 
+  function recordPart(state, part) {
+    state.lastActivityAt = now();
+    if (part.type === 'text' || part.type === 'reasoning') {
+      var h = hashText(part.text || '');
+      if (state.lastPartId !== part.id) {
+        pushRing(state.partHashes, h, 8);
+        state.lastPartId = part.id;
+      } else if (state.partHashes.length > 0) {
+        state.partHashes[state.partHashes.length - 1] = h;
+      }
+    } else if (part.type === 'tool') {
+      var sig = toolSignature(part);
+      if (state.lastToolPartId !== part.id) {
+        pushRing(state.toolSignatures, sig, 8);
+        state.lastToolPartId = part.id;
+      } else if (state.toolSignatures.length > 0) {
+        state.toolSignatures[state.toolSignatures.length - 1] = sig;
+      }
+    }
+  }
+
+  function recordMessage(state, info) {
+    var t = info.tokens;
+    if (!t) return;
+    var prev = state.lastTokens;
+    var next = {
+      input: t.input || 0,
+      output: t.output || 0,
+      reasoning: t.reasoning || 0,
+      cacheRead: t.cache && t.cache.read ? t.cache.read : 0,
+      cacheWrite: t.cache && t.cache.write ? t.cache.write : 0
+    };
+    state.lastTokens = next;
+    if (!prev) {
+      state.lastActivityAt = now();
+      return;
+    }
+    if (
+      next.input > prev.input ||
+      next.output > prev.output ||
+      next.reasoning > prev.reasoning ||
+      next.cacheRead > prev.cacheRead ||
+      next.cacheWrite > prev.cacheWrite
+    ) {
+      state.lastActivityAt = now();
+    }
+  }
+
+  function normalize(text) {
+    return String(text == null ? '' : text).trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  function hashText(text) {
+    var h = 0x811c9dc5;
+    var s = normalize(text);
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = (h * 0x01000193) >>> 0;
+    }
+    return h.toString(36);
+  }
+
+  function toolSignature(part) {
+    try {
+      return String(part.tool) + ':' + JSON.stringify((part.state && part.state.input) || {});
+    } catch (e) {
+      return String(part.tool) + ':?';
+    }
+  }
+
+  function pushRing(arr, value, max) {
+    arr.push(value);
+    while (arr.length > max) arr.shift();
+  }
+
   function handleEvent(event) {
     if (!event || !event.type || !event.properties) return;
     var props = event.properties;
@@ -69,6 +144,25 @@ function createWatchdog(deps) {
         break;
       case 'session.error':
         if (props.sessionID) sessions.delete(props.sessionID);
+        break;
+      case 'message.part.updated':
+        if (props.part && props.part.sessionID) {
+          var sp = sessions.get(props.part.sessionID);
+          if (sp) recordPart(sp, props.part);
+        }
+        break;
+      case 'message.updated':
+        if (props.info && props.info.sessionID && props.info.role === 'assistant') {
+          var sm = sessions.get(props.info.sessionID);
+          if (sm) recordMessage(sm, props.info);
+        }
+        break;
+      case 'session.status':
+        var ss = sessions.get(props.sessionID);
+        if (ss && props.status && props.status.type) {
+          ss.status = props.status.type;
+          ss.lastActivityAt = now();
+        }
         break;
     }
   }
