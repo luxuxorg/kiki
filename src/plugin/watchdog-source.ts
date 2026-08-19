@@ -49,6 +49,42 @@ function createWatchdog(deps) {
       warned50: false
     };
     sessions.set(info.id, state);
+    resolveAgentName(state);
+  }
+
+  function resolveAgentName(state) {
+    try {
+      var p = client.session.messages({ path: { id: state.sessionId } });
+      if (p && typeof p.then === 'function') {
+        p.then(function (msgs) {
+          var name = null;
+          if (msgs && msgs.length) {
+            for (var i = 0; i < msgs.length; i++) {
+              var m = msgs[i];
+              if (m && m.info && m.info.role === 'user' && m.info.agent) {
+                name = m.info.agent;
+                break;
+              }
+            }
+          }
+          if (name) state.agentName = name;
+        }, function () { /* keep title fallback */ });
+      }
+    } catch (e) { /* keep title fallback */ }
+  }
+
+  function discoverSessions() {
+    try {
+      var p = client.session.list();
+      if (p && typeof p.then === 'function') {
+        p.then(function (list) {
+          if (!list) return;
+          for (var i = 0; i < list.length; i++) {
+            if (list[i] && list[i].parentID) register(list[i]);
+          }
+        }, function () { /* tolerate */ });
+      }
+    } catch (e) { /* tolerate */ }
   }
 
   function recordPart(state, part) {
@@ -240,6 +276,7 @@ function createWatchdog(deps) {
 
   function checkNow() {
     if (!cfg.watchdogEnabled) return;
+    discoverSessions();
     var toAbort = [];
     sessions.forEach(function (state) {
       var verdict = evaluate(state);

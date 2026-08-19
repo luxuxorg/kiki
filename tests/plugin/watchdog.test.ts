@@ -419,3 +419,57 @@ describe('watchdog loop detection', () => {
     expect(written).toContain('"reason":"content-loop"');
   });
 });
+
+describe('watchdog agent filtering and discovery', () => {
+  function createBusyChild(watchdog: ReturnType<typeof buildWatchdog>['watchdog'], id = 'child-1') {
+    watchdog.handleEvent({ type: 'session.created', properties: { info: { id, parentID: 'p', title: id } } });
+    watchdog.handleEvent({ type: 'session.status', properties: { sessionID: id, status: { type: 'busy' } } });
+  }
+
+  it('does not abort a resolved non-kiki agent when watchAllSubagents is false', async () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    client.session.messages.mockResolvedValue([{ info: { role: 'user', agent: 'general' } }]);
+    createBusyChild(watchdog);
+    await flushPromises();
+    setTime(getTime() + 30000);
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('aborts a resolved kiki agent', async () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    client.session.messages.mockResolvedValue([{ info: { role: 'user', agent: 'kiki-planner' } }]);
+    createBusyChild(watchdog);
+    await flushPromises();
+    setTime(getTime() + 6000);
+    watchdog.checkNow();
+    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: 'child-1' } });
+  });
+
+  it('watches a non-kiki agent when watchAllSubagents is true', async () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog({}, { watchAllSubagents: true });
+    client.session.messages.mockResolvedValue([{ info: { role: 'user', agent: 'general' } }]);
+    createBusyChild(watchdog);
+    await flushPromises();
+    setTime(getTime() + 6000);
+    watchdog.checkNow();
+    expect(client.session.abort).toHaveBeenCalled();
+  });
+
+  it('discovers child sessions via client.session.list on checkNow', async () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    client.session.list.mockResolvedValue([{ id: 'missed-1', parentID: 'p', title: 'kiki-reviewer' }]);
+    watchdog.checkNow(); // tick 1: discovers and registers 'missed-1'
+    await flushPromises();
+    setTime(getTime() + 6000); // now past grace + stuck threshold for the discovered session
+    watchdog.checkNow(); // tick 2: evaluates and aborts
+    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: 'missed-1' } });
+  });
+
+  it('tolerates session.list failures', async () => {
+    const { watchdog, client } = buildWatchdog();
+    client.session.list.mockRejectedValue(new Error('offline'));
+    expect(() => watchdog.checkNow()).not.toThrow();
+    await flushPromises();
+  });
+});
