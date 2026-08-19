@@ -472,4 +472,27 @@ describe('watchdog agent filtering and discovery', () => {
     expect(() => watchdog.checkNow()).not.toThrow();
     await flushPromises();
   });
+
+  it('keeps the title fallback when session.messages rejects', async () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    client.session.messages.mockRejectedValue(new Error('unavailable'));
+    createBusyChild(watchdog);
+    await flushPromises();
+    setTime(getTime() + 6000);
+    watchdog.checkNow();
+    // title 'child-1' is non-kiki, so not watched: abort must NOT fire
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('does not reset startedAt when discovery re-finds an already-tracked session', async () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog);
+    const state = watchdog._sessions.get('child-1');
+    const originalStart = state.startedAt;
+    client.session.list.mockResolvedValue([{ id: 'child-1', parentID: 'p', title: 'kiki-planner' }]);
+    setTime(getTime() + 3000);
+    watchdog.checkNow();
+    await flushPromises();
+    expect(watchdog._sessions.get('child-1').startedAt).toBe(originalStart);
+  });
 });

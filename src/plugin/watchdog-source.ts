@@ -59,6 +59,7 @@ function createWatchdog(deps) {
         p.then(function (msgs) {
           var name = null;
           if (msgs && msgs.length) {
+            // First user message that carries an agent field (skips agent-less system injections).
             for (var i = 0; i < msgs.length; i++) {
               var m = msgs[i];
               if (m && m.info && m.info.role === 'user' && m.info.agent) {
@@ -67,7 +68,7 @@ function createWatchdog(deps) {
               }
             }
           }
-          if (name) state.agentName = name;
+          if (name && sessions.get(state.sessionId) === state) state.agentName = name;
         }, function () { /* keep title fallback */ });
       }
     } catch (e) { /* keep title fallback */ }
