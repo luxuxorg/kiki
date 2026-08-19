@@ -100,7 +100,7 @@ function createWatchdog(deps) {
   }
 
   function normalize(text) {
-    return String(text == null ? '' : text).trim().toLowerCase().replace(/\s+/g, ' ');
+    return String(text == null ? '' : text).trim().toLowerCase().replace(/\\s+/g, ' ');
   }
 
   function hashText(text) {
@@ -146,10 +146,10 @@ function createWatchdog(deps) {
     if (state.status !== 'busy') return null;
     var t = now();
     var age = t - state.startedAt;
-    if (age < cfg.gracePeriodMs) return null;
-    if (age >= cfg.absoluteMaxMs) return 'absolute-timeout';
     if (tailAllSame(state.partHashes, cfg.loopRepeatCount)) return 'content-loop';
     if (tailAllSame(state.toolSignatures, cfg.loopRepeatCount)) return 'tool-loop';
+    if (age < cfg.gracePeriodMs) return null;
+    if (age >= cfg.absoluteMaxMs) return 'absolute-timeout';
     var silentMs = t - state.lastActivityAt;
     if (silentMs >= cfg.stuckThresholdMs) return 'stuck';
     if (!state.warned50 && silentMs >= cfg.stuckThresholdMs / 2) {

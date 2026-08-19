@@ -305,3 +305,117 @@ describe('watchdog stuck detection and abort', () => {
     expect(client.session.abort).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('watchdog loop detection', () => {
+  function createBusyChild(watchdog: ReturnType<typeof buildWatchdog>['watchdog'], id = 'child-1') {
+    watchdog.handleEvent({ type: 'session.created', properties: { info: { id, parentID: 'p', title: 'kiki-planner' } } });
+    watchdog.handleEvent({ type: 'session.status', properties: { sessionID: id, status: { type: 'busy' } } });
+    return watchdog._sessions.get(id);
+  }
+
+  function sendTextParts(watchdog: ReturnType<typeof buildWatchdog>['watchdog'], texts: string[]) {
+    texts.forEach((text, i) => {
+      watchdog.handleEvent({
+        type: 'message.part.updated',
+        properties: { part: { id: 'part-' + i, sessionID: 'child-1', messageID: 'm1', type: 'text', text } },
+      });
+    });
+  }
+
+  function sendToolParts(watchdog: ReturnType<typeof buildWatchdog>['watchdog'], calls: Array<{ tool: string; input: unknown }>) {
+    calls.forEach((c, i) => {
+      watchdog.handleEvent({
+        type: 'message.part.updated',
+        properties: {
+          part: { id: 'tool-' + i, sessionID: 'child-1', messageID: 'm1', type: 'tool', tool: c.tool, state: { status: 'running', input: c.input } },
+        },
+      });
+    });
+  }
+
+  it('aborts on 3 consecutive identical text parts (content loop)', () => {
+    const { watchdog, client } = buildWatchdog();
+    createBusyChild(watchdog);
+    sendTextParts(watchdog, ['same output', 'same output', 'same output']);
+    watchdog.checkNow();
+    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: 'child-1' } });
+  });
+
+  it('normalizes whitespace and case for content loop detection', () => {
+    const { watchdog, client } = buildWatchdog();
+    createBusyChild(watchdog);
+    sendTextParts(watchdog, ['Same   Output', 'same output', '  SAME OUTPUT ']);
+    watchdog.checkNow();
+    expect(client.session.abort).toHaveBeenCalled();
+  });
+
+  it('does NOT flag 3 updates to the SAME part id as a loop', () => {
+    const { watchdog, client } = buildWatchdog();
+    createBusyChild(watchdog);
+    for (let i = 0; i < 3; i++) {
+      watchdog.handleEvent({
+        type: 'message.part.updated',
+        properties: { part: { id: 'same-part', sessionID: 'child-1', messageID: 'm1', type: 'text', text: 'identical' } },
+      });
+    }
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('does not flag varied text as a loop', () => {
+    const { watchdog, client } = buildWatchdog();
+    createBusyChild(watchdog);
+    sendTextParts(watchdog, ['one', 'two', 'three']);
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('aborts on 3 consecutive identical tool calls (tool loop)', () => {
+    const { watchdog, client } = buildWatchdog();
+    createBusyChild(watchdog);
+    sendToolParts(watchdog, [
+      { tool: 'read', input: { filePath: '/a' } },
+      { tool: 'read', input: { filePath: '/a' } },
+      { tool: 'read', input: { filePath: '/a' } },
+    ]);
+    watchdog.checkNow();
+    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: 'child-1' } });
+  });
+
+  it('does NOT flag repeated updates to the SAME tool part as a loop', () => {
+    const { watchdog, client } = buildWatchdog();
+    createBusyChild(watchdog);
+    const statuses = ['pending', 'running', 'completed'];
+    for (const status of statuses) {
+      watchdog.handleEvent({
+        type: 'message.part.updated',
+        properties: {
+          part: { id: 'one-tool', sessionID: 'child-1', messageID: 'm1', type: 'tool', tool: 'read', state: { status, input: { filePath: '/a' } } },
+        },
+      });
+    }
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('does not flag same tool with different inputs as a loop', () => {
+    const { watchdog, client } = buildWatchdog();
+    createBusyChild(watchdog);
+    sendToolParts(watchdog, [
+      { tool: 'read', input: { filePath: '/a' } },
+      { tool: 'read', input: { filePath: '/b' } },
+      { tool: 'read', input: { filePath: '/c' } },
+    ]);
+    watchdog.checkNow();
+    expect(client.session.abort).not.toHaveBeenCalled();
+  });
+
+  it('logs the loop reason when aborting', () => {
+    const { watchdog, fakes } = buildWatchdog();
+    createBusyChild(watchdog);
+    sendTextParts(watchdog, ['x', 'x', 'x']);
+    watchdog.checkNow();
+    const written = fakes.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).join('');
+    expect(written).toContain('"reason":"content-loop"');
+  });
+});
