@@ -551,6 +551,7 @@ interface RoutingLogEntry {
 }
 
 export default function KikiPlugin({ client, directory }: { client: any; directory: string }) {
+  // Load-once plugin: interval is unref'd; no teardown hook needed (watchdog.stop unused by design).
   const root = directory || process.cwd();
   const health = loadHealthConfig(root);
   const watchdog = createWatchdog({ client, directory: root, config: health, now: () => Date.now() });
