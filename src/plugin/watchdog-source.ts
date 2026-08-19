@@ -146,6 +146,7 @@ function createWatchdog(deps) {
     if (state.status !== 'busy') return null;
     var t = now();
     var age = t - state.startedAt;
+    // Loops bypass the grace gate: a loop is real output, not a startup artifact.
     if (tailAllSame(state.partHashes, cfg.loopRepeatCount)) return 'content-loop';
     if (tailAllSame(state.toolSignatures, cfg.loopRepeatCount)) return 'tool-loop';
     if (age < cfg.gracePeriodMs) return null;
