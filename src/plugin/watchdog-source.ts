@@ -165,6 +165,7 @@ function createWatchdog(deps) {
   }
 
   function abortSession(state, reason) {
+    // Delete first: prevents double-abort across ticks while the abort promise is still in flight.
     sessions.delete(state.sessionId);
     writeHealth('warn', {
       event: 'watchdog-abort',

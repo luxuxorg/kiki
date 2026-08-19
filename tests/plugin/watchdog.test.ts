@@ -272,4 +272,36 @@ describe('watchdog stuck detection and abort', () => {
     const logCalls = client.app.log.mock.calls.map((c: unknown[]) => (c[0] as { body: { service: string } }).body.service);
     expect(logCalls).toContain('kiki-watchdog');
   });
+
+  it('aborts multiple stuck sessions in a single tick', () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog, 'child-a');
+    createBusyChild(watchdog, 'child-b');
+    setTime(getTime() + 6000);
+    watchdog.checkNow();
+    expect(client.session.abort).toHaveBeenCalledTimes(2);
+    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: 'child-a' } });
+    expect(client.session.abort).toHaveBeenCalledWith({ path: { id: 'child-b' } });
+  });
+
+  it('logs an error entry when abort throws synchronously', () => {
+    const { watchdog, client, fakes, setTime, getTime } = buildWatchdog();
+    client.session.abort.mockImplementationOnce(() => { throw new Error('sync boom'); });
+    createBusyChild(watchdog);
+    setTime(getTime() + 6000);
+    expect(() => watchdog.checkNow()).not.toThrow();
+    const written = fakes.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).join('');
+    expect(written).toContain('watchdog-abort-failed');
+    expect(written).toContain('sync boom');
+  });
+
+  it('does not abort the same session twice across consecutive ticks', () => {
+    const { watchdog, client, setTime, getTime } = buildWatchdog();
+    createBusyChild(watchdog);
+    setTime(getTime() + 6000);
+    watchdog.checkNow();
+    watchdog.checkNow();
+    watchdog.checkNow();
+    expect(client.session.abort).toHaveBeenCalledTimes(1);
+  });
 });
