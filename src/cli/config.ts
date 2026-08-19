@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import type { StaticRoutingTable } from '../types.js';
+import { WATCHDOG_SOURCE } from '../plugin/watchdog-source.js';
 
 export interface KikiPaths {
   source: string;
@@ -527,8 +528,21 @@ ${responsibilities}
 }
 
 export function generatePluginTemplate(): string {
-  return `import { appendFileSync, existsSync, mkdirSync } from 'fs';
+  return `import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
+
+${WATCHDOG_SOURCE}
+
+const DEFAULT_HEALTH = ${JSON.stringify(DEFAULT_HEALTH, null, 2)};
+
+function loadHealthConfig(directory: string) {
+  try {
+    const raw = JSON.parse(readFileSync(join(directory, '.agentic', 'kiki', 'config.json'), 'utf-8'));
+    return Object.assign({}, DEFAULT_HEALTH, raw.health || {});
+  } catch {
+    return Object.assign({}, DEFAULT_HEALTH);
+  }
+}
 
 interface RoutingLogEntry {
   timestamp: string;
@@ -536,7 +550,12 @@ interface RoutingLogEntry {
   model: string;
 }
 
-export default function KikiPlugin({ client }: { client: any }) {
+export default function KikiPlugin({ client, directory }: { client: any; directory: string }) {
+  const root = directory || process.cwd();
+  const health = loadHealthConfig(root);
+  const watchdog = createWatchdog({ client, directory: root, config: health, now: () => Date.now() });
+  watchdog.start();
+
   return {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
@@ -553,6 +572,9 @@ export default function KikiPlugin({ client }: { client: any }) {
         model: output.args?.model ?? 'unknown',
       };
       appendFileSync(logPath, JSON.stringify(entry) + '\\n');
+    },
+    event: async ({ event }: { event: any }) => {
+      watchdog.handleEvent(event);
     }
   };
 }

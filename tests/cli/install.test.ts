@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { DEFAULT_HEALTH } from '../../src/cli/config';
 
 describe('cli install', () => {
   let tmpDir: string;
@@ -58,7 +59,9 @@ describe('cli install', () => {
           models: {
             standard: 'moonshotai/kimi-k2.6',
             critical: 'anthropic/claude-sonnet-4.6',
+            workhorse: 'deepseek/deepseek-v4-pro',
           },
+          health: { ...DEFAULT_HEALTH },
         }),
       };
     });
