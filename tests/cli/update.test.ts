@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { init } from '../../src/cli/commands/init';
 import { update } from '../../src/cli/commands/update';
-import { DEFAULT_CONFIG, generateOrchestratorTemplate } from '../../src/cli/config';
+import { DEFAULT_CONFIG, DEFAULT_ROUTING_TABLE, generateOrchestratorTemplate } from '../../src/cli/config';
 import { setRoutingPath } from '../../src/core/routing-table';
 
 describe('cli update', () => {
@@ -74,6 +74,32 @@ describe('cli update', () => {
     expect(routing.agents['kiki-orchestrator']).toBeDefined();
     expect(routing.agents['kiki-gui-designer']).toBeDefined();
     expect(routing.rules).toBeUndefined();
+  });
+
+  it('preserves project routing models and fills missing default roles', async () => {
+    await init(tmpDir, { wizard: false });
+    const routingPath = path.join(tmpDir, '.agentic/kiki/routing.json');
+    const customModel = 'provider/project-model';
+    await fs.writeFile(
+      routingPath,
+      JSON.stringify({ agents: { 'kiki-orchestrator': customModel } }, null, 2)
+    );
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await update(tmpDir);
+    logSpy.mockRestore();
+
+    const routing = JSON.parse(await fs.readFile(routingPath, 'utf-8'));
+    expect(routing.agents['kiki-orchestrator']).toBe(customModel);
+    expect(routing.agents['kiki-implementer']).toBe(
+      DEFAULT_ROUTING_TABLE.agents['kiki-implementer']
+    );
+
+    const orchestrator = await fs.readFile(
+      path.join(tmpDir, '.opencode/agents/kiki-orchestrator.md'),
+      'utf-8'
+    );
+    expect(orchestrator).toContain(`model: ${customModel}`);
   });
 
   it('writes alignment.json to .agentic/kiki/', async () => {

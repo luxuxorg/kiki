@@ -8,6 +8,7 @@ import {
   loadConfig,
 } from '../config.js';
 import { routing } from './routing.js';
+import { loadRoutingTable, mergeRoutingTables } from '../../core/routing-table.js';
 
 export async function update(args: string[] | string): Promise<void> {
   const targetPath = typeof args === 'string' ? args : (args[0] ?? '.');
@@ -42,7 +43,12 @@ export async function update(args: string[] | string): Promise<void> {
   mkdirSync(kikiDir, { recursive: true });
 
   // Write routing to .agentic/kiki/routing.json only
-  writeFileSync(join(kikiDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
+  const routingPath = join(kikiDir, 'routing.json');
+  const routingTable = mergeRoutingTables(
+    loadRoutingTable(routingPath),
+    DEFAULT_ROUTING_TABLE
+  );
+  writeFileSync(routingPath, JSON.stringify(routingTable, null, 2));
   updated.push('.agentic/kiki/routing.json');
 
   // Write alignment to .agentic/kiki/alignment.json only if missing (user-owned)

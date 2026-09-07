@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { DEFAULT_ALIGNMENT, DEFAULT_ROUTING_TABLE, writeOpencodeFiles, loadConfig, } from '../config.js';
 import { routing } from './routing.js';
+import { loadRoutingTable, mergeRoutingTables } from '../../core/routing-table.js';
 export async function update(args) {
     const targetPath = typeof args === 'string' ? args : (args[0] ?? '.');
     const agenticDir = join(targetPath, '.agentic');
@@ -29,7 +30,9 @@ export async function update(args) {
     updated.push('.opencode/docs/agentic-workflow.md');
     mkdirSync(kikiDir, { recursive: true });
     // Write routing to .agentic/kiki/routing.json only
-    writeFileSync(join(kikiDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
+    const routingPath = join(kikiDir, 'routing.json');
+    const routingTable = mergeRoutingTables(loadRoutingTable(routingPath), DEFAULT_ROUTING_TABLE);
+    writeFileSync(routingPath, JSON.stringify(routingTable, null, 2));
     updated.push('.agentic/kiki/routing.json');
     // Write alignment to .agentic/kiki/alignment.json only if missing (user-owned)
     const alignmentPath = join(kikiDir, 'alignment.json');
