@@ -17,6 +17,16 @@ export interface KikiModels {
     critical: string;
     workhorse: string;
 }
+export interface KikiHealthConfig {
+    watchdogEnabled: boolean;
+    stuckThresholdMs: number;
+    gracePeriodMs: number;
+    absoluteMaxMs: number;
+    checkIntervalMs: number;
+    loopRepeatCount: number;
+    watchAllSubagents: boolean;
+    logPath: string;
+}
 export interface KikiConfig {
     projectName: string;
     language: string;
@@ -28,9 +38,11 @@ export interface KikiConfig {
     };
     paths: KikiPaths;
     models: KikiModels;
+    health: KikiHealthConfig;
 }
 export declare const DEFAULT_PATHS: KikiPaths;
 export declare const DEFAULT_MODELS: KikiModels;
+export declare const DEFAULT_HEALTH: KikiHealthConfig;
 export declare const DEFAULT_CONFIG: KikiConfig;
 export declare const DEFAULT_ALIGNMENT: {
     guardrails: string[];

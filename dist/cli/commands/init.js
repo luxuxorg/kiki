@@ -1,6 +1,6 @@
 import * as readline from 'readline';
 import { basename } from 'path';
-import { DEFAULT_CONFIG, DEFAULT_PATHS, DEFAULT_MODELS, DEFAULT_ROUTING_TABLE, DEFAULT_ALIGNMENT, ensurePathExists, writeOpencodeFiles, } from '../config.js';
+import { DEFAULT_CONFIG, DEFAULT_PATHS, DEFAULT_MODELS, DEFAULT_HEALTH, DEFAULT_ROUTING_TABLE, DEFAULT_ALIGNMENT, ensurePathExists, writeOpencodeFiles, } from '../config.js';
 import { existsSync, writeFileSync, readFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { install } from './install.js';
@@ -115,6 +115,7 @@ export async function runWizard(targetPath) {
             critical: criticalModel,
             workhorse: workhorseModel,
         },
+        health: { ...DEFAULT_HEALTH },
     };
     return config;
 }

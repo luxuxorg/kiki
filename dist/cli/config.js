@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
+import { WATCHDOG_SOURCE } from '../plugin/watchdog-source.js';
 export const DEFAULT_PATHS = {
     source: 'src/',
     tests: 'tests/',
@@ -18,6 +19,16 @@ export const DEFAULT_MODELS = {
     critical: 'anthropic/claude-sonnet-5',
     workhorse: 'deepseek/deepseek-v4-pro',
 };
+export const DEFAULT_HEALTH = {
+    watchdogEnabled: true,
+    stuckThresholdMs: 300_000,
+    gracePeriodMs: 120_000,
+    absoluteMaxMs: 3_600_000,
+    checkIntervalMs: 30_000,
+    loopRepeatCount: 3,
+    watchAllSubagents: false,
+    logPath: '.agentic/kiki/health_log.jsonl',
+};
 export const DEFAULT_CONFIG = {
     projectName: 'my-project',
     language: 'typescript',
@@ -29,6 +40,7 @@ export const DEFAULT_CONFIG = {
     },
     paths: DEFAULT_PATHS,
     models: DEFAULT_MODELS,
+    health: DEFAULT_HEALTH,
 };
 export const DEFAULT_ALIGNMENT = {
     guardrails: [
@@ -83,6 +95,7 @@ export function loadConfig(targetPath) {
             ...rest,
             paths: { ...DEFAULT_PATHS, ...(rest.paths ?? {}) },
             models: { ...DEFAULT_MODELS, ...(rest.models ?? {}) },
+            health: { ...DEFAULT_HEALTH, ...(rest.health ?? {}) },
         };
     }
     catch {
@@ -241,6 +254,7 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, implemen
 - Design/spec phase → @kiki-brainstormer
 - Planning phase → @kiki-planner
 - Review phase → @kiki-reviewer
+- Documentation decision required → dispatch @kiki-historian unless the registry explicitly records \`documentation.status: "not_required"\` with a concrete reason.
 - Failure diagnosis → @kiki-escalation
 
 ## Process
@@ -258,6 +272,7 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, implemen
 - **NEVER** do implementation, spec, plan, review, or documentation work yourself.
 - Update the task registry after every phase transition.
 - Never hardcode secrets or log sensitive data.
+- Never set a task to \`completed\` while \`documentation.status\` is \`pending\`. Resolve \`documentation.status\` to \`completed\` or \`not_required\` before marking the task complete.
 - If a task fails twice, dispatch \`kiki-escalation\`.
 
 ## Handling Empty or Failed Subagent Results
@@ -440,8 +455,39 @@ ${responsibilities}
 `;
 }
 export function generatePluginTemplate() {
-    return `import { appendFileSync, existsSync, mkdirSync } from 'fs';
+    return `import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
+
+${WATCHDOG_SOURCE}
+
+const DEFAULT_HEALTH = ${JSON.stringify(DEFAULT_HEALTH, null, 2)};
+
+function isPositiveInt(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 && Math.floor(v) === v;
+}
+
+function sanitizeHealth(raw: any): typeof DEFAULT_HEALTH {
+  const out = Object.assign({}, DEFAULT_HEALTH);
+  if (!raw || typeof raw !== 'object') return out;
+  if (typeof raw.watchdogEnabled === 'boolean') out.watchdogEnabled = raw.watchdogEnabled;
+  if (typeof raw.watchAllSubagents === 'boolean') out.watchAllSubagents = raw.watchAllSubagents;
+  if (typeof raw.logPath === 'string' && raw.logPath.length > 0) out.logPath = raw.logPath;
+  if (isPositiveInt(raw.stuckThresholdMs)) out.stuckThresholdMs = raw.stuckThresholdMs;
+  if (isPositiveInt(raw.gracePeriodMs)) out.gracePeriodMs = raw.gracePeriodMs;
+  if (isPositiveInt(raw.absoluteMaxMs)) out.absoluteMaxMs = raw.absoluteMaxMs;
+  if (isPositiveInt(raw.checkIntervalMs)) out.checkIntervalMs = raw.checkIntervalMs;
+  if (isPositiveInt(raw.loopRepeatCount) && raw.loopRepeatCount >= 2) out.loopRepeatCount = raw.loopRepeatCount;
+  return out;
+}
+
+function loadHealthConfig(directory: string) {
+  try {
+    const raw = JSON.parse(readFileSync(join(directory, '.agentic', 'kiki', 'config.json'), 'utf-8'));
+    return sanitizeHealth(raw.health);
+  } catch {
+    return sanitizeHealth(null);
+  }
+}
 
 interface RoutingLogEntry {
   timestamp: string;
@@ -449,7 +495,13 @@ interface RoutingLogEntry {
   model: string;
 }
 
-export default function KikiPlugin({ client }: { client: any }) {
+export default function KikiPlugin({ client, directory }: { client: any; directory: string }) {
+  // Load-once plugin: interval is unref'd; no teardown hook needed (watchdog.stop unused by design).
+  const root = directory || process.cwd();
+  const health = loadHealthConfig(root);
+  const watchdog = createWatchdog({ client, directory: root, config: health, now: () => Date.now() });
+  watchdog.start();
+
   return {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
@@ -466,6 +518,9 @@ export default function KikiPlugin({ client }: { client: any }) {
         model: output.args?.model ?? 'unknown',
       };
       appendFileSync(logPath, JSON.stringify(entry) + '\\n');
+    },
+    event: async ({ event }: { event: any }) => {
+      watchdog.handleEvent(event);
     }
   };
 }
@@ -524,11 +579,20 @@ TASK_REGISTRY entries use the descriptive schema:
   "completedAt": "2026-07-01T01:00:00.000Z",
   "spec": "docs/superpowers/specs/example-design.md",
   "plan": "docs/superpowers/plans/example-plan.md",
-  "reviewNotes": ["Only unresolved issue strings go here"]
+  "reviewNotes": ["Only unresolved issue strings go here"],
+  "documentation": {
+    "status": "pending | not_required | completed",
+    "reason": "Concrete explanation of the decision",
+    "updatedFiles": ["README.md", "CHANGELOG.md"]
+  }
 }
 \`\`\`
 
 Do not use \`name\`, \`created_at\`, \`phases\`, or \`failure_count\`. \`reviewNotes\` is an array of unresolved issue strings only; remove fixed findings instead of preserving them as history.
+
+## Documentation Completion Gate
+
+Every task begins with \`documentation.status\` set to \`pending\`. The \`not_required\` status is allowed only for a local internal change and requires a concrete reason recorded in the registry. In all other cases, dispatch \`kiki-historian\` to update the documentation. When the historian returns, set \`documentation.status\` to \`completed\` and record the updated files in \`updatedFiles\`, or an empty list if no files changed. Completion is forbidden while documentation.status is \`pending\`.
 
 ## Role-Level Model Routing
 

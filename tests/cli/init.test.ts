@@ -192,6 +192,9 @@ describe('cli init', () => {
     const workflow = await fs.readFile(path.join(tmpDir, '.opencode/docs/agentic-workflow.md'), 'utf-8');
     expect(workflow).toContain('Kiki Workflow');
     expect(workflow).toContain('kiki-historian');
+    expect(workflow).toContain('"status": "pending | not_required | completed"');
+    expect(workflow).toContain('Documentation Completion Gate');
+    expect(workflow).toContain('documentation.status is `pending`');
   });
 
   it('scaffolds kiki-gui-designer.md in .opencode/agents/', async () => {
@@ -250,6 +253,16 @@ describe('cli init', () => {
     expect(orchestrator).toContain('The only direct file edit you may perform is');
     expect(orchestrator).toContain('.agentic/kiki/TASK_REGISTRY.json');
     expect(orchestrator).toContain('Before dispatching `kiki-escalation`');
+  });
+
+  it('locks the documentation completion gate into the orchestrator template', async () => {
+    await init(tmpDir, { wizard: false });
+
+    const orchestrator = await fs.readFile(path.join(tmpDir, '.opencode/agents/kiki-orchestrator.md'), 'utf-8');
+
+    expect(orchestrator).toContain('Documentation decision required');
+    expect(orchestrator).toContain('@kiki-historian');
+    expect(orchestrator).toContain('Never set a task to `completed` while `documentation.status` is `pending`');
   });
 
   it('gives all subagents broad read access while denying secret-like paths', async () => {
