@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
+import { WATCHDOG_SOURCE } from '../plugin/watchdog-source.js';
 export const DEFAULT_PATHS = {
     source: 'src/',
     tests: 'tests/',
@@ -18,6 +19,16 @@ export const DEFAULT_MODELS = {
     critical: 'anthropic/claude-sonnet-5',
     workhorse: 'deepseek/deepseek-v4-pro',
 };
+export const DEFAULT_HEALTH = {
+    watchdogEnabled: true,
+    stuckThresholdMs: 300_000,
+    gracePeriodMs: 120_000,
+    absoluteMaxMs: 3_600_000,
+    checkIntervalMs: 30_000,
+    loopRepeatCount: 3,
+    watchAllSubagents: false,
+    logPath: '.agentic/kiki/health_log.jsonl',
+};
 export const DEFAULT_CONFIG = {
     projectName: 'my-project',
     language: 'typescript',
@@ -29,6 +40,7 @@ export const DEFAULT_CONFIG = {
     },
     paths: DEFAULT_PATHS,
     models: DEFAULT_MODELS,
+    health: DEFAULT_HEALTH,
 };
 export const DEFAULT_ALIGNMENT = {
     guardrails: [
@@ -83,6 +95,7 @@ export function loadConfig(targetPath) {
             ...rest,
             paths: { ...DEFAULT_PATHS, ...(rest.paths ?? {}) },
             models: { ...DEFAULT_MODELS, ...(rest.models ?? {}) },
+            health: { ...DEFAULT_HEALTH, ...(rest.health ?? {}) },
         };
     }
     catch {
@@ -440,8 +453,39 @@ ${responsibilities}
 `;
 }
 export function generatePluginTemplate() {
-    return `import { appendFileSync, existsSync, mkdirSync } from 'fs';
+    return `import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
+
+${WATCHDOG_SOURCE}
+
+const DEFAULT_HEALTH = ${JSON.stringify(DEFAULT_HEALTH, null, 2)};
+
+function isPositiveInt(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 && Math.floor(v) === v;
+}
+
+function sanitizeHealth(raw: any): typeof DEFAULT_HEALTH {
+  const out = Object.assign({}, DEFAULT_HEALTH);
+  if (!raw || typeof raw !== 'object') return out;
+  if (typeof raw.watchdogEnabled === 'boolean') out.watchdogEnabled = raw.watchdogEnabled;
+  if (typeof raw.watchAllSubagents === 'boolean') out.watchAllSubagents = raw.watchAllSubagents;
+  if (typeof raw.logPath === 'string' && raw.logPath.length > 0) out.logPath = raw.logPath;
+  if (isPositiveInt(raw.stuckThresholdMs)) out.stuckThresholdMs = raw.stuckThresholdMs;
+  if (isPositiveInt(raw.gracePeriodMs)) out.gracePeriodMs = raw.gracePeriodMs;
+  if (isPositiveInt(raw.absoluteMaxMs)) out.absoluteMaxMs = raw.absoluteMaxMs;
+  if (isPositiveInt(raw.checkIntervalMs)) out.checkIntervalMs = raw.checkIntervalMs;
+  if (isPositiveInt(raw.loopRepeatCount) && raw.loopRepeatCount >= 2) out.loopRepeatCount = raw.loopRepeatCount;
+  return out;
+}
+
+function loadHealthConfig(directory: string) {
+  try {
+    const raw = JSON.parse(readFileSync(join(directory, '.agentic', 'kiki', 'config.json'), 'utf-8'));
+    return sanitizeHealth(raw.health);
+  } catch {
+    return sanitizeHealth(null);
+  }
+}
 
 interface RoutingLogEntry {
   timestamp: string;
@@ -449,7 +493,13 @@ interface RoutingLogEntry {
   model: string;
 }
 
-export default function KikiPlugin({ client }: { client: any }) {
+export default function KikiPlugin({ client, directory }: { client: any; directory: string }) {
+  // Load-once plugin: interval is unref'd; no teardown hook needed (watchdog.stop unused by design).
+  const root = directory || process.cwd();
+  const health = loadHealthConfig(root);
+  const watchdog = createWatchdog({ client, directory: root, config: health, now: () => Date.now() });
+  watchdog.start();
+
   return {
     'tool.execute.before': async (input: any, output: any) => {
       if (input.tool !== 'task') return;
@@ -466,6 +516,9 @@ export default function KikiPlugin({ client }: { client: any }) {
         model: output.args?.model ?? 'unknown',
       };
       appendFileSync(logPath, JSON.stringify(entry) + '\\n');
+    },
+    event: async ({ event }: { event: any }) => {
+      watchdog.handleEvent(event);
     }
   };
 }
