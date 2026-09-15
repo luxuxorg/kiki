@@ -254,6 +254,7 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, implemen
 - Design/spec phase → @kiki-brainstormer
 - Planning phase → @kiki-planner
 - Review phase → @kiki-reviewer
+- Documentation decision required → dispatch @kiki-historian unless the registry explicitly records \`documentation.status: "not_required"\` with a concrete reason.
 - Failure diagnosis → @kiki-escalation
 
 ## Process
@@ -271,6 +272,7 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, implemen
 - **NEVER** do implementation, spec, plan, review, or documentation work yourself.
 - Update the task registry after every phase transition.
 - Never hardcode secrets or log sensitive data.
+- Never set a task to \`completed\` while \`documentation.status\` is \`pending\`. Resolve \`documentation.status\` to \`completed\` or \`not_required\` before marking the task complete.
 - If a task fails twice, dispatch \`kiki-escalation\`.
 
 ## Handling Empty or Failed Subagent Results
@@ -577,11 +579,20 @@ TASK_REGISTRY entries use the descriptive schema:
   "completedAt": "2026-07-01T01:00:00.000Z",
   "spec": "docs/superpowers/specs/example-design.md",
   "plan": "docs/superpowers/plans/example-plan.md",
-  "reviewNotes": ["Only unresolved issue strings go here"]
+  "reviewNotes": ["Only unresolved issue strings go here"],
+  "documentation": {
+    "status": "pending | not_required | completed",
+    "reason": "Concrete explanation of the decision",
+    "updatedFiles": ["README.md", "CHANGELOG.md"]
+  }
 }
 \`\`\`
 
 Do not use \`name\`, \`created_at\`, \`phases\`, or \`failure_count\`. \`reviewNotes\` is an array of unresolved issue strings only; remove fixed findings instead of preserving them as history.
+
+## Documentation Completion Gate
+
+Every task begins with \`documentation.status\` set to \`pending\`. The \`not_required\` status is allowed only for a local internal change and requires a concrete reason recorded in the registry. In all other cases, dispatch \`kiki-historian\` to update the documentation. When the historian returns, set \`documentation.status\` to \`completed\` and record the updated files in \`updatedFiles\`, or an empty list if no files changed. Completion is forbidden while documentation.status is \`pending\`.
 
 ## Role-Level Model Routing
 
