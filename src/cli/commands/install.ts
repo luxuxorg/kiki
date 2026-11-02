@@ -38,7 +38,7 @@ export async function install(args: string[]): Promise<void> {
 }
 
 async function installGlobal(force: boolean): Promise<void> {
-  const templates = generateAllTemplates(DEFAULT_CONFIG);
+  const templates = generateAllTemplates(DEFAULT_CONFIG, 'global');
 
   ensureDir(GLOBAL_AGENTS_DIR);
   ensureDir(GLOBAL_PLUGINS_DIR);

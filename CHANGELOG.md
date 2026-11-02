@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Subagent watchdog in the generated OpenCode plugin: automatically detects hung subagent sessions (no message parts or token growth for `health.stuckThresholdMs`, default 5 min), output/tool loops (3 identical repetitions), and sessions exceeding `health.absoluteMaxMs` (default 60 min), then aborts them so the orchestrator's retry/escalation flow resumes without manual intervention. Incidents are logged to `.agentic/kiki/health_log.jsonl`. Configurable via the new `health` section in `.agentic/kiki/config.json`.
+- **Plugin deduplication:** when both a global and a project Kiki install are loaded by OpenCode in the same process, the generated plugin now self-deduplicates via a `globalThis[Symbol.for('kiki.plugin')]` ownership registry keyed by resolved project root. The first-loaded instance owns the watchdog and routing logger; later instances for the same root register no-op hooks. OpenCode loads global plugins before project plugins, so the global copy is canonical when both are installed. This guarantees exactly one `routing_log.jsonl` line per `kiki-*` dispatch and exactly one watchdog interval/health entry per incident. When the loaded copies differ in version, the non-owner emits a one-time `plugin-dedup-version-mismatch` diagnostic to `console.warn`, `.agentic/kiki/health_log.jsonl`, and `client.app.log`, with remediation via `kiki install --force` and/or `kiki update <project>`.
+- **Release checklist:** `KIKI_VERSION` in `src/cli/config.ts` (baked into the generated plugin as `KIKI_PLUGIN_VERSION`) must be updated alongside `package.json` on every release. A unit test asserts they match at test time.
 
 ## [2.1.0] — 2026-06-23
 

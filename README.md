@@ -185,7 +185,20 @@ The plugin at `.opencode/plugins/kiki.ts` is self-contained (zero external depen
 - Intercepts `task` tool calls for Kiki subagent types
 - Routes each subagent to the correct model based on `skill + domain + risk`
 - Uses static routing from `.agentic/routing.json`
-- Logs routing decisions to `.agentic/routing_log.jsonl`
+- Logs routing decisions to `.agentic/kiki/routing_log.jsonl`
+
+Both installation scopes use the same plugin template (stamped with its install scope and Kiki version), and dedup behavior depends on how it is installed:
+
+- **Global only** (`kiki install`): the plugin at `~/.config/opencode/plugins/kiki.ts` runs the watchdog and routing logger.
+- **Project only** (`kiki init` / `kiki update`): the plugin at `<project>/.opencode/plugins/kiki.ts` runs the watchdog and routing logger for that project.
+- **Both installed:** OpenCode loads both copies, but the plugin self-deduplicates at runtime through a process-wide registry keyed by resolved project root. The **first-loaded instance wins**, and because OpenCode loads global plugins before project plugins, the global copy is canonical. Later copies register no-op hooks. This guarantees exactly one `.agentic/kiki/routing_log.jsonl` line per `kiki-*` dispatch and exactly one watchdog interval/health entry per incident.
+
+If the two copies are different versions, the non-owner emits a one-time `plugin-dedup-version-mismatch` diagnostic to `console.warn`, `.agentic/kiki/health_log.jsonl`, and OpenCode's log, then yields. Realign the installs with:
+
+```bash
+kiki install --force     # refresh the global copy
+kiki update <project>    # refresh the project copy
+```
 
 ## Smart-Merge on Update
 

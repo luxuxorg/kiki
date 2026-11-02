@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { generateAllTemplates, DEFAULT_CONFIG } from '../../src/cli/config';
+import { generateAllTemplates, DEFAULT_CONFIG, writeOpencodeFiles } from '../../src/cli/config';
 
 describe('generated plugin file', () => {
   it('is syntactically valid JavaScript/TypeScript as evaluated structure', () => {
@@ -33,6 +33,33 @@ describe('generated plugin file', () => {
       const content = readFileSync(join(tmpDir, '.opencode', 'plugins', 'kiki.ts'), 'utf-8');
       expect(content).toContain('function createWatchdog(deps)');
       expect(content).toContain('watchdog.start()');
+    } finally {
+      if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('global-scoped generated plugin is syntactically valid TypeScript', () => {
+    const templates = generateAllTemplates(DEFAULT_CONFIG, 'global');
+    const tmpDir = `tmp/watchdog-plugin-syntax-global-${Date.now()}`;
+    try {
+      mkdirSync(tmpDir, { recursive: true });
+      const pluginPath = join(tmpDir, 'kiki-plugin-global.ts');
+      writeFileSync(pluginPath, templates.plugin);
+      execFileSync('npx', ['tsc', '--noEmit', '--skipLibCheck', '--module', 'esnext', '--target', 'es2020', '--moduleResolution', 'bundler', pluginPath], { stdio: 'pipe' });
+    } finally {
+      if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('writeOpencodeFiles with scope=global stamps KIKI_PLUGIN_SCOPE=global on disk', () => {
+    const tmpDir = `tmp/watchdog-write-files-global-${Date.now()}`;
+    try {
+      writeOpencodeFiles(tmpDir, DEFAULT_CONFIG, 'global');
+      const content = readFileSync(join(tmpDir, '.opencode', 'plugins', 'kiki.ts'), 'utf-8');
+      expect(content).toContain("const KIKI_PLUGIN_SCOPE = 'global';");
+      expect(content).toContain('function createWatchdog(deps)');
+      expect(content).toContain('watchdog.start()');
+      expect(content).toContain("Symbol.for('kiki.plugin')");
     } finally {
       if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
     }

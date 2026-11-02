@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { WATCHDOG_SOURCE } from '../plugin/watchdog-source.js';
+import { DEDUP_SOURCE } from '../plugin/dedup-source.js';
 export const DEFAULT_PATHS = {
     source: 'src/',
     tests: 'tests/',
@@ -29,6 +30,14 @@ export const DEFAULT_HEALTH = {
     watchAllSubagents: false,
     logPath: '.agentic/kiki/health_log.jsonl',
 };
+/**
+ * Kiki version, baked into the generated plugin as KIKI_PLUGIN_VERSION.
+ * MUST be kept in sync with package.json on every release. The published
+ * package ships only dist/ (see package.json "files"), so a globally
+ * installed CLI cannot read its own package.json at runtime — this const
+ * is the source of truth for the generator.
+ */
+export const KIKI_VERSION = '2.1.0';
 export const DEFAULT_CONFIG = {
     projectName: 'my-project',
     language: 'typescript',
@@ -454,11 +463,18 @@ ${responsibilities}
 - When updating CHANGELOG, follow Keep a Changelog format (Added, Changed, Fixed, Removed, Security).
 `;
 }
-export function generatePluginTemplate() {
+export function generatePluginTemplate(opts = {}) {
+    const scope = opts.scope ?? 'project';
+    const version = opts.version ?? KIKI_VERSION;
     return `import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
+
+const KIKI_PLUGIN_VERSION = '${version}';
+const KIKI_PLUGIN_SCOPE = '${scope}';
 
 ${WATCHDOG_SOURCE}
+
+${DEDUP_SOURCE}
 
 const DEFAULT_HEALTH = ${JSON.stringify(DEFAULT_HEALTH, null, 2)};
 
@@ -497,7 +513,24 @@ interface RoutingLogEntry {
 
 export default function KikiPlugin({ client, directory }: { client: any; directory: string }) {
   // Load-once plugin: interval is unref'd; no teardown hook needed (watchdog.stop unused by design).
-  const root = directory || process.cwd();
+  const root = resolve(directory || process.cwd());
+
+  // --- ownership gate: first-loaded instance for this root owns the
+  // watchdog and routing logger. Non-owners return no-op hooks so the
+  // plugin contract stays stable. Keep the no-op hook names in sync with
+  // the owner branch if new hooks are added. ---
+  const ownership = acquireOwnership(root);
+  if (!ownership) {
+    const owner = getOwner(root);
+    if (owner && owner.version !== KIKI_PLUGIN_VERSION) {
+      reportVersionMismatch(root, owner, client, directory);
+    }
+    return {
+      'tool.execute.before': async (_input: any, _output: any) => {},
+      event: async (_args: { event: any }) => {}
+    };
+  }
+
   const health = loadHealthConfig(root);
   const watchdog = createWatchdog({ client, directory: root, config: health, now: () => Date.now() });
   watchdog.start();
@@ -630,7 +663,7 @@ package-lock.json
 bun.lock
 .gitignore
 `;
-export function generateAllTemplates(config) {
+export function generateAllTemplates(config, scope = 'project', version = KIKI_VERSION) {
     return {
         orchestrator: generateOrchestratorTemplate(config),
         brainstormer: generateBrainstormerTemplate(config),
@@ -640,13 +673,13 @@ export function generateAllTemplates(config) {
         reviewer: generateReviewerTemplate(config),
         escalation: generateEscalationTemplate(config),
         historian: generateHistorianTemplate(config),
-        plugin: generatePluginTemplate(),
+        plugin: generatePluginTemplate({ scope, version }),
         packageJson: OPENCODE_PACKAGE_JSON_TEMPLATE,
         gitignore: OPENCODE_GITIGNORE_TEMPLATE,
         workflow: generateWorkflowTemplate(config),
     };
 }
-export function writeOpencodeFiles(targetPath, config) {
+export function writeOpencodeFiles(targetPath, config, scope = 'project') {
     const opencodeDir = join(targetPath, '.opencode');
     const agentsDir = join(opencodeDir, 'agents');
     const pluginsDir = join(opencodeDir, 'plugins');
@@ -655,7 +688,7 @@ export function writeOpencodeFiles(targetPath, config) {
     mkdirSync(agentsDir, { recursive: true });
     mkdirSync(pluginsDir, { recursive: true });
     mkdirSync(docsDir, { recursive: true });
-    const templates = generateAllTemplates(config);
+    const templates = generateAllTemplates(config, scope);
     writeFileSync(join(agentsDir, 'kiki-orchestrator.md'), templates.orchestrator);
     writeFileSync(join(agentsDir, 'kiki-brainstormer.md'), templates.brainstormer);
     writeFileSync(join(agentsDir, 'kiki-planner.md'), templates.planner);
