@@ -87,7 +87,7 @@ export const DEFAULT_HEALTH: KikiHealthConfig = {
  * installed CLI cannot read its own package.json at runtime — this const
  * is the source of truth for the generator.
  */
-export const KIKI_VERSION = '2.1.0';
+export const KIKI_VERSION = '2.2.0';
 
 export const DEFAULT_CONFIG: KikiConfig = {
   projectName: 'my-project',
@@ -323,7 +323,7 @@ model: ${config.models.standard}
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 
 ## Your Role
-Dispatch the correct subagent via the \`task\` tool. Do not write code, implementation files, docs, or run commands. The only direct file edit you may perform is updating \`${p.taskRegistry}\` for task state, phase transitions, and failure counts. Agent models come from \`.agentic/kiki/routing.json\` after \`kiki routing\` syncs them into OpenCode agent frontmatter.
+Dispatch the correct subagent via the \`task\` tool. Do not write code, implementation files, docs, or run commands. The only direct file edit you may perform is updating \`${p.taskRegistry}\` for task state, phase transitions, and failure counts. Agent models and permissions are configured in global/project \`opencode.json\` or \`opencode.jsonc\` and resolved by OpenCode.
 
 ## Dispatch Rules
 - UI/frontend/visual/layout/component/design task → @kiki-gui-designer
@@ -704,26 +704,19 @@ Every task begins with \`documentation.status\` set to \`pending\`. The \`not_re
 
 ## Role-Level Model Routing
 
-Model selection is one model per Kiki role. Edit the \`agents\` map in \`.agentic/kiki/routing.json\`, then run \`kiki routing\` to sync those models into \`.opencode/agents/kiki-*.md\` frontmatter.
+Model selection is one model per Kiki role. Set \`agent.<name>.model\` in global or project \`opencode.json\` / \`opencode.jsonc\`. OpenCode merges the settings; no synchronization command is needed.
 
 Example:
 
 \`\`\`json
 {
-  "agents": {
-    "kiki-orchestrator": "openrouter/z-ai/glm-5.2",
-    "kiki-brainstormer": "openrouter/z-ai/glm-5.2",
-    "kiki-planner": "openrouter/z-ai/glm-5.2",
-    "kiki-implementer": "deepseek/deepseek-v4-pro",
-    "kiki-gui-designer": "openrouter/z-ai/glm-5.2",
-    "kiki-reviewer": "openrouter/z-ai/glm-5.2",
-    "kiki-escalation": "anthropic/claude-sonnet-5",
-    "kiki-historian": "deepseek/deepseek-v4-pro"
+  "agent": {
+    "kiki-reviewer": { "model": "openai/gpt-6.1-sol" }
   }
 }
 \`\`\`
 
-Use \`kiki routing --check\` in CI or before dispatching subagents to verify the OpenCode agent files match the central routing file.
+Use \`kiki doctor\` to check the installation. Existing local definitions can be imported with \`kiki migrate --project .\`; \`kiki reset --project .\` restores global agent defaults without deleting project work.
 `;
 }
 

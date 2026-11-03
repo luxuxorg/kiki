@@ -1,48 +1,29 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
-import { loadRoutingTable, mergeRoutingTables } from '../../core/routing-table.js';
-const GLOBAL_DEFAULTS_DIR = join(homedir(), '.config', 'opencode', 'kiki', 'defaults');
-const GLOBAL_AGENTS_DIR = join(homedir(), '.config', 'opencode', 'agents');
-const GLOBAL_PLUGINS_DIR = join(homedir(), '.config', 'opencode', 'plugins');
+import { AGENT_NAMES, globalDirectory, readOpenCodeSettings, mergeSettings } from '../opencode-config.js';
 export async function status(projectPath = '.') {
-    const agenticDir = join(projectPath, '.agentic');
-    const agenticKikiDir = join(agenticDir, 'kiki');
-    // Global state
-    const globalRoutingPath = join(GLOBAL_DEFAULTS_DIR, 'routing.json');
-    const globalRouting = existsSync(globalRoutingPath) ? loadRoutingTable(globalRoutingPath) : null;
-    const hasGlobalAgents = existsSync(GLOBAL_AGENTS_DIR) && existsSync(join(GLOBAL_AGENTS_DIR, 'kiki-orchestrator.md'));
-    const hasGlobalPlugin = existsSync(join(GLOBAL_PLUGINS_DIR, 'kiki.ts'));
+    const global = globalDirectory();
+    const globalAgents = readOpenCodeSettings(global, true).agent || {};
+    const projectAgents = readOpenCodeSettings(projectPath).agent || {};
+    const effective = mergeSettings(globalAgents, projectAgents);
     console.log('=== Global Installation ===');
-    console.log(`  Agents: ${hasGlobalAgents ? 'installed' : 'missing'}`);
-    console.log(`  Plugin: ${hasGlobalPlugin ? 'installed' : 'missing'}`);
-    console.log(`  Defaults: ${globalRouting ? `present (${Object.keys(globalRouting.agents).length} agents)` : 'missing'}`);
-    // Project state
-    const hasProject = existsSync(agenticDir);
-    const hasModernKiki = existsSync(agenticKikiDir);
-    console.log('\n=== Project State ===');
+    console.log(`  Location: ${global}`);
+    console.log(`  Global agents: ${AGENT_NAMES.filter(name => globalAgents[name]).length}`);
+    console.log(`  Plugin: ${existsSync(join(global, 'plugins/kiki.ts')) ? 'installed' : 'missing'}`);
+    console.log('=== Project State ===');
     console.log(`  Path: ${projectPath}`);
-    console.log(`  Status: ${hasModernKiki ? 'initialized (.agentic/kiki/)' : 'not initialized'}`);
-    if (!hasProject) {
-        console.error('\nNo .agentic/ directory found. Run "kiki init" or "kiki install --project ." first.');
-        process.exit(1);
-    }
-    // Routing tables
-    const projectRoutingPath = join(agenticKikiDir, 'routing.json');
-    const projectTable = existsSync(projectRoutingPath) ? loadRoutingTable(projectRoutingPath) : null;
-    const mergedTable = mergeRoutingTables(projectTable, globalRouting);
-    console.log('\n=== Routing Tables ===');
-    console.log(`  Project agents: ${projectTable ? Object.keys(projectTable.agents).length : 0}`);
-    console.log(`  Global agents: ${globalRouting ? Object.keys(globalRouting.agents).length : 0}`);
-    console.log(`  Effective agents: ${mergedTable ? Object.keys(mergedTable.agents).length : 0}`);
-    if (mergedTable && Object.keys(mergedTable.agents).length > 0) {
-        for (const [agent, model] of Object.entries(mergedTable.agents)) {
-            const source = projectTable?.agents[agent] ? 'project' : 'global';
-            console.log(`  ${agent}: ${model} [${source}]`);
+    console.log(`  Metadata: ${existsSync(join(projectPath, '.agentic/kiki')) ? 'initialized' : 'global defaults'}`);
+    console.log('=== JSON-configured Models ===');
+    for (const name of AGENT_NAMES) {
+        if (!effective[name])
+            continue;
+        const source = projectAgents[name]?.model !== undefined ? 'project' : 'global';
+        console.log(`  ${name}: ${effective[name].model || '(inherited)'} [${source}]`);
+        if (['agent', 'agents'].some(dir => existsSync(join(projectPath, '.opencode', dir, `${name}.md`)))) {
+            console.log(`    Local Markdown override present for ${name}; it can override these settings.`);
         }
     }
-    else {
-        console.log('\nNo routing table found. Run "kiki init" or "kiki install".\n');
-    }
+    if (existsSync(join(projectPath, '.agentic/kiki/routing.json')))
+        console.log('Legacy routing.json found: use kiki migrate --project <path>.');
 }
 //# sourceMappingURL=status.js.map

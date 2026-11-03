@@ -1,17 +1,29 @@
 {
   "name": "kiki",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "OpenCode agent orchestration framework with static routing, parallel execution, and structured workflow",
   "license": "MIT",
-  "keywords": ["opencode", "ai", "routing", "agent", "orchestration"],
+  "keywords": [
+    "opencode",
+    "ai",
+    "routing",
+    "agent",
+    "orchestration"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/luxuxorg/kiki.git"
   },
   "type": "module",
   "main": "dist/index.js",
-  "files": ["dist/"],
+  "files": [
+    "dist/"
+  ],
   "exports": {
+    "./tui": {
+      "types": "./dist/tui/index.d.ts",
+      "import": "./dist/tui/index.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
@@ -28,11 +40,16 @@
     "cli": "node dist/cli/index.js"
   },
   "devDependencies": {
+    "@opencode-ai/plugin": "1.18.35",
+    "@types/node": "^18.0.0",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0",
-    "@types/node": "^18.0.0"
+    "vitest": "^1.6.0"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1",
+    "yaml": "^2.9.1"
   }
 }

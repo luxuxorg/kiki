@@ -1,228 +1,228 @@
-# Kiki v2.1.0 — OpenCode Agent Orchestration
+# Kiki — OpenCode Agent Orchestration
 
-Kiki is a CLI tool and OpenCode plugin that adds a disciplined, multi-agent development pipeline to any project. It scaffolds a set of role-based subagents (orchestrator, brainstormer, planner, implementer, reviewer, etc.) and routes each one to the best model for its domain and risk level — all from static configuration, with no runtime model guessing.
+Kiki installs a global OpenCode plugin and eight role-based agents for the
+Intake → Brainstorm → Plan → Architect Review → Implement → Review → Document →
+Complete workflow. Project configuration is kept separate from Kiki updates.
 
-## Installation
+## Installation and updates
 
-Install directly from GitHub (one-liner):
-
-```bash
-curl -sL https://github.com/luxuxorg/kiki/archive/main.tar.gz | tar xz -C /tmp && npm install -g /tmp/kiki-main
-```
-
-Or clone and install locally:
+Requires Node >= 18. From a checkout:
 
 ```bash
-git clone https://github.com/luxuxorg/kiki.git
-cd kiki
-npm install && npm install -g .
+npm install
+npm run build
+npm install -g .
+kiki install
 ```
 
-> **Note:** `npm install -g github:luxuxorg/kiki` does not work due to a bug in npm 11's git dependency preparation (creates broken symlinks). Use one of the methods above.
+Kiki installs into `$XDG_CONFIG_HOME/opencode`, or `~/.config/opencode` by default:
 
-Requires **Node >= 18**.
-
-## CLI Commands
-
-### `kiki init [path]`
-
-Scaffolds a Kiki installation in the given directory (defaults to `.`). Starts an **interactive wizard** that asks about:
-
-- Project name, language, source/tests/docs paths
-- Changelog, decisions, and knowledge base paths (with option to create them)
-- Standard and critical models
-- Build, test, lint, and security commands
-
-Creates two directories:
-
-| Directory | Contents |
+| Location | Contents |
 |---|---|
-| `.agentic/` | `config.json`, `alignment.json`, `routing.json`, `TASK_REGISTRY.json` |
-| `.opencode/` | `agents/` (7 subagents), `plugins/kiki.ts`, `package.json`, `docs/agentic-workflow.md` |
+| `opencode.json` / `opencode.jsonc` | Kiki `agent` definitions, including models and permissions |
+| `kiki/prompts/` | Standard agent instructions |
+| `kiki/agentic-workflow.md` | Workflow reference |
+| `plugins/kiki.ts` | The single global routing logger and subagent watchdog |
+| `tui.json` / `tui.jsonc` | Registration of the native `/kiki` menu |
+| `kiki/tui.js` | Stable TUI loader pointing at the installed Kiki package |
 
-To skip the wizard and use defaults:
+To activate a newer Kiki version:
 
 ```bash
-# Not yet implemented — always uses wizard
+# First update the installed CLI package, or pull/build your linked checkout.
+kiki update
+# Restart OpenCode to load the updated plugin and agents.
 ```
 
-### `kiki update [path]`
+`update` uses the version of the CLI being invoked; it does not download a release.
+It updates Kiki's global prompts and plugin, preserves existing agent permissions
+and model choices, and leaves project files and unrelated OpenCode settings alone.
+`kiki update --global` is equivalent. `kiki install --force` remains accepted, but
+does not reset approved permissions or models. JSONC comments are preserved.
 
-Updates an existing Kiki installation:
+## Using Kiki in OpenCode
 
-- **Overwrites** `.opencode/` templates fresh (agents, plugin, workflow docs) — regenerated from your `config.json` paths
-- **Smart-merges** `.agentic/routing.json`, `config.json`, `alignment.json` — preserves user overrides, adds new defaults, removes stale keys
-- **Never touches** `TASK_REGISTRY.json`
+Select **kiki-orchestrator** as the main agent and describe your task. It coordinates
+design, planning, implementation, review and documentation.
 
-### `kiki doctor [path]`
+To change a Kiki agent's model, use the native terminal menu:
 
-Validates a Kiki installation:
+```text
+/kiki
+  → Modell ändern — global           (default)
+    → Select the agent
+      → Search and select a model
+        → Saved; restart OpenCode
+```
 
-- Config fields (projectName, commands, paths customized)
-- Build, test, lint, and security commands are configured
-- All paths exist
-- Models are set
-- Routing rules are valid
-- Agent files are present
-- Orchestrator has no `permission:` blocks (OpenCode safety check)
+Choose **Modell ändern — dieses Projekt** instead for a project-specific model.
+The agent list shows current assignments and marks inherited models. The model
+picker uses OpenCode's native searchable selection dialog and provider/model data.
+It sends no LLM request and does not change your active chat's model.
 
-Reports pass/fail for each check and exits with code 1 if anything is broken.
+Only the selected `agent.<name>.model` setting is saved. Permissions, prompts,
+other settings and JSONC comments remain intact. A global change keeps existing
+project overrides and tells you when one still takes precedence. Escape cancels
+before model selection without saving.
 
-### `kiki status`
+To remove a project-local override, open **Modell ändern — dieses Projekt**, pick an
+agent that has one, and choose **Globales Modell (<model>) verwenden** at the top of
+the model list. The project agent list also ends with **Alle lokalen
+Modell-Zuordnungen löschen**, which removes every local Kiki model override after a
+confirmation. Both delete only the local `model` key — permissions, prompts, other
+settings and comments stay intact — and the global model applies again. No delete is
+offered in the global scope, since global values are the defaults themselves.
 
-Prints a summary of the task registry and current routing configuration.
+The menu is installed globally by `kiki install` / `kiki update` and requires an
+OpenCode restart to become available. Its TUI API is tested with OpenCode 1.18.35.
+It is a separate TUI extension; the background watchdog/logger stays unchanged.
 
-### `kiki verify <file>`
+## Project setup
 
-Scans a markdown file for unfinished work: `TODO`, `TBD`, `placeholder`, unchecked checklist items, and other placeholders.
+```bash
+kiki init .
+# Equivalent: kiki install --project .
+```
 
-## Configuration Files
+The wizard asks for project paths, commands and model preferences. It creates:
 
-All in `.agentic/`:
+- `.agentic/kiki/config.json`: project paths, build/test/lint/security commands,
+  watchdog settings and only explicitly chosen (non-default) model preferences.
+- `.agentic/kiki/alignment.json`: project guardrails.
+- `.agentic/kiki/TASK_REGISTRY.json`: workflow state.
+- Agent-specific permissions and any non-default model preferences in the existing
+  OpenCode project config, or a new `opencode.jsonc`.
 
-### `config.json` — Project configuration
+Project init never writes implicit local model values: with default model choices no
+`model` keys appear in the project config, so the global defaults apply. Local model
+values exist only after an explicit choice (wizard, `/kiki`, manual edit) and are
+preserved by every later init/update/migrate.
 
-```json
+It creates **no local plugin or agent copies**. Reinitialization preserves existing
+metadata, task state, permissions and models. Global agents read project paths and
+commands from `.agentic/kiki/config.json`. Changes to that file's setup model
+preferences do not change active models; use OpenCode configuration below.
+
+## Models and permissions
+
+OpenCode merges global and project `agent` settings. For example, a project's
+`opencode.jsonc` can select a reviewer model and prohibit implementer edits.
+Use `/kiki` for convenient model selection, or edit the native configuration directly:
+
+```jsonc
 {
-  "projectName": "my-project",
-  "language": "typescript",
-  "commands": {
-    "build": "npm run build",
-    "test": "npm test",
-    "lint": "npm run lint",
-    "security": "npm audit"
-  },
-  "riskMatrix": {
-    "highRiskPaths": ["src/auth/", "src/db/schema.ts"],
-    "criticalRiskPaths": ["src/security/", "migrations/"]
-  },
-  "paths": {
-    "source": "src/",
-    "tests": "tests/",
-    "docs": "docs/",
-    "superpowers": "docs/superpowers/",
-    "specs": "docs/superpowers/specs/",
-    "plans": "docs/superpowers/plans/",
-    "changelog": "CHANGELOG.md",
-    "readme": "README.md",
-    "decisions": "docs/DECISIONS.md",
-    "knowledge": "docs/knowledge/",
-    "taskRegistry": ".agentic/TASK_REGISTRY.json"
-  },
-  "models": {
-    "standard": "moonshotai/kimi-k2.6",
-    "critical": "anthropic/claude-sonnet-4.6"
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "kiki-reviewer": { "model": "openai/gpt-6.1-sol" },
+    "kiki-implementer": { "permission": { "edit": "deny" } }
   }
 }
 ```
 
-### `routing.json` — Static model routing table
+Permission pattern maps are also merged: a local `"*": "deny"` alone does not
+erase specific global allow rules. Init and migration mask inherited path grants
+that are absent from the project's permission map. OpenCode evaluates the last
+matching rule. Inherited denials are not relaxed by a broad local allow wildcard.
+Bash permissions are separate from file-tool permissions; file
+restrictions are not a shell sandbox.
 
-Maps `skill:domain` pairs to model IDs, with an optional critical-risk override:
+`kiki routing` is retired and prints a read-only migration notice. Model selection
+now has one source: native OpenCode configuration; there is no frontmatter sync.
 
-```json
-{
-  "rules": {
-    "brainstorming:gui": { "standard": "anthropic/claude-sonnet-4.6" },
-    "brainstorming:security": {
-      "standard": "deepseek/deepseek-v4-pro",
-      "critical": "anthropic/claude-sonnet-4.6"
-    }
-  }
-}
+For general project instructions use `AGENTS.md`. For an intentionally different
+agent prompt, create `.opencode/agents/kiki-reviewer.md` (or another Kiki agent).
+That prompt replaces the global prompt for this project and does not automatically
+receive later global instruction updates. OpenCode merges fields; settings
+explicitly present in the local Markdown frontmatter take precedence.
+
+## Migrate existing projects once
+
+```bash
+kiki update                         # global JSON agents, preserving old rights/models
+kiki migrate --project /path/to/project
+# Restart OpenCode.
 ```
 
-### `alignment.json` — Guardrails and compliance standards
+Global update first imports rights/models from old global Markdown agents and
+removes those Markdown copies. Project migration imports local agent permissions
+and models, supplements missing model selections from `.agentic/kiki/routing.json`,
+then removes the old local Kiki agents, local plugin and routing file. Existing
+JSON settings take precedence. Other agents and OpenCode settings remain intact.
 
-```json
-{
-  "guardrails": [
-    "No hardcoded secrets in source code",
-    "All database queries must use parameterized statements"
-  ],
-  "compliance": ["OWASP Top 10", "SOC 2 Type II"]
-}
+This migration is for generated agents without custom prompt changes. Keep an
+intentional custom Markdown agent separately and restore it afterwards if needed.
+Originals are backed up before removal: globally under `kiki/backups/`, locally
+under `.agentic/kiki/backups/`. Each backup has a manifest of original paths;
+backup files have restrictive permissions and a Git ignore rule.
+
+Malformed JSONC or agent frontmatter stops migration before old copies are removed.
+The old `kiki update <project>` command is rejected with migration guidance rather
+than silently regenerating templates. Help and invalid options never install files.
+
+## Reset a project's agent customizations
+
+```bash
+kiki reset --project .
+# Restart OpenCode to use the global agent defaults.
 ```
 
-### `TASK_REGISTRY.json` — Task tracking
+Reset backs up and removes Kiki agent entries from project OpenCode configuration,
+local Kiki Markdown agents, a remaining local Kiki plugin, and legacy routing.json.
+Other agents, provider settings, task registries, reviews and documentation remain.
+Project path/command metadata, alignment and health settings also remain. Reset
+restores **global agent models/rights/prompts**, not a total deletion of project data.
+It does not repair an already running or stuck OpenCode session.
 
-Created by `kiki init`, updated by the orchestrator as tasks move through the pipeline.
+## Diagnostics
 
-## Subagents
+- `kiki status [path]`: global installation and effective JSON model selections;
+  reports local Markdown overrides separately.
+- `kiki doctor [path]`: checks global agents, prompt files, plugin, project commands
+  and paths; reports legacy plugins/routing files that need migration.
+- `kiki verify <file>`: checks Markdown for unfinished placeholders/checklist items.
 
-Seven role-based subagents live in `.opencode/agents/`:
+## Agents
 
 | Agent | Role |
 |---|---|
-| `kiki-orchestrator` | **Coordination-only.** Dispatches subagents via the `task` tool. Never writes code, edits files, or runs commands. Follows an 8-step pipeline: Intake → Brainstorm → Plan → Architect Review → Implement → Review → Document → Complete |
-| `kiki-brainstormer` | Produces design specs using the superpowers brainstorming skill. Writes to `docs/superpowers/specs/` |
-| `kiki-planner` | Writes implementation plans using the superpowers writing-plans skill. Writes to `docs/superpowers/plans/` |
-| `kiki-implementer` | Implements code per the approved plan using executing-plans + test-driven-development (TDD) |
-| `kiki-reviewer` | Read-only code and security review against the approved plan |
-| `kiki-escalation` | Diagnoses pipeline failures and recommends: Redesign, Split, or Stop |
-| `kiki-historian` | Maintains `README.md`, `CHANGELOG.md`, decisions, knowledge base, and project docs |
+| `kiki-orchestrator` | Coordinates the workflow and task registry |
+| `kiki-brainstormer` | Explores requirements and writes design specs |
+| `kiki-planner` | Writes implementation plans |
+| `kiki-implementer` | Implements code and tests |
+| `kiki-gui-designer` | Implements UI/UX work |
+| `kiki-reviewer` | Reviews plans, code and security |
+| `kiki-escalation` | Diagnoses failures |
+| `kiki-historian` | Updates project documentation |
 
-### Delegate Mode
+Agents load Superpowers skills for brainstorming, planning, implementation, TDD
+and review. Role-based file permissions remain part of their global definitions;
+project settings can adjust them without copying the agent instructions.
 
-The orchestrator is **coordination-only** — enforced through its prompt. It does not write code, edit files, or run commands. Its sole job is dispatching the correct subagent via the `task` tool.
+## Plugin
 
-### Parallel Task Execution
+The global plugin is self-contained with no external runtime dependencies. It logs
+`kiki-*` task dispatches to `.agentic/kiki/routing_log.jsonl` and runs the configurable
+subagent watchdog, recording incidents in `.agentic/kiki/health_log.jsonl` by default.
+It observes dispatches; OpenCode selects the configured models.
 
-The orchestrator can dispatch independent tasks in parallel using **wave-based execution**:
+The process-wide dedup guard remains as a fallback if multiple **dedup-aware** copies
+are loaded: first-loaded instance per project wins; differing versions produce a
+diagnostic. Pre-dedup legacy copies cannot be suppressed by that guard; migrate
+projects to remove them. Normal operation has only the global plugin.
 
-- Tasks include metadata: `risk` ('low' | 'medium' | 'high'), `parallel` (boolean), and `depends_on` (string[])
-- The planner defines these fields in each task's **Metadata** subsection
-- The orchestrator groups tasks into waves: Wave 0 has no dependencies, Wave N waits for all `depends_on` tasks to complete
-- Tasks with `parallel: true` run concurrently in the same wave; `parallel: false` tasks run alone
-- Circular dependencies are detected and fall back to sequential execution
-
-The reviewer validates parallelization logic: no circular dependencies, all `depends_on` references exist, parallel tasks don't modify the same files, and sequential tasks are properly isolated.
-
-## Kiki Plugin
-
-The plugin at `.opencode/plugins/kiki.ts` is self-contained (zero external dependencies). It:
-
-- Intercepts `task` tool calls for Kiki subagent types
-- Routes each subagent to the correct model based on `skill + domain + risk`
-- Uses static routing from `.agentic/routing.json`
-- Logs routing decisions to `.agentic/kiki/routing_log.jsonl`
-
-Both installation scopes use the same plugin template (stamped with its install scope and Kiki version), and dedup behavior depends on how it is installed:
-
-- **Global only** (`kiki install`): the plugin at `~/.config/opencode/plugins/kiki.ts` runs the watchdog and routing logger.
-- **Project only** (`kiki init` / `kiki update`): the plugin at `<project>/.opencode/plugins/kiki.ts` runs the watchdog and routing logger for that project.
-- **Both installed:** OpenCode loads both copies, but the plugin self-deduplicates at runtime through a process-wide registry keyed by resolved project root. The **first-loaded instance wins**, and because OpenCode loads global plugins before project plugins, the global copy is canonical. Later copies register no-op hooks. This guarantees exactly one `.agentic/kiki/routing_log.jsonl` line per `kiki-*` dispatch and exactly one watchdog interval/health entry per incident.
-
-If the two copies are different versions, the non-owner emits a one-time `plugin-dedup-version-mismatch` diagnostic to `console.warn`, `.agentic/kiki/health_log.jsonl`, and OpenCode's log, then yields. Realign the installs with:
+## Development
 
 ```bash
-kiki install --force     # refresh the global copy
-kiki update <project>    # refresh the project copy
+npm test
+npm run build
+# Optional integration test against an installed OpenCode binary, using isolated fixtures:
+OPENCODE_TEST_BINARY=/absolute/path/to/opencode npm test
 ```
 
-## Smart-Merge on Update
+The optional native tests use fixture HOME/XDG directories. The `/kiki` integration
+test also requires Python 3 and a POSIX pseudo-terminal; it opens the real TUI,
+selects an agent/model and checks the saved configuration without an LLM request.
 
-`kiki update` merges the three config files intelligently:
-
-- **Preserves** any user-modified values as overrides
-- **Adds** new default keys and routing rules that don't exist locally
-- **Removes** keys and rules no longer present in the defaults
-
-This means you can customize your routing table, guardrails, and project config without losing those changes when Kiki itself updates.
-
-## Superpowers Integration
-
-Kiki relies on superpowers skills loaded at runtime by the subagents:
-
-- `brainstorming` — design exploration
-- `writing-plans` — implementation planning
-- `executing-plans` — structured implementation
-- `test-driven-development` — TDD workflow
-- `requesting-code-review` / `receiving-code-review` — review gates
-
-## Tech Stack
-
-- **Language:** TypeScript, compiled to JavaScript in `dist/`
-- **Tests:** Vitest (63 tests across CLI, core, integration)
-- **Runtime:** Node >= 18
-- **License:** MIT
+Keep `KIKI_VERSION` in `src/cli/config.ts` synchronized with `package.json` on release.
+The generated plugin stays dependency-free; JSONC/YAML parsing dependencies are
+CLI-only. License: MIT.

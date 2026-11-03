@@ -1,0 +1,11 @@
+{
+  "guardrails": [
+    "No hardcoded secrets in source code",
+    "All database queries must use parameterized statements",
+    "API responses must not leak internal stack traces"
+  ],
+  "compliance": [
+    "OWASP Top 10",
+    "SOC 2 Type II"
+  ]
+}

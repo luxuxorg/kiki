@@ -1,71 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import {
-  KikiConfig,
-  DEFAULT_ALIGNMENT,
-  DEFAULT_ROUTING_TABLE,
-  writeOpencodeFiles,
-  loadConfig,
-} from '../config.js';
-import { routing } from './routing.js';
-import { loadRoutingTable, mergeRoutingTables } from '../../core/routing-table.js';
+import { parseScope } from '../args.js';
+import { installGlobalFiles } from '../opencode-config.js';
 
-export async function update(args: string[] | string): Promise<void> {
-  const targetPath = typeof args === 'string' ? args : (args[0] ?? '.');
-  const agenticDir = join(targetPath, '.agentic');
-  const kikiDir = join(agenticDir, 'kiki');
-
-  if (!existsSync(agenticDir)) {
-    console.error("No Kiki installation found. Run 'kiki init' first.");
-    process.exit(1);
-  }
-
-  const updated: string[] = [];
-
-  // Load config from .agentic/kiki/config.json only (with legacy fallback handled by loadConfig)
-  const config: KikiConfig = loadConfig(targetPath);
-
-  // Regenerate .opencode/ files from loaded config
-  writeOpencodeFiles(targetPath, config);
-  updated.push('.opencode/agents/kiki-orchestrator.md');
-  updated.push('.opencode/agents/kiki-brainstormer.md');
-  updated.push('.opencode/agents/kiki-planner.md');
-  updated.push('.opencode/agents/kiki-implementer.md');
-  updated.push('.opencode/agents/kiki-gui-designer.md');
-  updated.push('.opencode/agents/kiki-reviewer.md');
-  updated.push('.opencode/agents/kiki-escalation.md');
-  updated.push('.opencode/agents/kiki-historian.md');
-  updated.push('.opencode/plugins/kiki.ts');
-  updated.push('.opencode/package.json');
-  updated.push('.opencode/.gitignore');
-  updated.push('.opencode/docs/agentic-workflow.md');
-
-  mkdirSync(kikiDir, { recursive: true });
-
-  // Write routing to .agentic/kiki/routing.json only
-  const routingPath = join(kikiDir, 'routing.json');
-  const routingTable = mergeRoutingTables(
-    loadRoutingTable(routingPath),
-    DEFAULT_ROUTING_TABLE
-  );
-  writeFileSync(routingPath, JSON.stringify(routingTable, null, 2));
-  updated.push('.agentic/kiki/routing.json');
-
-  // Write alignment to .agentic/kiki/alignment.json only if missing (user-owned)
-  const alignmentPath = join(kikiDir, 'alignment.json');
-  if (!existsSync(alignmentPath)) {
-    writeFileSync(alignmentPath, JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
-    updated.push('.agentic/kiki/alignment.json');
-  }
-
-  // Print summary
-  console.log(`Updated Kiki in ${targetPath}`);
-  console.log(`\nOverwritten (${updated.length} files):`);
-  for (const file of updated) {
-    console.log(`  - ${file}`);
-  }
-
-  // Sync agent frontmatter from routing.json
-  console.log('\nSyncing agent models from routing.json...');
-  await routing([targetPath]);
+export async function update(args: string[] | string = []): Promise<void> {
+  const { help } = parseScope(typeof args === 'string' ? [args] : args, 'update', false);
+  if (help) { console.log('Usage: kiki update [--global] — update the global installation; projects are untouched.'); return; }
+  installGlobalFiles(undefined, true);
 }

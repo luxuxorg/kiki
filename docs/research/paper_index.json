@@ -1,0 +1,272 @@
+[
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Karny et al 2026 - Multi-Turn Neural Transparency: Surfacing Neural Activations Improves User Calibration to LLM Behavioral Drift",
+    "wiki_path": "docs/research/wiki/papers/Karny et al 2026 - Multi-Turn Neural Transparency.md",
+    "source_url": "https://arxiv.org/abs/2605.15455",
+    "relevance_score": 0.92,
+    "mapped_concepts": ["persona drift visualization", "neural activation interpretability", "activation-space mechanisms", "user calibration", "behavioral drift", "multi-turn degradation"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Wang 2026 - Nautilus Compass: Black-box Persona Drift Detection for Production LLM Agents",
+    "wiki_path": "docs/research/wiki/papers/Wang 2026 - Nautilus Compass.md",
+    "source_url": "https://arxiv.org/abs/2605.09863",
+    "relevance_score": 0.90,
+    "mapped_concepts": ["persona drift detection", "black-box monitoring", "production LLM agents", "BGE-m3 embeddings", "drift monitoring", "deployment safety"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Luo and Laban 2026 - SPASM: Stable Persona-driven Agent Simulation for Multi-turn Dialogue Generation",
+    "wiki_path": "docs/research/wiki/papers/Luo and Laban 2026 - SPASM.md",
+    "source_url": "https://arxiv.org/abs/2604.09212",
+    "relevance_score": 0.88,
+    "mapped_concepts": ["egocentric context projection", "persona drift mitigation", "multi-turn dialogue", "agent simulation", "persona stability", "dialogue generation"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Rath 2026 - Agent Drift: Quantifying Behavioral Degradation in Multi-Agent LLM Systems Over Extended Interactions",
+    "wiki_path": "docs/research/wiki/papers/Rath 2026 - Agent Drift.md",
+    "source_url": "https://arxiv.org/abs/2601.04170",
+    "relevance_score": 0.87,
+    "mapped_concepts": ["multi-agent degradation", "ASI metric", "12-dimension framework", "behavioral degradation", "extended interactions", "agent systems"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Albrethsen et al 2026 - DeepContext: Stateful Real-Time Detection of Multi-Turn Adversarial Intent Drift",
+    "wiki_path": "docs/research/wiki/papers/Albrethsen et al 2026 - DeepContext.md",
+    "source_url": "https://arxiv.org/abs/2602.16935",
+    "relevance_score": 0.86,
+    "mapped_concepts": ["RNN-based drift detection", "adversarial intent drift", "real-time monitoring", "stateful detection", "multi-turn safety", "intent tracking"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Marwah et al 2026 - Cognitive Fatigue in Autoregressive Transformers: Formalization and Measurement",
+    "wiki_path": "docs/research/wiki/papers/Marwah et al 2026 - Cognitive Fatigue in Autoregressive Transformers.md",
+    "source_url": "https://arxiv.org/abs/2605.30981",
+    "relevance_score": 0.89,
+    "mapped_concepts": ["cognitive fatigue", "autoregressive transformers", "AAS metric", "PRD metric", "ESI metric", "attention degradation", "diagnostic frameworks"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Xiang et al 2026 - MemSyco-Bench: Benchmarking Sycophancy in Agent Memory",
+    "wiki_path": "docs/research/wiki/papers/Xiang et al 2026 - MemSyco-Bench.md",
+    "source_url": "https://arxiv.org/abs/2607.01071",
+    "relevance_score": 0.88,
+    "mapped_concepts": ["memory-induced sycophancy", "agent memory", "benchmarking", "sycophancy evaluation", "memory systems", "conversational agents"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Bensal et al 2026 - Recalling Too Well: Sycophancy Evaluation and Mitigation in Memory-Augmented Models",
+    "wiki_path": "docs/research/wiki/papers/Bensal et al 2026 - Recalling Too Well.md",
+    "source_url": "https://arxiv.org/abs/2606.10949",
+    "relevance_score": 0.85,
+    "mapped_concepts": ["memory-augmented sycophancy", "MIST benchmark", "sycophancy mitigation", "retrieval-augmented generation", "memory-induced bias", "RAG safety"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Botas et al 2026 - The AI Epistemic Deference Index: A Continuous Measure of Sycophancy",
+    "wiki_path": "docs/research/wiki/papers/Botas et al 2026 - The AI Epistemic Deference Index.md",
+    "source_url": "https://arxiv.org/abs/2606.07897",
+    "relevance_score": 0.84,
+    "mapped_concepts": ["AEDI continuous metric", "epistemic deference", "sycophancy measurement", "continuous evaluation", "deference quantification", "alignment metrics"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Keough 2026 - The Granularity Gap: A Multi-Dimensional Longitudinal Audit of Sycophancy in Gemini Models",
+    "wiki_path": "docs/research/wiki/papers/Keough 2026 - The Granularity Gap.md",
+    "source_url": "https://arxiv.org/abs/2606.05183",
+    "relevance_score": 0.83,
+    "mapped_concepts": ["generational sycophancy regression", "longitudinal audit", "model generations", "multi-dimensional evaluation", "Gemini models", "sycophancy drift"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Prasad 2026 - Context-Window Lock-In and Silent Degradation",
+    "wiki_path": "docs/research/wiki/papers/Prasad 2026 - Context-Window Lock-In and Silent Degradation.md",
+    "source_url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=ContextWindowLockIn",
+    "relevance_score": 0.82,
+    "mapped_concepts": ["context-window lock-in", "compounding erosion", "silent degradation", "long-context processing", "attention decay", "cumulative errors"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Luo et al 2026 - Multi-Turn Reasoning When Context Arrives in Pieces",
+    "wiki_path": "docs/research/wiki/papers/Luo et al 2026 - Multi-Turn Reasoning When Context Arrives in Pieces.md",
+    "source_url": "https://arxiv.org/abs/2606.12941",
+    "relevance_score": 0.86,
+    "mapped_concepts": ["Lost in Conversation", "compact rolling memory", "incremental context", "multi-turn reasoning", "context fragmentation", "reasoning degradation"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Eldenk et al 2026 - Attention Drift: What Autoregressive Speculative Decoding Models Learn",
+    "wiki_path": "docs/research/wiki/papers/Eldenk et al 2026 - Attention Drift.md",
+    "source_url": "https://arxiv.org/abs/2605.09992",
+    "relevance_score": 0.84,
+    "mapped_concepts": ["attention drift", "speculative decoding", "autoregressive models", "attention mechanism degradation", "decoding dynamics", "model behavior shift"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Yang et al 2026 - A Heterogeneous Temporal Memory Governance Framework for Long-Term LLM Persona Consistency",
+    "wiki_path": "docs/research/wiki/papers/Yang et al 2026 - A Heterogeneous Temporal Memory Governance Framework.md",
+    "source_url": "https://arxiv.org/abs/2605.14802",
+    "relevance_score": 0.85,
+    "mapped_concepts": ["ARPM framework", "temporal memory governance", "persona consistency", "long-term interaction", "heterogeneous memory", "drift mitigation"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Reani et al 2026 - The Governance of Human-LLM Interaction: Safety Gating, Civility Steering, Affective Default Lock-In",
+    "wiki_path": "docs/research/wiki/papers/Reani et al 2026 - The Governance of Human-LLM Interaction.md",
+    "source_url": "https://arxiv.org/abs/2606.08172",
+    "relevance_score": 0.86,
+    "mapped_concepts": ["style drift measurement", "safety gating", "civility steering", "affective default lock-in", "interaction governance", "behavioral guardrails"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Cheng et al 2026 - The Slow Drift of Support: Boundary Failures in Multi-Turn Mental Health LLM Dialogues",
+    "wiki_path": "docs/research/wiki/papers/Cheng et al 2026 - The Slow Drift of Support.md",
+    "source_url": "https://arxiv.org/abs/2601.14269",
+    "relevance_score": 0.83,
+    "mapped_concepts": ["safety erosion", "mental health LLM", "long dialogues", "boundary failures", "support degradation", "high-stakes conversation"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Baek et al 2026 - Sycophancy Towards Researchers Drives Performative Misalignment",
+    "wiki_path": "docs/research/wiki/papers/Baek et al 2026 - Sycophancy Towards Researchers.md",
+    "source_url": "https://arxiv.org/abs/2606.08629",
+    "relevance_score": 0.82,
+    "mapped_concepts": ["evaluation-driven sycophancy", "performative misalignment", "researcher bias", "benchmark contamination", "sycophancy feedback loops", "evaluation validity"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Pandey 2026 - LLMs Know They're Wrong and Agree Anyway: The Shared Sycophancy-Lying Circuit",
+    "wiki_path": "docs/research/wiki/papers/Pandey 2026 - LLMs Know They're Wrong and Agree Anyway.md",
+    "source_url": "https://arxiv.org/abs/2604.19117",
+    "relevance_score": 0.80,
+    "mapped_concepts": ["anti-sycophancy DPO", "sycophancy-lying circuit", "mechanistic interpretability", "neural circuits", "honesty alignment", "internal knowledge conflict"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Germani and Spitale 2026 - Complacent, Not Sycophantic: Reframing LLMs and Designing AI Literacy",
+    "wiki_path": "docs/research/wiki/papers/Germani and Spitale 2026 - Complacent, Not Sycophantic.md",
+    "source_url": "https://arxiv.org/abs/2605.14544",
+    "relevance_score": 0.78,
+    "mapped_concepts": ["complacency reframing", "sycophancy terminology", "AI literacy", "conceptual critique", "user perception", "anthropomorphism critique"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Ye et al 2026 - What Counts as AI Sycophancy? A Taxonomy and Expert Survey",
+    "wiki_path": "docs/research/wiki/papers/Ye et al 2026 - What Counts as AI Sycophancy.md",
+    "source_url": "https://arxiv.org/abs/2605.21778",
+    "relevance_score": 0.81,
+    "mapped_concepts": ["sycophancy taxonomy", "expert survey", "construct definition", "fragmented measurement", "conceptual clarity", "evaluation frameworks"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Törnberg and Schimmel 2026 - Political Bias Audits of LLMs Capture Sycophancy to the Inferred Auditor",
+    "wiki_path": "docs/research/wiki/papers/Törnberg and Schimmel 2026 - Political Bias Audits of LLMs.md",
+    "source_url": "https://arxiv.org/abs/2604.27633",
+    "relevance_score": 0.79,
+    "mapped_concepts": ["sycophancy contamination", "political bias audits", "inferred auditor", "measurement validity", "auditor effects", "bias evaluation confounds"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Guo et al 2026 - It's Not Always Sycophancy: Measuring LLM Conformity as a Function of Epistemic Uncertainty",
+    "wiki_path": "docs/research/wiki/papers/Guo et al 2026 - It's Not Always Sycophancy.md",
+    "source_url": "https://arxiv.org/abs/2605.27288",
+    "relevance_score": 0.80,
+    "mapped_concepts": ["MUSE framework", "epistemic uncertainty", "conformity measurement", "sycophancy versus uncertainty", "nuanced evaluation", "model confidence"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Han et al 2026 - On-Policy Consistency Training Improves LLM Safety with Minimal Capability Degradation",
+    "wiki_path": "docs/research/wiki/papers/Han et al 2026 - On-Policy Consistency Training.md",
+    "source_url": "https://arxiv.org/abs/2605.21834",
+    "relevance_score": 0.78,
+    "mapped_concepts": ["OPCT training", "sycophancy reduction", "consistency training", "on-policy learning", "safety alignment", "capability preservation"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Shah et al 2026 - Sycophancy as a Multilingual Alignment Failure",
+    "wiki_path": "docs/research/wiki/papers/Shah et al 2026 - Sycophancy as a Multilingual Alignment Failure.md",
+    "source_url": "https://arxiv.org/abs/2606.08451",
+    "relevance_score": 0.77,
+    "mapped_concepts": ["cross-lingual sycophancy", "multilingual alignment", "language-specific failures", "alignment generalization", "multilingual safety", "cultural variation"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Fang et al 2026 - DRIFTLENS: Measuring Memory-Induced Reasoning Drift in Personalized LMs",
+    "wiki_path": "docs/research/wiki/papers/Fang et al 2026 - DRIFTLENS.md",
+    "source_url": "https://arxiv.org/abs/2607.02374",
+    "relevance_score": 0.82,
+    "mapped_concepts": ["reasoning drift measurement", "personalized LMs", "memory-induced drift", "DRIFTLENS framework", "reasoning consistency", "personalization tradeoffs"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Kasu et al 2026 - When the Chain of Thought Knows Better: Failure Modes in Multi-Turn Reasoning",
+    "wiki_path": "docs/research/wiki/papers/Kasu et al 2026 - When the Chain of Thought Knows Better.md",
+    "source_url": "https://arxiv.org/abs/2606.10740",
+    "relevance_score": 0.79,
+    "mapped_concepts": ["CoT-Output safety matrix", "chain of thought", "multi-turn reasoning", "failure modes", "reasoning consistency", "internal versus external reasoning"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Huang et al 2026 - Regression Accumulation in Multi-Turn LLM Programming Conversations",
+    "wiki_path": "docs/research/wiki/papers/Huang et al 2026 - Regression Accumulation.md",
+    "source_url": "https://arxiv.org/abs/2607.01855",
+    "relevance_score": 0.76,
+    "mapped_concepts": ["multi-turn regression bugs", "programming conversations", "regression accumulation", "code generation drift", "cumulative errors", "software engineering LLMs"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Gonnermann-Müller et al 2026 - LLM-Based Educational Simulation: Evaluating Temporal Student Persona Stability",
+    "wiki_path": "docs/research/wiki/papers/Gonnermann-Müller et al 2026 - LLM-Based Educational Simulation.md",
+    "source_url": "https://arxiv.org/abs/2605.06307",
+    "relevance_score": 0.78,
+    "mapped_concepts": ["within-conversation behavioral drift", "educational simulation", "student persona stability", "temporal consistency", "persona modeling", "simulation fidelity"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Masłowski and Chudziak 2026 - Decoupling Thought from Speech: KG-CFR for Resilient Multi-Agent Argumentation",
+    "wiki_path": "docs/research/wiki/papers/Masłowski and Chudziak 2026 - Decoupling Thought from Speech.md",
+    "source_url": "https://arxiv.org/abs/2606.10475",
+    "relevance_score": 0.75,
+    "mapped_concepts": ["multi-agent logic degradation", "KG-CFR framework", "argumentation resilience", "thought-speech decoupling", "knowledge graphs", "agent consistency"],
+    "corpus_relationship": "pending"
+  },
+  {
+    "research_question": "New scientific papers and studies published since May 2026 relevant to multi-turn LLM conversation degradation, sycophancy, persona drift, context processing, and drift mitigation mechanisms in conversational AI systems",
+    "paper": "Shen et al 2026 - Long-Term Simulation Exposes Cognitive-Developmental Risks in AI Companions",
+    "wiki_path": "docs/research/wiki/papers/Shen et al 2026 - Long-Term Simulation Exposes Cognitive-Developmental Risks.md",
+    "source_url": "https://arxiv.org/abs/2606.25396",
+    "relevance_score": 0.77,
+    "mapped_concepts": ["longitudinal persona degradation", "AI companions", "cognitive-developmental risks", "long-term simulation", "persona erosion", "companion safety"],
+    "corpus_relationship": "pending"
+  }
+]

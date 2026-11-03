@@ -6,9 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-11-03
+
+### Changed
+- **Global-only installation:** Kiki agents now use native OpenCode JSON configuration with global prompt files and one global plugin. `kiki update` refreshes the global installation while preserving approved permissions, model choices, unrelated OpenCode settings and all project files. Project init creates metadata and JSON agent settings instead of local runtime copies.
+- **Native model selection:** configure `agent.<name>.model` in global/project OpenCode configuration. `kiki routing` now prints a read-only retirement notice; doctor/status use native JSON configuration.
+
 ### Added
+- **Native `/kiki` menu:** select global model changes (default) or project-specific changes, choose a Kiki agent, then search OpenCode's available models in a native dialog. Saves only the chosen model in OpenCode JSON/JSONC, preserving permissions and comments; reports existing project overrides. Installed globally through a separate TUI loader, with real OpenCode 1.18.35 terminal integration coverage.
+- **Local model reset via `/kiki`:** in the project scope, an agent with a local override offers "Globales Modell (<model>) verwenden" to delete just that local `model` key, and the agent list offers "Alle lokalen Modell-Zuordnungen löschen" (with confirmation) to remove all local Kiki model overrides across every project config tier; global models apply again after an OpenCode restart. No delete is offered in the global scope.
+- **No implicit local model values:** `kiki init --project` writes local `agent.<name>.model` keys only for explicit non-default choices, and `.agentic/kiki/config.json` now persists only non-default model preferences, so built-in default changes cannot leak into project configs later. Local model values added via `/kiki` or file edits are always preserved by init/update/migrate.
+- `kiki migrate --project <path>` extracts old agent permissions/models, imports legacy routing selections, backs up originals and removes redundant local agents/plugins. Global updates similarly migrate old global Markdown agents.
+- `kiki reset --project <path>` resets Kiki agent overrides to global defaults while preserving unrelated configuration, tasks, reviews and project metadata.
+- Global/project configuration edits preserve JSONC comments; help and invalid installation/update arguments do not write files. Integration coverage verifies global prompts with local rights/models against OpenCode using an isolated home directory.
+
 - Subagent watchdog in the generated OpenCode plugin: automatically detects hung subagent sessions (no message parts or token growth for `health.stuckThresholdMs`, default 5 min), output/tool loops (3 identical repetitions), and sessions exceeding `health.absoluteMaxMs` (default 60 min), then aborts them so the orchestrator's retry/escalation flow resumes without manual intervention. Incidents are logged to `.agentic/kiki/health_log.jsonl`. Configurable via the new `health` section in `.agentic/kiki/config.json`.
-- **Plugin deduplication:** when both a global and a project Kiki install are loaded by OpenCode in the same process, the generated plugin now self-deduplicates via a `globalThis[Symbol.for('kiki.plugin')]` ownership registry keyed by resolved project root. The first-loaded instance owns the watchdog and routing logger; later instances for the same root register no-op hooks. OpenCode loads global plugins before project plugins, so the global copy is canonical when both are installed. This guarantees exactly one `routing_log.jsonl` line per `kiki-*` dispatch and exactly one watchdog interval/health entry per incident. When the loaded copies differ in version, the non-owner emits a one-time `plugin-dedup-version-mismatch` diagnostic to `console.warn`, `.agentic/kiki/health_log.jsonl`, and `client.app.log`, with remediation via `kiki install --force` and/or `kiki update <project>`.
+- **Plugin deduplication fallback:** dedup-aware copies share ownership through `globalThis[Symbol.for('kiki.plugin')]` keyed by project root. First-loaded wins; later copies yield and diagnose version differences. Pre-dedup copies must be removed using project migration; normal operation now uses one global plugin.
 - **Release checklist:** `KIKI_VERSION` in `src/cli/config.ts` (baked into the generated plugin as `KIKI_PLUGIN_VERSION`) must be updated alongside `package.json` on every release. A unit test asserts they match at test time.
 
 ## [2.1.0] — 2026-06-23
