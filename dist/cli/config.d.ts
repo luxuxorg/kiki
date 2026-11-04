@@ -42,7 +42,7 @@ export declare const DEFAULT_HEALTH: KikiHealthConfig;
  * installed CLI cannot read its own package.json at runtime — this const
  * is the source of truth for the generator.
  */
-export declare const KIKI_VERSION = "2.2.0";
+export declare const KIKI_VERSION = "2.3.0";
 export declare const DEFAULT_CONFIG: KikiConfig;
 export declare const DEFAULT_ALIGNMENT: {
     guardrails: string[];

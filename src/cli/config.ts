@@ -73,7 +73,7 @@ export const DEFAULT_HEALTH: KikiHealthConfig = {
  * installed CLI cannot read its own package.json at runtime — this const
  * is the source of truth for the generator.
  */
-export const KIKI_VERSION = '2.2.0';
+export const KIKI_VERSION = '2.3.0';
 
 export const DEFAULT_CONFIG: KikiConfig = {
   projectName: 'my-project',

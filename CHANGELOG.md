@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-11-04
+
 ### Added
 - **Release security exception:** `kiki release --security-exception <reason>` requires a non-empty reason and changes only the high/critical block decision when the audit produced complete evidence. The audit still runs and all counts are still reported; low/moderate behavior and no-flag output remain unchanged. INCOMPLETE audits (unavailable, malformed or subprocess failure) still fail closed and can never be excepted. An excepted result reports `security: passed with approved exception (N high, M critical; reason: …)`, never a clean pass, with the reason in the gate line, report header and manual-next-steps block. Motivated by 4 high advisories in the `@opencode-ai/plugin` type-only import graph (accepted 2026-11-04).
 - **Safe local release preparation (`kiki release`):** dry-run by default, with `--apply`, `--bump auto|major|minor|patch`, `--since <ref>` and help. A tracked-only candidate is built outside the checkout with byte-copied dependencies; build, Vitest, source typecheck, source lint, full-tree `npm audit` and release invariants run only in that candidate. Includes deterministic changelog generation and validation, exact-version baseline discovery with `--since` fallback, dist collision refusal, backup/rollback and full post-apply byte verification. It never commits, tags, pushes, publishes or runs remote release actions.
