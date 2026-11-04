@@ -9,13 +9,14 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { chmod, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve, sep } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { prepareRelease, release, type ReleaseDeps } from '../../src/cli/commands/release';
 import type { CommandResult, CommandRunner } from '../../src/cli/release-candidate';
 import type { GateResult } from '../../src/cli/release-gates';
@@ -364,12 +365,23 @@ function candidateBackupDirectories(): string[] {
   );
 }
 
-function expectPreservedBackup(error: Error): string {
+function pathIsWithin(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+function expectPreservedBackup(error: Error, candidateRunRoot: string): string {
   const backup = backupPathFrom(error.message);
   expect(backup).toBeDefined();
   expect(existsSync(backup as string)).toBe(true);
-  expect((backup as string).startsWith(testTmp + sep)).toBe(true);
-  expect(backup as string).not.toContain(`${sep}kiki-candidate-`);
+  const realBackup = realpathSync(backup as string);
+  expect(pathIsWithin(candidateRunRoot, realBackup)).toBe(false);
+  expect(realBackup).not.toContain(`${sep}kiki-candidate-`);
+  // Normal-env behavior remains under the test temp root. In a nested release
+  // candidate the correct relocation base is the nearest non-candidate ancestor.
+  if (!testTmp.split(sep).some((segment) => segment.startsWith('kiki-candidate-'))) {
+    expect(realBackup.startsWith(testTmp + sep)).toBe(true);
+  }
   return backup as string;
 }
 
@@ -1071,6 +1083,7 @@ describe('apply command', () => {
     const dependenciesBefore = snapshotEntries(join(fixture.checkout, 'node_modules'));
     const homeBefore = snapshotEntries(syntheticHome);
     let injected = false;
+    let candidateRunRoot = '';
     const { runner } = createRunner({ next: '2.3.0' });
 
     const error = await failure(
@@ -1081,6 +1094,8 @@ describe('apply command', () => {
           afterWrite: async (relativePath) => {
             if (injected || relativePath !== 'package.json') return;
             injected = true;
+            const roots = [...releaseTempRoots()].filter((root) => root.startsWith(testTmp + sep));
+            candidateRunRoot = roots.length === 1 ? realpathSync(roots[0]) : '';
             fixture.write('dist/late-external.txt', 'EXTERNAL_LATE_EDIT\n');
             throw new Error('injected copy failure');
           },
@@ -1092,7 +1107,8 @@ describe('apply command', () => {
     expect(error.message).toMatch(/target writes restored/i);
     expect(error.message).toMatch(/dist was not modified/i);
     expect(error.message).not.toMatch(/dist tree restored/i);
-    const backup = expectPreservedBackup(error);
+    expect(candidateRunRoot).not.toBe('');
+    const backup = expectPreservedBackup(error, candidateRunRoot);
     expect(readFileSync(join(backup, 'targets', 'package.json')).length).toBeGreaterThan(0);
 
     expect(fixture.read('dist/late-external.txt').toString()).toBe('EXTERNAL_LATE_EDIT\n');
@@ -1110,6 +1126,7 @@ describe('apply command', () => {
     await addEmptyCommit('feat: add release command');
     fixture.makeApplyClean();
     const before = checkoutState();
+    let candidateRunRoot = '';
     const { runner } = createRunner({ next: '2.3.0' });
 
     const error = await failure(
@@ -1118,6 +1135,8 @@ describe('apply command', () => {
         options({ apply: true }),
         deps(runner, [], {
           beforeVerify: async () => {
+            const roots = [...releaseTempRoots()].filter((root) => root.startsWith(testTmp + sep));
+            candidateRunRoot = roots.length === 1 ? realpathSync(roots[0]) : '';
             await writeFile(join(fixture.checkout, 'package.json'), 'FORCED_VERIFY_MISMATCH\n');
           },
         }),
@@ -1127,7 +1146,8 @@ describe('apply command', () => {
     expect(error.message).toMatch(/apply failed|verification|mismatch|changed/i);
     expect(error.message).toMatch(/target writes restored/i);
     expect(error.message).toMatch(/dist tree restored/i);
-    const backup = expectPreservedBackup(error);
+    expect(candidateRunRoot).not.toBe('');
+    const backup = expectPreservedBackup(error, candidateRunRoot);
     expect(existsSync(backup)).toBe(true);
     expect(checkoutState()).toEqual(before);
     expect([...releaseTempRoots()]).toEqual([]);
@@ -1136,6 +1156,7 @@ describe('apply command', () => {
   it('preserves the backup and reports manual recovery when rollback verification fails', async () => {
     await addEmptyCommit('feat: add release command');
     fixture.makeApplyClean();
+    let candidateRunRoot = '';
     const { runner } = createRunner({ next: '2.3.0' });
 
     const error = await failure(
@@ -1144,6 +1165,8 @@ describe('apply command', () => {
         options({ apply: true }),
         deps(runner, [], {
           beforeVerify: async () => {
+            const roots = [...releaseTempRoots()].filter((root) => root.startsWith(testTmp + sep));
+            candidateRunRoot = roots.length === 1 ? realpathSync(roots[0]) : '';
             const backups = candidateBackupDirectories();
             expect(backups).toHaveLength(1);
             await writeFile(join(backups[0], 'targets', 'package.json'), 'CORRUPTED_BACKUP\n');
@@ -1157,12 +1180,63 @@ describe('apply command', () => {
     expect(error.message).toMatch(/manual recovery required/i);
     expect(error.message).toMatch(/restoration was NOT verified/i);
     expect(error.message).not.toMatch(/checkout restored/i);
-    const backup = expectPreservedBackup(error);
+    expect(candidateRunRoot).not.toBe('');
+    const backup = expectPreservedBackup(error, candidateRunRoot);
     expect(existsSync(backup)).toBe(true);
     expect(readFileSync(join(backup, 'targets', 'package.json')).toString()).toBe(
       'CORRUPTED_BACKUP\n',
     );
     expect([...releaseTempRoots()]).toEqual([]);
+  });
+
+  it('relocates a retained backup outside an ambient candidate runRoot and survives dispose', async () => {
+    await addEmptyCommit('feat: add release command');
+    fixture.makeApplyClean();
+    const outerRunRoot = mkdtempSync(join(testTmp, 'kiki-candidate-outer-'));
+    const ambientTmp = join(outerRunRoot, 'tmp');
+    mkdirSync(ambientTmp, { recursive: true });
+    const saved = {
+      TMPDIR: process.env.TMPDIR,
+      TMP: process.env.TMP,
+      TEMP: process.env.TEMP,
+    };
+    process.env.TMPDIR = ambientTmp;
+    process.env.TMP = ambientTmp;
+    process.env.TEMP = ambientTmp;
+    let candidateRunRoot = '';
+    const { runner } = createRunner({ next: '2.3.0' });
+    try {
+      const error = await failure(
+        prepareRelease(
+          fixture.checkout,
+          options({ apply: true }),
+          deps(runner, [], {
+            afterWrite: async (relativePath) => {
+              if (relativePath !== 'package.json') return;
+              const roots = [...releaseTempRoots()].filter((root) =>
+                root.startsWith(ambientTmp + sep),
+              );
+              candidateRunRoot = roots.length === 1 ? realpathSync(roots[0]) : '';
+              throw new Error('injected copy failure');
+            },
+          }),
+        ),
+      );
+
+      expect(candidateRunRoot).not.toBe('');
+      const backup = expectPreservedBackup(error, candidateRunRoot);
+      expect(pathIsWithin(outerRunRoot, backup)).toBe(false);
+      expect(backup).not.toContain(`${sep}kiki-candidate-`);
+      expect(error.message).toContain(backup);
+    } finally {
+      if (saved.TMPDIR === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = saved.TMPDIR;
+      if (saved.TMP === undefined) delete process.env.TMP;
+      else process.env.TMP = saved.TMP;
+      if (saved.TEMP === undefined) delete process.env.TEMP;
+      else process.env.TEMP = saved.TEMP;
+      rmSync(outerRunRoot, { recursive: true, force: true });
+    }
   });
 
   it('refuses ignored dist collisions in apply while dry-run completes with a would-refuse preview', async () => {

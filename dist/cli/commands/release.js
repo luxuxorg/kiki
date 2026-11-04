@@ -18,6 +18,10 @@ const SECRET_BASENAME = /^(?:\.env(?:\..*)?|\.npmrc|\.netrc|\.git-credentials|id
 const GIT_LOG_FORMAT = '--format=%x00%x00%H%x00%s%x00%B';
 const BACKUP_PREFIX = 'apply-backup-';
 const PRESERVED_BACKUP_PREFIX = 'kiki-release-backup-';
+// Keep in sync with RUN_ROOT_PREFIX in release-candidate.ts. A relocation base
+// must never itself be a candidate run root (or nested inside one), because the
+// enclosing release disposes that tree recursively.
+const CANDIDATE_RUN_ROOT_PREFIX = 'kiki-candidate-';
 const HELP_LINES = [
     'Usage: kiki release [--apply] [--bump auto|major|minor|patch] [--since <ref>] [--security-exception <reason>]',
     '',
@@ -356,6 +360,35 @@ function rewriteBackupPaths(error, preserved) {
     }
     return new Error(rewritten, { cause: error instanceof Error ? error : undefined });
 }
+function hasCandidateRunRootSegment(directory) {
+    return directory
+        .split(sep)
+        .some((segment) => segment !== '' && segment.startsWith(CANDIDATE_RUN_ROOT_PREFIX));
+}
+async function preservedBackupBase(candidate) {
+    const runRoot = await realpath(candidate.runRoot);
+    let base = dirname(runRoot);
+    // The ambient TMPDIR may itself be inside an enclosing release candidate
+    // (the candidate test gate redirects TMPDIR/TMP/TEMP to <outerRunRoot>/tmp).
+    // Walk up until the base is no longer inside a kiki-candidate-* tree, which
+    // normally lands on the OS temp parent (e.g. /tmp) and keeps normal-env
+    // behavior unchanged.
+    while (hasCandidateRunRootSegment(base)) {
+        const parent = dirname(base);
+        if (parent === base)
+            break;
+        base = parent;
+    }
+    const baseReal = await realpath(base);
+    if (isWithin(runRoot, baseReal)) {
+        throw new Error('release: backup relocation directory resolves inside the candidate run root; refusing to retain a backup there.');
+    }
+    const baseStat = await stat(baseReal);
+    if (!baseStat.isDirectory()) {
+        throw new Error('release: backup relocation base is not a directory.');
+    }
+    return baseReal;
+}
 async function preserveApplyBackups(candidate) {
     const entries = await readdir(candidate.runRoot, { withFileTypes: true });
     const backups = entries
@@ -364,7 +397,8 @@ async function preserveApplyBackups(candidate) {
         .sort();
     if (backups.length === 0)
         return undefined;
-    const root = await mkdtemp(join(dirname(candidate.runRoot), PRESERVED_BACKUP_PREFIX));
+    const base = await preservedBackupBase(candidate);
+    const root = await mkdtemp(join(base, PRESERVED_BACKUP_PREFIX));
     const mappings = [];
     for (const original of backups) {
         const preserved = join(root, basename(original));
