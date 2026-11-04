@@ -4,6 +4,7 @@ import { init } from './commands/init.js';
 import { update } from './commands/update.js';
 import { status } from './commands/status.js';
 import { verify } from './commands/verify.js';
+import { release } from './commands/release.js';
 import { doctor } from './commands/doctor.js';
 import { routing } from './commands/routing.js';
 import { migrate } from './commands/migrate.js';
@@ -43,6 +44,9 @@ async function main() {
       if (code !== 0) process.exit(code);
       break;
     }
+    case 'release':
+      await release(args.slice(1));
+      break;
     default:
       console.log(`Usage: kiki <command>
 Commands:
@@ -55,7 +59,8 @@ Commands:
   status [path]       Show global/project configuration
   routing             Retired; configure agent models in opencode.json
   verify <file>        Check for TBDs/TODOs/placeholders
-  doctor [path]        Validate config, paths, models, and agent files`);
+  doctor [path]        Validate config, paths, agent files, and skills
+  release [options]    Validate (default) or apply a local release candidate`);
       process.exitCode = !command || command === '--help' || command === '-h' ? 0 : 1;
   }
 }

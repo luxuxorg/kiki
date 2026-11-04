@@ -6,7 +6,7 @@ Complete workflow. Project configuration is kept separate from Kiki updates.
 
 ## Installation and updates
 
-Requires Node >= 18. From a checkout:
+Requires Node >= 18 at runtime. From a checkout:
 
 ```bash
 npm install
@@ -84,24 +84,25 @@ kiki init .
 # Equivalent: kiki install --project .
 ```
 
-The wizard asks for project paths, commands and model preferences. It creates:
+The wizard asks for project paths and build/test/lint/security commands. It creates:
 
-- `.agentic/kiki/config.json`: project paths, build/test/lint/security commands,
-  watchdog settings and only explicitly chosen (non-default) model preferences.
+- `.agentic/kiki/config.json`: project paths, build/test/lint/security commands and
+  watchdog settings.
 - `.agentic/kiki/alignment.json`: project guardrails.
 - `.agentic/kiki/TASK_REGISTRY.json`: workflow state.
-- Agent-specific permissions and any non-default model preferences in the existing
-  OpenCode project config, or a new `opencode.jsonc`.
+- Agent-specific permissions in the existing OpenCode project config, or a new
+  `opencode.jsonc`.
 
-Project init never writes implicit local model values: with default model choices no
-`model` keys appear in the project config, so the global defaults apply. Local model
-values exist only after an explicit choice (wizard, `/kiki`, manual edit) and are
-preserved by every later init/update/migrate.
+The wizard asks no model questions, and fresh project setup writes no `model` keys.
+Agents inherit the OpenCode default unless a model is chosen explicitly with `/kiki`
+or by editing native configuration. Existing local model values are user data and are
+preserved by init, update and migrate. A legacy `models` section in
+`.agentic/kiki/config.json` is still tolerated and ignored, but is never rewritten or
+used to seed agents; setup is no longer a model source.
 
 It creates **no local plugin or agent copies**. Reinitialization preserves existing
 metadata, task state, permissions and models. Global agents read project paths and
-commands from `.agentic/kiki/config.json`. Changes to that file's setup model
-preferences do not change active models; use OpenCode configuration below.
+commands from `.agentic/kiki/config.json`.
 
 ## Models and permissions
 
@@ -127,7 +128,8 @@ Bash permissions are separate from file-tool permissions; file
 restrictions are not a shell sandbox.
 
 `kiki routing` is retired and prints a read-only migration notice. Model selection
-now has one source: native OpenCode configuration; there is no frontmatter sync.
+now has one source: native OpenCode configuration; there is no frontmatter sync or
+setup-time model slot.
 
 For general project instructions use `AGENTS.md`. For an intentionally different
 agent prompt, create `.opencode/agents/kiki-reviewer.md` (or another Kiki agent).
@@ -173,12 +175,89 @@ Project path/command metadata, alignment and health settings also remain. Reset
 restores **global agent models/rights/prompts**, not a total deletion of project data.
 It does not repair an already running or stuck OpenCode session.
 
+## Release validation
+
+`kiki release` prepares and validates a local release without performing one. It runs
+only in a Kiki source checkout and reads git history only through `git log`,
+`git ls-files` and `git status`; it never commits, tags, pushes or publishes.
+
+```bash
+kiki release                 # dry run: validate only; no checkout writes
+kiki release --apply         # copy a fully validated candidate back
+kiki release --bump minor    # auto (default), major, minor or patch
+kiki release --since <ref>   # explicit baseline; range is <ref>..HEAD
+kiki release --security-exception <reason>  # approve high/critical findings
+kiki release --help
+```
+
+The default is a dry run. `--apply` is required for any checkout write and additionally
+requires a clean working tree. The candidate release tree is built in a temporary
+directory outside the checkout from tracked working-tree files only; untracked and
+ignored files are not part of the release. The local `node_modules` tree is byte-copied
+separately so gates run without touching or symlinking the source dependencies; npm
+cache/log/tmp state is redirected to run-owned temporary paths. Local development
+dependencies must already be installed — gates never use `npx` or download tooling.
+
+Every gate runs against that candidate: `tsc` build, the Vitest test suite, a separate
+source-only `tsc --noEmit` typecheck, source-only ESLint, a full-tree `npm audit`
+including dev/optional/peer dependencies, and release invariants (version fields,
+generated plugin version, changelog headings, allowlisted changed files). The audit is
+the only network query. It fails closed with `security: INCOMPLETE — npm audit
+unavailable (<reason>)` when the registry or advisory data is unavailable, the audit
+output is malformed, or the audit subprocess fails; incomplete results can never be
+excepted. Without `--security-exception`, any high or critical vulnerability blocks
+the release, while low and moderate findings are reported only. `--security-exception
+<reason>` requires a non-empty reason and changes only that high/critical block
+decision when the audit produced complete evidence: the audit still runs, all counts
+are still reported, and low/moderate behavior is unchanged. An excepted result reports
+`security: passed with approved exception (N high, M critical; reason: …)` — never a
+clean pass — and the reason appears in the gate line, the report header and the
+manual-next-steps block. The option was added for the 4 high advisories in the
+`@opencode-ai/plugin` type-only import graph (accepted 2026-11-04).
+
+The baseline is the newest commit whose subject contains an exact `release v<current>`
+match. If none exists, the command fails closed and asks for `--since <ref>`; an
+explicit `--since` defines `<ref>..HEAD`. Conventional commit subjects and bodies
+infer the semver bump (`!` or a breaking footer is major, `feat` is minor, `fix`/`perf`
+is patch); `--bump` overrides inference, and a non-increasing or non-release-worthy
+range fails closed.
+
+Changelog generation is deterministic and mandatory: an empty `[Unreleased]` section is
+filled from the commit range, then renamed to a dated heading with a fresh empty
+`[Unreleased]` above it. Existing human-authored content is never rewritten.
+
+Before `--apply`, any untracked or ignored file under `dist/` causes a collision refusal
+(a dry run reports that apply would refuse). Apply snapshots the four version/changelog
+files and the entire `dist/` tree, writes the candidate back, then verifies every byte in
+both directions; any write or verification failure restores the snapshot and reports the
+retained backup location. A failed apply never leaves a partial release behind. Both
+modes print manual `git add`/`git commit`/tag/push next steps but never execute them.
+
+Dependency `.bin` links are rewritten as candidate-owned POSIX `/bin/sh` shims.
+Node-shebang (or `.js`/`.mjs`/`.cjs`) entrypoints run through the current Node binary
+with the candidate-local entrypoint; recognized native ELF executables are executed
+directly. Other linked executables are rejected. This is a POSIX-only shim mechanism,
+not a general Windows launcher.
+
+These examples document the command; do not run them against this repository unless a
+release is explicitly authorized.
+
 ## Diagnostics
 
 - `kiki status [path]`: global installation and effective JSON model selections;
   reports local Markdown overrides separately.
 - `kiki doctor [path]`: checks global agents, prompt files, plugin, project commands
-  and paths; reports legacy plugins/routing files that need migration.
+  and paths; reports legacy plugins/routing files that need migration. Agent model
+  presence is informational: it shows the resolved model or inherited OpenCode
+  default (set via `/kiki`) and never fails a fresh install. Required skills are
+  checked as files on disk across project `.opencode/skills`, legacy
+  `~/.opencode/skills`, XDG config `opencode/skills`, and the XDG cache superpowers
+  package layout. Missing skills, name drift, duplicate copies and superpowers
+  versions are warnings/info; they never change the exit code. The observed
+  superpowers version is compared with the version Kiki was tested against
+  (`7.0.1`) as an observation only, not a support floor. Skill presence on disk does
+  not confirm OpenCode plugin registration or live session availability. A legacy
+  `models` config section is reported informationally and ignored.
 - `kiki verify <file>`: checks Markdown for unfinished placeholders/checklist items.
 
 ## Agents
@@ -212,12 +291,26 @@ projects to remove them. Normal operation has only the global plugin.
 
 ## Development
 
+Runtime use requires Node `>=18.0.0` (`package.json` `engines.node`, unchanged).
+
+Development and lint require Node **`^20.19.0 || ^22.13.0 || >=24`** because of the
+transitive lint dependency graph. This is not a blanket `>=20.19.0`: Node 21 and 23 are
+excluded. The lint packages are development-only; direct lint dependency versions are
+unchanged.
+
 ```bash
 npm test
+npm run lint
 npm run build
+# Source-only typecheck, separate from lint (tsconfig excludes tests):
+node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
 # Optional integration test against an installed OpenCode binary, using isolated fixtures:
 OPENCODE_TEST_BINARY=/absolute/path/to/opencode npm test
 ```
+
+`npm run lint` runs `eslint "src/**/*.ts"` and `npm run build` compiles `src/`. Lint and
+typecheck cover source only; tests are covered by Vitest, not by the lint or typecheck
+gates.
 
 The optional native tests use fixture HOME/XDG directories. The `/kiki` integration
 test also requires Python 3 and a POSIX pseudo-terminal; it opens the real TUI,

@@ -37,13 +37,16 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cli": "node dist/cli/index.js"
+    "cli": "node dist/cli/index.js",
+    "lint": "eslint \"src/**/*.ts\""
   },
   "devDependencies": {
     "@opencode-ai/plugin": "1.18.35",
-    "@types/node": "^18.0.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^9.39.4",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "typescript-eslint": "^8.62.0",
+    "vitest": "4.1.0"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -332,6 +332,7 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
   tui.apply();
   for (const file of [...legacy.files, ...pluginFiles(directory).filter(file => file !== join(directory, 'plugins/kiki.ts'))]) unlinkSync(file);
   console.log(`Kiki ${update ? 'updated' : 'installed'} globally in ${directory}. Restart OpenCode to load it.`);
+  console.log('Agent models: set them with the /kiki command in OpenCode (or edit agent.<name>.model in opencode.json).');
 }
 
 // Native deep merging must not retain global path grants absent from a project's
@@ -359,7 +360,6 @@ export function initializeProjectAgents(project: string, config: KikiConfig, dir
   const global = readOpenCodeSettings(directory, true).agent || {};
   const agents = Object.fromEntries(Object.entries(baselineAgents(config)).map(([name, value]) => [name, {
     ...(value.settings.permission ? { permission: projectPermissions(value.settings.permission, global[name]?.permission || baseline[name].settings.permission || {}) } : {}),
-    ...(value.settings.model !== baseline[name].settings.model ? { model: value.settings.model } : {}),
     ...(existing.agent?.[name] || {}),
   }]).filter(([, value]) => Object.keys(value).length));
   patchAgents(configTarget(project), agents);

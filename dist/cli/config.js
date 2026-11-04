@@ -15,11 +15,6 @@ export const DEFAULT_PATHS = {
     knowledge: null,
     taskRegistry: '.agentic/kiki/TASK_REGISTRY.json',
 };
-export const DEFAULT_MODELS = {
-    standard: 'openrouter/z-ai/glm-5.2',
-    critical: 'anthropic/claude-sonnet-5',
-    workhorse: 'deepseek/deepseek-v4-pro',
-};
 export const DEFAULT_HEALTH = {
     watchdogEnabled: true,
     stuckThresholdMs: 300_000,
@@ -48,7 +43,6 @@ export const DEFAULT_CONFIG = {
         security: 'npm audit',
     },
     paths: DEFAULT_PATHS,
-    models: DEFAULT_MODELS,
     health: DEFAULT_HEALTH,
 };
 export const DEFAULT_ALIGNMENT = {
@@ -58,18 +52,6 @@ export const DEFAULT_ALIGNMENT = {
         'API responses must not leak internal stack traces',
     ],
     compliance: ['OWASP Top 10', 'SOC 2 Type II'],
-};
-export const DEFAULT_ROUTING_TABLE = {
-    agents: {
-        'kiki-orchestrator': DEFAULT_MODELS.standard,
-        'kiki-brainstormer': DEFAULT_MODELS.standard,
-        'kiki-planner': DEFAULT_MODELS.standard,
-        'kiki-implementer': DEFAULT_MODELS.workhorse,
-        'kiki-gui-designer': DEFAULT_MODELS.standard,
-        'kiki-reviewer': DEFAULT_MODELS.standard,
-        'kiki-escalation': DEFAULT_MODELS.critical,
-        'kiki-historian': DEFAULT_MODELS.workhorse,
-    },
 };
 function dirGlob(path) {
     if (path.endsWith('/'))
@@ -98,12 +80,11 @@ export function loadConfig(targetPath) {
         return { ...DEFAULT_CONFIG };
     try {
         const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
-        const { riskMatrix: _discardedRiskMatrix, ...rest } = raw;
+        const { riskMatrix: _discardedRiskMatrix, models: _discardedModels, ...rest } = raw;
         return {
             ...DEFAULT_CONFIG,
             ...rest,
             paths: { ...DEFAULT_PATHS, ...(rest.paths ?? {}) },
-            models: { ...DEFAULT_MODELS, ...(rest.models ?? {}) },
             health: { ...DEFAULT_HEALTH, ...(rest.health ?? {}) },
         };
     }
@@ -250,7 +231,6 @@ export function generateOrchestratorTemplate(config) {
     return `---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
-model: ${config.models.standard}
 ---
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 
@@ -298,7 +278,6 @@ export function generateBrainstormerTemplate(config) {
     return `---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
-model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.
@@ -316,7 +295,6 @@ export function generatePlannerTemplate(config) {
     return `---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
-model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Planner. Your job is to write detailed implementation plans.
@@ -348,7 +326,6 @@ export function generateImplementerTemplate(config) {
     return `---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
-model: ${config.models.workhorse}
 ${perms}
 ---
 You are the Kiki Implementer. Implement code strictly per the approved plan.
@@ -383,7 +360,6 @@ export function generateGuiDesignerTemplate(config) {
     return `---
 description: Kiki GUI Designer — UI/UX design + implementation via superpowers skills
 mode: subagent
-model: ${config.models.standard}
 ${perms}
 ---
 
@@ -395,7 +371,6 @@ export function generateReviewerTemplate(config) {
     return `---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent
-model: ${config.models.standard}
 ${perms}
 ---
 You are the Kiki Reviewer. Review code against the approved plan.
@@ -419,12 +394,11 @@ Blockers:
 \`\`\`
 `;
 }
-export function generateEscalationTemplate(config) {
+export function generateEscalationTemplate(_config) {
     const perms = buildEscalationPermissions();
     return `---
 description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
-model: ${config.models.critical}
 ${perms}
 ---
 You are the Kiki Escalation Agent. Diagnose why the pipeline failed.
@@ -448,7 +422,6 @@ export function generateHistorianTemplate(config) {
     return `---
 description: Kiki Historian — maintains project documentation, README and CHANGELOG
 mode: subagent
-model: ${config.models.workhorse}
 ${perms}
 ---
 You are the Kiki Historian. Keep project documentation accurate and up to date.
@@ -671,43 +644,6 @@ export function generateAllTemplates(config, scope = 'project', version = KIKI_V
         gitignore: OPENCODE_GITIGNORE_TEMPLATE,
         workflow: generateWorkflowTemplate(config),
     };
-}
-export function writeOpencodeFiles(targetPath, config, scope = 'project') {
-    const opencodeDir = join(targetPath, '.opencode');
-    const agentsDir = join(opencodeDir, 'agents');
-    const pluginsDir = join(opencodeDir, 'plugins');
-    const docsDir = join(opencodeDir, 'docs');
-    mkdirSync(opencodeDir, { recursive: true });
-    mkdirSync(agentsDir, { recursive: true });
-    mkdirSync(pluginsDir, { recursive: true });
-    mkdirSync(docsDir, { recursive: true });
-    const templates = generateAllTemplates(config, scope);
-    writeFileSync(join(agentsDir, 'kiki-orchestrator.md'), templates.orchestrator);
-    writeFileSync(join(agentsDir, 'kiki-brainstormer.md'), templates.brainstormer);
-    writeFileSync(join(agentsDir, 'kiki-planner.md'), templates.planner);
-    writeFileSync(join(agentsDir, 'kiki-implementer.md'), templates.implementer);
-    writeFileSync(join(agentsDir, 'kiki-gui-designer.md'), templates.guiDesigner);
-    writeFileSync(join(agentsDir, 'kiki-reviewer.md'), templates.reviewer);
-    writeFileSync(join(agentsDir, 'kiki-escalation.md'), templates.escalation);
-    writeFileSync(join(agentsDir, 'kiki-historian.md'), templates.historian);
-    writeFileSync(join(pluginsDir, 'kiki.ts'), templates.plugin);
-    writeFileSync(join(opencodeDir, 'package.json'), templates.packageJson);
-    writeFileSync(join(opencodeDir, '.gitignore'), templates.gitignore);
-    writeFileSync(join(docsDir, 'agentic-workflow.md'), templates.workflow);
-}
-export function writeAgenticFiles(targetPath, config) {
-    const agenticDir = join(targetPath, '.agentic');
-    const kikiDir = join(agenticDir, 'kiki');
-    const cacheDir = join(kikiDir, 'cache');
-    if (!existsSync(kikiDir)) {
-        mkdirSync(kikiDir, { recursive: true });
-    }
-    mkdirSync(cacheDir, { recursive: true });
-    writeFileSync(join(kikiDir, 'config.json'), JSON.stringify(config, null, 2));
-    writeFileSync(join(kikiDir, 'alignment.json'), JSON.stringify(DEFAULT_ALIGNMENT, null, 2));
-    writeFileSync(join(kikiDir, 'TASK_REGISTRY.json'), JSON.stringify({ tasks: [] }, null, 2));
-    writeFileSync(join(kikiDir, 'routing.json'), JSON.stringify(DEFAULT_ROUTING_TABLE, null, 2));
-    return kikiDir;
 }
 export function ensurePathExists(targetPath, filePath) {
     const fullPath = join(targetPath, filePath);

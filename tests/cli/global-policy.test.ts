@@ -43,7 +43,8 @@ describe('global-only Kiki policy', () => {
 
   it('migrates legacy global Markdown rights and models before deleting the old definition', () => {
     mkdirSync(join(global, 'agents'));
-    writeFileSync(join(global, 'agents/kiki-implementer.md'), generateImplementerTemplate(DEFAULT_CONFIG).replace('model: deepseek/deepseek-v4-pro', 'model: custom/legacy'));
+    const legacyTemplate = generateImplementerTemplate(DEFAULT_CONFIG).replace(/^---\r?\n/, '---\nmodel: custom/legacy\n');
+    writeFileSync(join(global, 'agents/kiki-implementer.md'), legacyTemplate);
     installGlobalFiles(global, true);
     expect(config(global).agent['kiki-implementer'].model).toBe('custom/legacy');
     expect(existsSync(join(global, 'agents/kiki-implementer.md'))).toBe(false);
@@ -110,16 +111,16 @@ describe('global-only Kiki policy', () => {
     expect(existsSync(join(project, 'opencode.jsonc'))).toBe(false);
   });
 
-  it('default init writes no local model keys; explicit choices still write; existing local models survive re-init', () => {
+  it('default init writes no local model keys and existing local models survive re-init', () => {
     installGlobalFiles(global);
     initializeProjectAgents(project, DEFAULT_CONFIG, global);
     for (const settings of Object.values(config(project).agent)) expect(settings).not.toHaveProperty('model');
     const data = config(project);
     data.agent['kiki-planner'].model = 'provider/local';
     writeFileSync(join(project, 'opencode.jsonc'), JSON.stringify(data));
-    initializeProjectAgents(project, { ...DEFAULT_CONFIG, models: { ...DEFAULT_CONFIG.models, standard: 'custom/standard' } }, global);
+    initializeProjectAgents(project, DEFAULT_CONFIG, global);
     expect(config(project).agent['kiki-planner'].model).toBe('provider/local');
-    expect(config(project).agent['kiki-orchestrator'].model).toBe('custom/standard');
+    expect(config(project).agent['kiki-orchestrator']?.model).toBeUndefined();
   });
 
   it('initializes project permissions without local runtime or agent copies and without replacing existing grants', () => {
@@ -150,7 +151,7 @@ describe('global-only Kiki policy', () => {
     resetProject(project);
   });
 
-  it('initialization masks existing global grants outside project boundaries and applies explicitly selected project models', () => {
+  it('initialization masks existing global grants outside project boundaries without seeding models', () => {
     installGlobalFiles(global);
     const data = config(global);
     data.agent['kiki-implementer'].permission.edit['outside/**'] = 'allow';
@@ -159,11 +160,10 @@ describe('global-only Kiki policy', () => {
     initializeProjectAgents(project, {
       ...DEFAULT_CONFIG,
       paths: { ...DEFAULT_CONFIG.paths, source: 'backend/' },
-      models: { ...DEFAULT_CONFIG.models, workhorse: 'custom/workhorse' },
     }, global);
     expect(config(project).agent['kiki-implementer'].permission.edit['outside/**']).toBe('deny');
     expect(config(project).agent['kiki-implementer'].permission.read['protected/**']).toBe('deny');
-    expect(config(project).agent['kiki-implementer'].model).toBe('custom/workhorse');
+    expect(config(project).agent['kiki-implementer']).not.toHaveProperty('model');
   });
 
   it('invalid JSONC leaves legacy files intact before any cleanup', () => {

@@ -30,4 +30,24 @@ describe('global update command', () => {
     await expect(update(['--unknown'])).rejects.toThrow();
     expect(existsSync(join(root, 'opencode'))).toBe(false);
   });
+  it('prints the /kiki model hint and preserves existing global model and permission maps', async () => {
+    const hint = 'Agent models: set them with the /kiki command in OpenCode (or edit agent.<name>.model in opencode.json).';
+    await update([]);
+    const file = join(root, 'opencode/opencode.jsonc');
+    const data = JSON.parse(readFileSync(file, 'utf8'));
+    data.agent['kiki-reviewer'].model = 'custom/reviewer';
+    data.agent['kiki-reviewer'].permission = { edit: 'deny' };
+    writeFileSync(file, JSON.stringify(data));
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await update([]);
+      expect(logSpy.mock.calls.flat().join('\n')).toContain(hint);
+    } finally {
+      logSpy.mockRestore();
+    }
+    const after = readOpenCodeSettings(join(root, 'opencode'), true);
+    expect(after.agent['kiki-reviewer'].model).toBe('custom/reviewer');
+    expect(after.agent['kiki-reviewer'].permission).toEqual({ edit: 'deny' });
+  });
 });

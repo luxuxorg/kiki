@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Release security exception:** `kiki release --security-exception <reason>` requires a non-empty reason and changes only the high/critical block decision when the audit produced complete evidence. The audit still runs and all counts are still reported; low/moderate behavior and no-flag output remain unchanged. INCOMPLETE audits (unavailable, malformed or subprocess failure) still fail closed and can never be excepted. An excepted result reports `security: passed with approved exception (N high, M critical; reason: …)`, never a clean pass, with the reason in the gate line, report header and manual-next-steps block. Motivated by 4 high advisories in the `@opencode-ai/plugin` type-only import graph (accepted 2026-11-04).
+- **Safe local release preparation (`kiki release`):** dry-run by default, with `--apply`, `--bump auto|major|minor|patch`, `--since <ref>` and help. A tracked-only candidate is built outside the checkout with byte-copied dependencies; build, Vitest, source typecheck, source lint, full-tree `npm audit` and release invariants run only in that candidate. Includes deterministic changelog generation and validation, exact-version baseline discovery with `--since` fallback, dist collision refusal, backup/rollback and full post-apply byte verification. It never commits, tags, pushes, publishes or runs remote release actions.
+- **Doctor skill observations:** required skills are discovered across project, user, XDG config and the nested superpowers package-cache layout. Missing skills, name drift and duplicate copies are reported; the observed superpowers version is compared with the tested `7.0.1` observation without a support floor. All skill findings are warnings/info and never change the exit code; doctor states that it verifies disk presence only.
+- **Source-only lint foundation:** `npm run lint` runs flat-config ESLint on `src/**/*.ts`; source typecheck remains a separate `tsc --noEmit` gate, and tests remain covered by Vitest. Development/lint requires Node `^20.19.0 || ^22.13.0 || >=24` (minimum 20.19.0, Node 21/23 excluded) due to the transitive graph; runtime `engines.node` remains `>=18.0.0`.
+
+### Changed
+- **Model-slot retirement:** init asks no model questions and no Kiki path seeds model values; fresh installs inherit OpenCode defaults. Existing agent model values and permissions remain preserved by install/update/migrate. Legacy `models` sections are tolerated, ignored on load, never rewritten and reported informationally by doctor; install/update print the `/kiki` model-selection hint.
+- **Doctor model reporting:** agent model presence is informational, showing the resolved model or inherited OpenCode default (set via `/kiki`); a fresh install with no configured models no longer fails.
+
 ## [2.2.0] — 2026-11-03
 
 ### Changed

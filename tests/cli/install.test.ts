@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { install } from '../../src/cli/commands/install';
@@ -29,5 +29,28 @@ describe('global installation CLI', () => {
     await expect(install(['--project', '.', '--global'])).rejects.toThrow();
     await expect(install(['--project'])).rejects.toThrow();
     expect(existsSync(join(root, 'opencode'))).toBe(false);
+  });
+  it('prints the /kiki model hint and preserves existing agent model and permission maps', async () => {
+    const hint = 'Agent models: set them with the /kiki command in OpenCode (or edit agent.<name>.model in opencode.json).';
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await install([]);
+      expect(logSpy.mock.calls.flat().join('\n')).toContain(hint);
+
+      const file = join(root, 'opencode/opencode.jsonc');
+      const data = JSON.parse(readFileSync(file, 'utf8'));
+      data.agent['kiki-implementer'].model = 'custom/model';
+      data.agent['kiki-implementer'].permission = { edit: 'deny' };
+      writeFileSync(file, JSON.stringify(data));
+
+      logSpy.mockClear();
+      await install([]);
+      expect(logSpy.mock.calls.flat().join('\n')).toContain(hint);
+      const after = readOpenCodeSettings(join(root, 'opencode'), true);
+      expect(after.agent['kiki-implementer'].model).toBe('custom/model');
+      expect(after.agent['kiki-implementer'].permission).toEqual({ edit: 'deny' });
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });

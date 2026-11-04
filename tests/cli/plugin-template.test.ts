@@ -70,7 +70,7 @@ describe('generatePluginTemplate', () => {
 
   it('stamps default scope=project and default version when called with no args', () => {
     expect(template).toContain("const KIKI_PLUGIN_SCOPE = 'project';");
-    expect(template).toContain("const KIKI_PLUGIN_VERSION = '2.2.0';");
+    expect(template).toContain(`const KIKI_PLUGIN_VERSION = '${KIKI_VERSION}';`);
   });
 
   it('returns no-op hooks on the non-owner path', () => {
@@ -103,7 +103,7 @@ describe('generatePluginTemplate scope/version threading', () => {
   it('stamps scope=global when requested', () => {
     const t = generatePluginTemplate({ scope: 'global', version: KIKI_VERSION });
     expect(t).toContain("const KIKI_PLUGIN_SCOPE = 'global';");
-    expect(t).toContain("const KIKI_PLUGIN_VERSION = '2.2.0';");
+    expect(t).toContain(`const KIKI_PLUGIN_VERSION = '${KIKI_VERSION}';`);
   });
 
   it('stamps an arbitrary version string', () => {
@@ -114,7 +114,15 @@ describe('generatePluginTemplate scope/version threading', () => {
   it('defaults scope to project and version to KIKI_VERSION with empty opts', () => {
     const t = generatePluginTemplate({});
     expect(t).toContain("const KIKI_PLUGIN_SCOPE = 'project';");
-    expect(t).toContain("const KIKI_PLUGIN_VERSION = '2.2.0';");
+    expect(t).toContain(`const KIKI_PLUGIN_VERSION = '${KIKI_VERSION}';`);
+  });
+
+  it.each(['2.2.0', '2.3.0', '9.9.9'])('threads version %s through the plugin and all templates', (version) => {
+    const plugin = generatePluginTemplate({ scope: 'global', version });
+    expect(plugin).toContain("const KIKI_PLUGIN_SCOPE = 'global';");
+    expect(plugin).toContain(`const KIKI_PLUGIN_VERSION = '${version}';`);
+    const all = generateAllTemplates(DEFAULT_CONFIG, 'project', version);
+    expect(all.plugin).toContain(`const KIKI_PLUGIN_VERSION = '${version}';`);
   });
 });
 

@@ -1,4 +1,3 @@
-import type { StaticRoutingTable } from '../types.js';
 export interface KikiPaths {
     source: string;
     tests: string;
@@ -11,11 +10,6 @@ export interface KikiPaths {
     decisions: string | null;
     knowledge: string | null;
     taskRegistry: string;
-}
-export interface KikiModels {
-    standard: string;
-    critical: string;
-    workhorse: string;
 }
 export interface KikiHealthConfig {
     watchdogEnabled: boolean;
@@ -37,11 +31,9 @@ export interface KikiConfig {
         security: string;
     };
     paths: KikiPaths;
-    models: KikiModels;
     health: KikiHealthConfig;
 }
 export declare const DEFAULT_PATHS: KikiPaths;
-export declare const DEFAULT_MODELS: KikiModels;
 export declare const DEFAULT_HEALTH: KikiHealthConfig;
 /**
  * Kiki version, baked into the generated plugin as KIKI_PLUGIN_VERSION.
@@ -56,7 +48,6 @@ export declare const DEFAULT_ALIGNMENT: {
     guardrails: string[];
     compliance: string[];
 };
-export declare const DEFAULT_ROUTING_TABLE: StaticRoutingTable;
 export declare function loadConfig(targetPath: string): KikiConfig;
 export declare function generateOrchestratorTemplate(config: KikiConfig): string;
 export declare function generateBrainstormerTemplate(config: KikiConfig): string;
@@ -64,7 +55,7 @@ export declare function generatePlannerTemplate(config: KikiConfig): string;
 export declare function generateImplementerTemplate(config: KikiConfig): string;
 export declare function generateGuiDesignerTemplate(config: KikiConfig): string;
 export declare function generateReviewerTemplate(config: KikiConfig): string;
-export declare function generateEscalationTemplate(config: KikiConfig): string;
+export declare function generateEscalationTemplate(_config: KikiConfig): string;
 export declare function generateHistorianTemplate(config: KikiConfig): string;
 export declare function generatePluginTemplate(opts?: {
     scope?: 'global' | 'project';
@@ -88,7 +79,5 @@ export interface GeneratedTemplates {
     workflow: string;
 }
 export declare function generateAllTemplates(config: KikiConfig, scope?: 'global' | 'project', version?: string): GeneratedTemplates;
-export declare function writeOpencodeFiles(targetPath: string, config: KikiConfig, scope?: 'global' | 'project'): void;
-export declare function writeAgenticFiles(targetPath: string, config: KikiConfig): string;
 export declare function ensurePathExists(targetPath: string, filePath: string): void;
 //# sourceMappingURL=config.d.ts.map

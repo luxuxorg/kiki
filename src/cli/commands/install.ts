@@ -1,19 +1,9 @@
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { DEFAULT_ALIGNMENT, DEFAULT_MODELS, KikiConfig, KikiModels } from '../config.js';
+import { DEFAULT_ALIGNMENT, KikiConfig } from '../config.js';
 import { initializeProjectAgents, installGlobalFiles } from '../opencode-config.js';
 import { parseScope } from '../args.js';
 import { runWizard, applyPathSetup } from './init.js';
-
-// Persist only explicit model choices: default values are re-merged by loadConfig,
-// so storing them would later be written into project configs as stale overrides.
-function persistableConfig(config: KikiConfig): KikiConfig {
-  const persisted = { ...config, models: { ...config.models } };
-  for (const key of Object.keys(persisted.models) as (keyof KikiModels)[]) {
-    if (persisted.models[key] === DEFAULT_MODELS[key]) delete (persisted.models as Partial<KikiModels>)[key];
-  }
-  return persisted;
-}
 
 export function installProjectConfig(target: string, config: KikiConfig): void {
   const directory = join(target, '.agentic/kiki');
@@ -21,7 +11,7 @@ export function installProjectConfig(target: string, config: KikiConfig): void {
   initializeProjectAgents(target, config);
   mkdirSync(directory, { recursive: true });
   for (const [file, data] of Object.entries({
-    'config.json': persistableConfig(config), 'alignment.json': DEFAULT_ALIGNMENT, 'TASK_REGISTRY.json': { tasks: [] },
+    'config.json': config, 'alignment.json': DEFAULT_ALIGNMENT, 'TASK_REGISTRY.json': { tasks: [] },
   })) {
     const path = join(directory, file);
     if (!existsSync(path)) writeFileSync(path, JSON.stringify(data, null, 2));
