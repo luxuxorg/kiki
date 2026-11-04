@@ -269,6 +269,44 @@ describe('real copied-dependency candidate npm test', () => {
   }, TEST_TIMEOUT);
 });
 
+describe('pre-shimmed dependency trees', () => {
+  it('regenerates a kiki .bin shim against the candidate-local entrypoint', async () => {
+    originalTmp = process.env.TMPDIR;
+    testTmp = mkdtempSync(join(tmpdir(), 'kiki-pre-shimmed-'));
+    process.env.TMPDIR = testTmp;
+    fixture = createReleaseFixture({ withoutNodeModules: true });
+    const outerCandidateRoot = join(testTmp, 'kiki-candidate-outer');
+    fixture.write(
+      'node_modules/fake-pkg/package.json',
+      `${JSON.stringify({ name: 'fake-pkg', version: '1.0.0' })}\n`,
+    );
+    fixture.write(
+      'node_modules/fake-pkg/cli.mjs',
+      "#!/usr/bin/env node\nconsole.log('fake');\n",
+      0o755,
+    );
+    fixture.write(
+      'node_modules/.bin/fake-cli',
+      `#!/bin/sh\nexec '/usr/bin/node' '${outerCandidateRoot}/node_modules/fake-pkg/cli.mjs' "$@"\n`,
+      0o755,
+    );
+
+    candidate = await createCandidate(fixture.checkout, await trackedPaths(fixture));
+    const candidateRoot = candidate.root;
+    const candidateRunRoot = candidate.runRoot;
+    const shim = readFileSync(join(candidateRoot, 'node_modules', '.bin', 'fake-cli'), 'utf8');
+
+    expect(shim.startsWith('#!/bin/sh\nexec ')).toBe(true);
+    expect(shim).toContain(candidateRoot.replace(/'/g, "'\\''"));
+    expect(shim).toContain('node_modules/fake-pkg/cli.mjs');
+    expect(shim).not.toContain(outerCandidateRoot);
+
+    await candidate.dispose();
+    expect(existsSync(candidateRunRoot)).toBe(false);
+    candidate = undefined;
+  }, TEST_TIMEOUT);
+});
+
 function relativeKey(root: string, absolute: string): string {
   return absolute.slice(root.length + 1).split('\\').join('/');
 }

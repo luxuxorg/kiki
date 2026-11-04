@@ -46,6 +46,7 @@ export interface Candidate {
 
 const RUN_ROOT_PREFIX = 'kiki-candidate-';
 const MAX_DEPENDENCY_DEPTH = 64;
+const MAX_PRE_SHIM_BYTES = 64 * 1024;
 const ALLOWED_GIT_SUBCOMMANDS = new Set<GitSubcommand>(['log', 'ls-files', 'status']);
 
 
@@ -285,6 +286,127 @@ async function classifyEntrypoint(file: string): Promise<EntrypointKind> {
   return ['.js', '.mjs', '.cjs'].includes(extname(file).toLowerCase()) ? 'node' : 'unsupported';
 }
 
+async function writeBinShim(
+  destination: string,
+  kind: 'node' | 'native',
+  candidateEntrypoint: string,
+): Promise<void> {
+  const shim =
+    kind === 'native'
+      ? `#!/bin/sh\nexec ${shellQuote(candidateEntrypoint)} "$@"\n`
+      : `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(candidateEntrypoint)} "$@"\n`;
+  await mkdir(dirname(destination), { recursive: true });
+  await writeFile(destination, shim, { mode: 0o755 });
+  await chmod(destination, 0o755);
+}
+
+function parseShellQuotedArgs(body: string): string[] | undefined {
+  const args: string[] = [];
+  let index = 0;
+  while (index < body.length) {
+    if (body[index] !== "'") return undefined;
+    index++;
+    let value = '';
+    let closed = false;
+    while (index < body.length) {
+      if (body[index] === "'") {
+        if (body.slice(index, index + 4) === "'\\''") {
+          value += "'";
+          index += 4;
+          continue;
+        }
+        index++;
+        closed = true;
+        break;
+      }
+      value += body[index++];
+    }
+    if (!closed) return undefined;
+    args.push(value);
+    if (index < body.length) {
+      if (body[index] !== ' ') return undefined;
+      index++;
+    }
+  }
+  return args;
+}
+
+function parseKikiShim(text: string): { relativeTarget: string } | undefined {
+  const match = /^#!\/bin\/sh\nexec (.+)\n$/.exec(text);
+  if (match === null) return undefined;
+  const command = match[1];
+  if (!command.endsWith(' "$@"')) return undefined;
+  const args = parseShellQuotedArgs(command.slice(0, -' "$@"'.length));
+  if (args === undefined || args.length === 0 || args.length > 2) return undefined;
+  let target: string;
+  if (args.length === 2) {
+    if (!/^node(?:js)?(?:\.exe)?$/i.test(basename(args[0]))) return undefined;
+    target = args[1];
+  } else {
+    target = args[0];
+  }
+  const normalized = target.split(sep).join('/');
+  const marker = normalized.indexOf('/node_modules/');
+  if (marker < 0) return undefined;
+  const relativeTarget = normalized.slice(marker + '/node_modules/'.length);
+  if (relativeTarget === '') return undefined;
+  if (relativeTarget.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')) {
+    return undefined;
+  }
+  return { relativeTarget };
+}
+
+async function copyPreShimmedBinEntry(
+  sourcePath: string,
+  destination: string,
+  sourceRoot: string,
+  destinationRoot: string,
+): Promise<boolean> {
+  const buffer = await readFile(sourcePath);
+  if (buffer.length === 0 || buffer[0] !== 0x23 || buffer[1] !== 0x21) return false;
+  const parsed = parseKikiShim(buffer.toString('utf8'));
+  if (parsed === undefined) return false;
+  const { relativeTarget } = parsed;
+  if (hasSecretSegment(relativeTarget)) {
+    throw new Error(
+      `release: pre-shimmed .bin entry resolves to secret-bearing path '${relativeTarget}'; refusing unsafe target.`,
+    );
+  }
+  const mappedSource = join(sourceRoot, relativeTarget);
+  if (!isWithin(sourceRoot, mappedSource)) {
+    throw new Error(
+      `release: pre-shimmed .bin entry target '${relativeTarget}' escapes the source dependency root; refusing unsafe target.`,
+    );
+  }
+  let mappedStat;
+  try {
+    mappedStat = await lstat(mappedSource);
+  } catch {
+    throw new Error(
+      `release: pre-shimmed .bin entry target '${relativeTarget}' is missing from the source dependency root; refusing unsafe shim.`,
+    );
+  }
+  if (!mappedStat.isFile()) {
+    throw new Error(
+      `release: pre-shimmed .bin entry target '${relativeTarget}' is not a regular file; refusing unsafe shim.`,
+    );
+  }
+  const kind = await classifyEntrypoint(mappedSource);
+  if (kind === 'unsupported') {
+    throw new Error(
+      `release: pre-shimmed .bin entry target '${relativeTarget}' is not a supported Node/native entrypoint; refusing unsafe shim.`,
+    );
+  }
+  const candidateEntrypoint = join(destinationRoot, relativeTarget);
+  if (!isWithin(destinationRoot, candidateEntrypoint)) {
+    throw new Error(
+      `release: pre-shimmed .bin entry target '${relativeTarget}' maps outside the candidate dependency root; refusing unsafe shim.`,
+    );
+  }
+  await writeBinShim(destination, kind, candidateEntrypoint);
+  return true;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -362,13 +484,7 @@ async function copyDependencyLink(
     if (!isWithin(context.destinationRoot, candidateEntrypoint)) {
       throw new Error(`release: .bin entry '${label}' maps outside the candidate dependency root.`);
     }
-    const shim =
-      entrypointKind === 'native'
-        ? `#!/bin/sh\nexec ${shellQuote(candidateEntrypoint)} "$@"\n`
-        : `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(candidateEntrypoint)} "$@"\n`;
-    await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, shim, { mode: 0o755 });
-    await chmod(destination, 0o755);
+    await writeBinShim(destination, entrypointKind, candidateEntrypoint);
     return;
   }
 
@@ -427,6 +543,13 @@ async function copyDependencyDirectory(
       continue;
     }
     if (entryStat.isFile()) {
+      if (
+        basename(sourceDirectory) === '.bin' &&
+        entryStat.size <= MAX_PRE_SHIM_BYTES &&
+        (await copyPreShimmedBinEntry(sourcePath, destination, sourceRoot, destinationRoot))
+      ) {
+        continue;
+      }
       await copyFile(sourcePath, destination);
       await chmod(destination, entryStat.mode & 0o777);
       continue;
