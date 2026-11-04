@@ -21,6 +21,104 @@
           "CHANGELOG.md"
         ]
       }
+    },
+    {
+      "id": "release-automation",
+      "description": "Add deterministic release automation: infer semver from conventional commits, sync all version sources (package.json, lockfile, KIKI_VERSION), generate/validate CHANGELOG, enforce release guardrails, and support a --dry-run option before tagging or publishing.",
+      "status": "completed",
+      "phase": "complete",
+      "failures": 2,
+      "startedAt": "2026-11-03T08:27:34.000Z",
+      "completedAt": "2026-11-04T08:30:00.000Z",
+      "spec": "docs/superpowers/specs/2026-11-03-model-retirement-release-doctor-design.md",
+      "plan": "docs/superpowers/plans/2026-11-03-model-retirement-release-doctor.md",
+      "designReview": "passed_revision_3_with_lint",
+      "designApproval": "User explicitly approved revision 3 including lint tooling.",
+      "architectReview": "passed_after_audit_and_candidate_executable_corrections",
+      "planApproval": "User authorized execution: continue.",
+      "lastFailure": { "phase": "brainstorm", "reason": "Builder review rejected combined design: release authority, unsafe dry-run validation, unsupported skill/version assumptions, incomplete release rules and verification gates. Resolved after revision and escalation." },
+      "package": "model-retirement-release-doctor",
+      "finalReview": "Whole-package code compliance and quality PASS. Security acceptance: PASSED WITH APPROVED EXCEPTION.",
+      "securityException": "User explicitly approved option 1 (2026-11-04): documented exception for the 4 high findings in the @opencode-ai/plugin@1.18.35 type-only import graph; vulnerable effect/toml/zod runtime paths are unreachable in Kiki. Recorded in acceptance report; re-evaluation required if the plugin ever becomes a runtime import. Upstream research (2026-11-04): toml/zod/effect are patched or toml-free upstream; plugin 1.x line (through 1.19.5) keeps the vulnerable exact pins. Re-evaluation tripwire: plugin latest exceeds 1.19.5 with changed zod/effect pins, OR the renamed @opencode/plugin 2.x package is published.",
+      "verification": "Post-remediation gates all green: 517 tests passed, 3 skipped; lint/typecheck/build/plugin/copied-deps/real-tsc passed; manual install/update/doctor acceptance passed. Real full-tree audit (shared sanitized dev-inclusive helper): 0 critical, 4 high (all covered by approved exception), 13 moderate nonblocking. Vitest migrated 1.6.1 -> 4.1.0 to clear critical/high chains.",
+      "reviewNotes": [
+        "Implemented as `kiki release`: dry-run by default, --apply requires explicit flag and clean tree; isolated byte-copied candidate; full gate suite; fail-closed audit parsing; collision refusal and verified rollback; prints manual next steps only.",
+        "No commit/tag/push/publish was performed and version remains 2.2.0. An actual release requires separate user authorization.",
+        "Worktree retained at .worktrees/task1-model-retirement with full SDD evidence under .superpowers/sdd/2026-11-03-model-retirement-release-doctor/.",
+        "Post-completion increments (user-authorized 2026-11-04): --security-exception option added per spec/plan amendment (applies only to high/critical with complete audit evidence; INCOMPLETE never excepted; honest wording); two isolation defects discovered by the release tool's own candidate test gate were fixed and scoped-review passed: retained-backup relocation under redirected TMPDIR (ff6ea6d) and pre-shimmed .bin entries delegating to outer-candidate tools in nested candidates (65a7148). Package committed locally (feat 054407b + both fixes); final authorized rehearsal dry-run --bump minor with the approved exception reason: all six gates passed, 2.2.0 -> 2.3.0 preview, exit 0, source byte-untouched. Tag/push/release remain separately authorized."
+      ],
+      "documentation": {
+        "status": "completed",
+        "reason": "User-facing feature: README release/doctor/lint sections and CHANGELOG [Unreleased] entries updated by kiki-historian; spec/plan kept current during execution.",
+        "updatedFiles": [
+          "README.md",
+          "CHANGELOG.md"
+        ]
+      }
+    },
+    {
+      "id": "doctor-skill-compatibility",
+      "description": "Extend kiki doctor to verify that the required Superpowers skills are installed and match expected names/versions, warning on drift instead of namespacing or vendoring upstream skills.",
+      "status": "completed",
+      "phase": "complete",
+      "failures": 4,
+      "startedAt": "2026-11-03T08:27:34.000Z",
+      "completedAt": "2026-11-04T08:30:00.000Z",
+      "spec": "docs/superpowers/specs/2026-11-03-model-retirement-release-doctor-design.md",
+      "plan": "docs/superpowers/plans/2026-11-03-model-retirement-release-doctor.md",
+      "designReview": "passed_revision_3_with_lint",
+      "designApproval": "User explicitly approved revision 3 including lint tooling.",
+      "architectReview": "passed_after_audit_and_candidate_executable_corrections",
+      "planApproval": "User authorized execution: continue.",
+      "lastFailure": { "phase": "implement_task_3", "reason": "Two scoped review failures in observed SemVer validation (malformed identifiers, then final-line-terminator acceptance). Both fixed after escalation; strict full-consumption validator landed." },
+      "package": "model-retirement-release-doctor",
+      "finalReview": "Whole-package code compliance and quality PASS. Security acceptance: PASSED WITH APPROVED EXCEPTION.",
+      "verification": "Post-remediation gates all green: 517 tests passed, 3 skipped; lint/typecheck/build/plugin/copied-deps/real-tsc passed. Real full-tree audit: 0 critical, 4 high (all covered by approved exception in the shared package), 13 moderate nonblocking.",
+      "reviewNotes": [
+        "Doctor now discovers required skills across four roots (project, legacy user, XDG user, package cache) with bounded depth-8 traversal, reports name drift/duplicates/version observations as warnings or info only, and never changes exit status for skill findings.",
+        "TESTED_SUPERPOWERS_VERSION 7.0.1 is an observation, not a support floor; malformed/prerelease/mismatched versions warn. Disk-only caveat is printed once per run; doctor is proven read-only by snapshots.",
+        "Strict whole-string SemVer validation (no trailing-terminator or malformed-identifier acceptance) verified by regression matrix."
+      ],
+      "documentation": {
+        "status": "completed",
+        "reason": "User-facing behavior change; README diagnostics section and CHANGELOG [Unreleased] entries updated by kiki-historian.",
+        "updatedFiles": [
+          "README.md",
+          "CHANGELOG.md"
+        ]
+      }
+    },
+    {
+      "id": "retire-model-slots",
+      "description": "Retire the standard/critical/workhorse model slots and legacy routing artifacts. Do not seed model values into generated agents or OpenCode settings; remove wizard model prompts and models persistence, gracefully handle existing configs, and delete DEFAULT_ROUTING_TABLE plus the unused writeAgenticFiles/writeOpencodeFiles paths after relocating test coverage. Final acceptance step: install/update must print a hint that agent models are set via the /kiki TUI command. Preserve existing user models and permissions on update.",
+      "status": "completed",
+      "phase": "complete",
+      "failures": 2,
+      "startedAt": "2026-11-03T08:27:34.000Z",
+      "completedAt": "2026-11-04T08:30:00.000Z",
+      "spec": "docs/superpowers/specs/2026-11-03-model-retirement-release-doctor-design.md",
+      "plan": "docs/superpowers/plans/2026-11-03-model-retirement-release-doctor.md",
+      "designReview": "passed_revision_3_with_lint",
+      "designApproval": "User explicitly approved revision 3 including lint tooling.",
+      "architectReview": "passed_after_audit_and_candidate_executable_corrections",
+      "planApproval": "User authorized execution: continue.",
+      "lastFailure": { "phase": "brainstorm", "reason": "Builder review rejected combined design: release authority, unsafe dry-run validation, unsupported skill/version assumptions, incomplete release rules and verification gates. Resolved after revision and escalation." },
+      "package": "model-retirement-release-doctor",
+      "finalReview": "Whole-package code compliance and quality PASS. Security acceptance: PASSED WITH APPROVED EXCEPTION.",
+      "verification": "Post-remediation gates all green: 517 tests passed, 3 skipped; lint/typecheck/build/plugin/copied-deps/real-tsc passed; manual acceptance confirmed no seeded models, preserved native models/permissions/JSONC comments, and /kiki hints on both install and update. Real full-tree audit: 0 critical, 4 high (all covered by approved exception in the shared package), 13 moderate nonblocking.",
+      "reviewNotes": [
+        "All model slots, wizard prompts, models persistence, DEFAULT_ROUTING_TABLE and unused writeAgenticFiles/writeOpencodeFiles are removed; legacy `models` config sections are inert (stripped on load, files never rewritten).",
+        "Native ownership preserved: /kiki TUI, migrate/reset/status, public routing exports unchanged; existing agent models, permissions and JSONC comments survive install/update.",
+        "Source lint foundation added (ESLint 9.39.4 + typescript-eslint 8.62.0, src-only) with user-accepted development Node range ^20.19.0 || ^22.13.0 || >=24; runtime engine remains >=18.0.0."
+      ],
+      "documentation": {
+        "status": "completed",
+        "reason": "User-facing behavior change; README setup/diagnostics/development sections and CHANGELOG [Unreleased] entries updated by kiki-historian.",
+        "updatedFiles": [
+          "README.md",
+          "CHANGELOG.md"
+        ]
+      }
     }
   ]
 }

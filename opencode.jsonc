@@ -2,6 +2,7 @@
   "$schema": "https://opencode.ai/config.json",
   "agent": {
     "kiki-orchestrator": {
+      "model": "deepseek/deepseek-flash"
       //"model": "mistral/mistral-large-4"
     },
     "kiki-brainstormer": {
@@ -147,7 +148,8 @@
           "git diff*": "allow",
           "git log*": "allow"
         }
-      }//,
+      },
+      "model": "openrouter/z-ai/glm-5.3" //,
       //"model": "openrouter/z-ai/glm-5.3"
     },
     "kiki-escalation": {
@@ -176,7 +178,8 @@
           "git diff*": "allow",
           "git log*": "allow"
         }
-      }//,
+      },
+      "model": "openrouter/z-ai/glm-5.3" //,
       //"model": "openai/gpt-6.1-sol"
     },
     "kiki-historian": {
