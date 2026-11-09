@@ -32,7 +32,7 @@ export const DEFAULT_HEALTH = {
  * installed CLI cannot read its own package.json at runtime — this const
  * is the source of truth for the generator.
  */
-export const KIKI_VERSION = '2.3.0';
+export const KIKI_VERSION = '2.4.0';
 export const DEFAULT_CONFIG = {
     projectName: 'my-project',
     language: 'typescript',
