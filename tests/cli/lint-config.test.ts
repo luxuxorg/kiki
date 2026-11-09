@@ -78,6 +78,7 @@ describe('lint foundation contract', () => {
     for (const ignored of [
       'dist/fixture.ts',
       'node_modules/fixture.ts',
+      '.worktree/fixture.ts',
       '.worktrees/fixture.ts',
       'tmp/fixture.ts',
       'coverage/fixture.ts',

@@ -134,6 +134,30 @@ describe('global agent baselines', () => {
     expect(agents['kiki-historian'].settings.permission.edit['src/**']).toBe('deny');
     expect(agents['kiki-reviewer'].settings.permission.edit['*']).toBe('deny');
   });
+  it('grants project-local .worktree access scoped to each role', () => {
+    const edit = (name: string) => agents[name].settings.permission.edit;
+    for (const name of ['kiki-brainstormer', 'kiki-planner']) {
+      expect(edit(name)['*']).toBe('deny');
+      expect(edit(name)['.worktree/**/docs/superpowers/**']).toBe('allow');
+      expect(edit(name)).not.toHaveProperty('.worktree/**');
+    }
+    for (const name of ['kiki-implementer', 'kiki-gui-designer']) {
+      expect(edit(name)['.worktree/**/src/**']).toBe('allow');
+      expect(edit(name)['.worktree/**/tests/**']).toBe('allow');
+      expect(edit(name)).not.toHaveProperty('.worktree/**');
+    }
+    for (const name of ['kiki-reviewer', 'kiki-escalation']) {
+      expect(edit(name)['.worktree/**/.agentic/reviews/*']).toBe('allow');
+      expect(edit(name)['.worktree/**/.opencode/docs/reviews/*']).toBe('allow');
+      expect(edit(name)).not.toHaveProperty('.worktree/**');
+    }
+    const historian = edit('kiki-historian');
+    expect(historian['.worktree/**/README*']).toBe('allow');
+    expect(historian['.worktree/**/docs/**']).toBe('allow');
+    expect(historian['.worktree/**/src/**']).toBe('deny');
+    expect(historian['.worktree/**/tests/**']).toBe('deny');
+    expect(historian).not.toHaveProperty('.worktree/**');
+  });
   it('retains the documentation completion gate and inline skills', () => {
     expect(agents['kiki-orchestrator'].prompt).toContain('Documentation decision required');
     expect(agents['kiki-orchestrator'].prompt).toContain('documentation.status');

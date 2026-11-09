@@ -5,6 +5,7 @@ export default tseslint.config(
     ignores: [
       'dist/',
       'node_modules/',
+      '.worktree/',
       '.worktrees/',
       'tmp/',
       'coverage/',

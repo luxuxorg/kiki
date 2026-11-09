@@ -118,6 +118,10 @@ function fileDir(path: string): string {
   return lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '';
 }
 
+function worktreeGlob(path: string): string {
+  return '.worktree/**/' + path;
+}
+
 export function loadConfig(targetPath: string): KikiConfig {
   const modernConfigPath = join(targetPath, '.agentic', 'kiki', 'config.json');
   const legacyConfigPath = join(targetPath, '.agentic', 'config.json');
@@ -164,6 +168,9 @@ ${buildBroadReadPermissions()}
     "${sw}": allow
     "${plans}": allow
     "${specs}": allow
+    "${worktreeGlob(sw)}": allow
+    "${worktreeGlob(plans)}": allow
+    "${worktreeGlob(specs)}": allow
   bash:
     "*": deny
     "git diff*": allow
@@ -182,6 +189,8 @@ ${buildBroadReadPermissions()}
     "${sw}": deny
     "${src}": allow
     "${tst}": allow
+    "${worktreeGlob(src)}": allow
+    "${worktreeGlob(tst)}": allow
     "/tmp/**": allow
     "tmp/**": allow
   external_directory:
@@ -200,6 +209,8 @@ ${buildBroadReadPermissions()}
     "docs/**": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
+    ".worktree/**/.agentic/reviews/*": allow
+    ".worktree/**/.opencode/docs/reviews/*": allow
   external_directory:
     "/tmp/**": allow
     "tmp/**": allow
@@ -216,6 +227,8 @@ ${buildBroadReadPermissions()}
     "*": deny
     ".agentic/reviews/*": allow
     ".opencode/docs/reviews/*": allow
+    ".worktree/**/.agentic/reviews/*": allow
+    ".worktree/**/.opencode/docs/reviews/*": allow
   external_directory:
     "/tmp/**": allow
     "tmp/**": allow
@@ -244,18 +257,26 @@ function buildHistorianPermissions(p: KikiPaths): string {
     if (decDir) {
       const decGlob = dirGlob(decDir);
       editLines.push(`"${decGlob}": allow`);
+      editLines.push(`"${worktreeGlob(decGlob)}": allow`);
     }
   }
 
   if (p.knowledge) {
     const kgGlob = dirGlob(p.knowledge);
     editLines.push(`"${kgGlob}": allow`);
+    editLines.push(`"${worktreeGlob(kgGlob)}": allow`);
   }
 
   editLines.push(`".agentic/**": allow`);
+  editLines.push(`"${worktreeGlob(readmeGlob)}": allow`);
+  editLines.push(`"${worktreeGlob(changelogGlob)}": allow`);
+  editLines.push(`"${worktreeGlob(docsGlob)}": allow`);
+  editLines.push(`".worktree/**/.agentic/**": allow`);
 
   editLines.push(`"${src}": deny`);
   editLines.push(`"${tst}": deny`);
+  editLines.push(`"${worktreeGlob(src)}": deny`);
+  editLines.push(`"${worktreeGlob(tst)}": deny`);
 
   return `permission:
 ${buildBroadReadPermissions()}
