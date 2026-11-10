@@ -1,4 +1,10 @@
-"""Exercise a real OpenCode TUI in a fixture HOME; no third-party Python modules."""
+"""Exercise a real OpenCode 2 TUI in a fixture HOME; no third-party Python modules.
+
+The fixture installs the packaged V2 plugin (server opencode.jsonc plus
+cli.json TUI registration) and drives the native /kiki slash command with
+value-returning dialogs. It prints only fixture terminal text; a real user
+config or credential file is never loaded by this script.
+"""
 import errno
 import codecs
 import fcntl
@@ -25,6 +31,9 @@ screen = Screen()
 decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 ansi = re.compile(r"\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[()][A-Z0-9]|\x1b[=>]")
 
+ENTER = "\r"
+DOWN = "\x1b[B"
+
 
 def pump(timeout=0.2):
     global capture
@@ -50,6 +59,12 @@ def pump(timeout=0.2):
     screen.feed(decoded)
 
 
+def pump_for(seconds):
+    until = time.monotonic() + seconds
+    while time.monotonic() < until:
+        pump()
+
+
 def wait_for(texts, timeout=25):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -63,33 +78,57 @@ def send(text):
     os.write(fd, text.encode("utf-8"))
 
 
+def choose(text):
+    send(text)
+    pump_for(0.3)
+    send(ENTER)
+    pump_for(0.2)
+
+
+def open_menu(project_scope=False):
+    send("/kiki")
+    pump_for(0.6)
+    send(ENTER)
+    wait_for(["Modell ändern — global"])
+    if project_scope:
+        send(DOWN)
+        pump_for(0.25)
+    send(ENTER)
+
+
 try:
     wait_for(["Fix a TODO", "What is the tech stack", "Fix broken tests"], 40)
-    # Let the external TUI plugin finish activation before invoking the slash command.
-    until = time.monotonic() + 1.5
-    while time.monotonic() < until:
-        pump()
-    send("/kiki")
-    until = time.monotonic() + 0.5
-    while time.monotonic() < until:
-        pump()
-    send("\r")
-    wait_for(["Modell ändern — global"])
-    send("\r")  # The default action must be global.
+    # Let the external cli.json TUI plugin finish activation before /kiki.
+    pump_for(2.0)
+
+    # Global save through the native slash command and value-returning dialogs.
+    open_menu()
     wait_for(["Kiki-Agent auswählen — global"])
-    send("kiki-reviewer")
-    until = time.monotonic() + 0.2
-    while time.monotonic() < until:
-        pump()
-    send("\r")
+    choose("kiki-reviewer")
     wait_for(["Modell (global)"])
-    send("Kiki Fixture Model")
-    until = time.monotonic() + 0.2
-    while time.monotonic() < until:
-        pump()
-    send("\r")
+    choose("Kiki Fixture Model")
     wait_for(["gespeichert"])
-    print("PASS: /kiki -> global -> kiki-reviewer -> Kiki Fixture Model -> saved")
+    print("PASS: /kiki global save")
+    pump_for(0.4)
+
+    # Project scope: remove only the local override through the inherit entry.
+    open_menu(project_scope=True)
+    wait_for(["Kiki-Agent auswählen — dieses Projekt"])
+    choose("kiki-reviewer")
+    wait_for(["Modell (dieses Projekt)"])
+    choose("Globales Modell")
+    wait_for(["zurückgesetzt"])
+    print("PASS: /kiki project override removal")
+    pump_for(0.4)
+
+    # Remove-all is guarded by the native confirmation dialog.
+    open_menu(project_scope=True)
+    wait_for(["Kiki-Agent auswählen — dieses Projekt"])
+    choose("Alle lokalen")
+    wait_for(["Alle lokalen Modell-Zuordnungen löschen?"])
+    send(ENTER)
+    wait_for(["zurückgesetzt"])
+    print("PASS: /kiki remove-all confirmation")
 except Exception as error:
     # Only fixture terminal output: no user's config or real credentials are loaded.
     print(str(error), file=sys.stderr)

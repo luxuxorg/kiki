@@ -32,6 +32,12 @@
           "*": "deny",
           "git diff*": "allow",
           "git log*": "allow",
+          "git status*": "allow",
+          "git show*": "allow",
+          "git ls-files*": "allow",
+          "git rev-parse*": "allow",
+          "git ls-tree*": "allow",
+          "git rev-list*": "allow",
           "mkdir*": "allow"
         }
       }//,
@@ -64,6 +70,12 @@
           "*": "deny",
           "git diff*": "allow",
           "git log*": "allow",
+          "git status*": "allow",
+          "git show*": "allow",
+          "git ls-files*": "allow",
+          "git rev-parse*": "allow",
+          "git ls-tree*": "allow",
+          "git rev-list*": "allow",
           "mkdir*": "allow"
         }
       }//,
@@ -86,6 +98,24 @@
           "docs/superpowers/**": "deny",
           "src/**": "allow",
           "tests/**": "allow",
+          // Migration tooling and evidence owned by the backend implementer.
+          "package.json": "allow",
+          "package-lock.json": "allow",
+          "tsconfig.json": "allow",
+          "eslint.config.mjs": "allow",
+          ".gitignore": "allow",
+          ".npmignore": "allow",
+          // Authorized cleanup of retired V1 generated plugin artifacts only.
+          "dist/plugin/dedup-source.js": "allow",
+          "dist/plugin/dedup-source.js.map": "allow",
+          "dist/plugin/dedup-source.d.ts": "allow",
+          "dist/plugin/dedup-source.d.ts.map": "allow",
+          "dist/plugin/watchdog-source.js": "allow",
+          "dist/plugin/watchdog-source.js.map": "allow",
+          "dist/plugin/watchdog-source.d.ts": "allow",
+          "dist/plugin/watchdog-source.d.ts.map": "allow",
+          "docs/migrations/kiki-3-oc2-api-contract.md": "allow",
+          "docs/migrations/kiki-3-oc2-acceptance.md": "allow",
           ".worktree/**/src/**": "allow",
           ".worktree/**/tests/**": "allow",
           "/tmp/**": "allow",
@@ -158,7 +188,29 @@
         "bash": {
           "*": "deny",
           "git diff*": "allow",
-          "git log*": "allow"
+          "git log*": "allow",
+          "git status*": "allow",
+          "git show*": "allow",
+          "git ls-files*": "allow",
+          "git rev-parse*": "allow",
+          "git ls-tree*": "allow",
+          "git rev-list*": "allow",
+          // Execute project verification; source edits remain role-restricted.
+          "npm test*": "allow",
+          "npm run build*": "allow",
+          "npm run lint*": "allow",
+          "npm audit*": "allow",
+          "npm pack*": "allow",
+          "npm ci --ignore-scripts*": "allow",
+          "npm install --ignore-scripts --omit=dev*": "allow",
+          "npx --no-install vitest*": "allow",
+          "OPENCODE_TEST_BINARY=* npx --no-install vitest*": "allow",
+          "KIKI_RELEASE_TEST_OC2_REHEARSAL=1 npx --no-install vitest*": "allow",
+          "npx --no-install tsc*": "allow",
+          "node dist/cli/index.js verify*": "allow",
+          "node dist/cli/index.js release": "allow",
+          "node dist/cli/index.js release --bump major --since *": "allow",
+          "node dist/cli/index.js release*--apply*": "deny"
         }
       },
       "model": "openrouter/z-ai/glm-5.3" //,
@@ -190,7 +242,13 @@
         "bash": {
           "*": "deny",
           "git diff*": "allow",
-          "git log*": "allow"
+          "git log*": "allow",
+          "git status*": "allow",
+          "git show*": "allow",
+          "git ls-files*": "allow",
+          "git rev-parse*": "allow",
+          "git ls-tree*": "allow",
+          "git rev-list*": "allow"
         }
       },
       "model": "openrouter/z-ai/glm-5.3" //,
@@ -226,7 +284,14 @@
         "bash": {
           "*": "deny",
           "git log*": "allow",
-          "git diff*": "allow"
+          "git diff*": "allow",
+          "git status*": "allow",
+          "git show*": "allow",
+          "git ls-files*": "allow",
+          "git rev-parse*": "allow",
+          "git ls-tree*": "allow",
+          "git rev-list*": "allow",
+          "node dist/cli/index.js verify*": "allow"
         }
       }//,
       //"model": "deepseek/DeepSeek-V4.1-Flash-1017"

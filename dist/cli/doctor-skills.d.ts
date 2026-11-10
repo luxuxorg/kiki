@@ -9,12 +9,14 @@ export declare const REQUIRED_SKILLS: readonly ["brainstorming", "writing-plans"
  * observation, never a support floor or compatibility guarantee.
  */
 export declare const TESTED_SUPERPOWERS_VERSION = "7.0.1";
+export type SkillSource = 'config-directory' | 'config-skills' | 'url-cache';
 export interface SkillCopy {
     path: string;
     directoryName: string;
     frontmatterName?: string;
     nameDrift: boolean;
     packageRoot?: string;
+    source: SkillSource;
 }
 export interface SkillDiscovery {
     byName: Record<string, SkillCopy[]>;
@@ -26,9 +28,10 @@ export interface SkillObservation {
     detail: string;
 }
 /**
- * Read-only discovery of the required skills across project, legacy user,
- * XDG user and package-cache locations. Returns copies in deterministic
- * precedence/lexical order; the first copy per name wins for observations.
+ * Read-only discovery of required skills in the native OC2 locations:
+ * config `skill/` and `skills/` directories, explicit config `skills` paths and
+ * the isolated URL-skill cache. V1 package-cache directories are never treated
+ * as evidence that a skill is live.
  */
 export declare function discoverSkills(project: string, env?: NodeJS.ProcessEnv): SkillDiscovery;
 /**

@@ -125,6 +125,7 @@ describe.skipIf(!enabled)('opt-in real candidate build', () => {
         'src/cli/config.ts': FIXTURE_CONFIG,
         'src/cli/index.ts': 'export const cliEntry = true;\n',
         'src/index.ts': 'export const packageEntry = true;\n',
+        'src/server/index.ts': 'export const serverEntry = true;\n',
         'src/tui/index.ts': 'export const tuiEntry = true;\n',
         'tsconfig.json': FIXTURE_TSCONFIG,
         'CHANGELOG.md': FIXTURE_CHANGELOG,

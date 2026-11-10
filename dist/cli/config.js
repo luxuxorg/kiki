@@ -1,7 +1,5 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
-import { WATCHDOG_SOURCE } from '../plugin/watchdog-source.js';
-import { DEDUP_SOURCE } from '../plugin/dedup-source.js';
 export const DEFAULT_PATHS = {
     source: 'src/',
     tests: 'tests/',
@@ -26,13 +24,12 @@ export const DEFAULT_HEALTH = {
     logPath: '.agentic/kiki/health_log.jsonl',
 };
 /**
- * Kiki version, baked into the generated plugin as KIKI_PLUGIN_VERSION.
- * MUST be kept in sync with package.json on every release. The published
- * package ships only dist/ (see package.json "files"), so a globally
- * installed CLI cannot read its own package.json at runtime — this const
- * is the source of truth for the generator.
+ * Kiki version. MUST be kept in sync with package.json on every release. The
+ * published package ships only dist/ (see package.json "files"), so a globally
+ * installed CLI cannot read its own package.json at runtime — this const is the
+ * runtime source of truth for version checks and release transforms.
  */
-export const KIKI_VERSION = '2.4.0';
+export const KIKI_VERSION = '3.0.0';
 export const DEFAULT_CONFIG = {
     projectName: 'my-project',
     language: 'typescript',
@@ -95,16 +92,23 @@ export function loadConfig(targetPath) {
         return { ...DEFAULT_CONFIG };
     }
 }
+function allow(action, resource) {
+    return { action, resource, effect: 'allow' };
+}
+function deny(action, resource) {
+    return { action, resource, effect: 'deny' };
+}
 function buildBroadReadPermissions() {
-    return `  read:
-    "*": allow
-    ".env*": deny
-    "**/.env*": deny
-    "**/*secret*": deny
-    "**/*credential*": deny
-    "**/*.pem": deny
-    "**/*.key": deny
-    "**/id_rsa*": deny`;
+    return [
+        allow('read', '*'),
+        deny('read', '.env*'),
+        deny('read', '**/.env*'),
+        deny('read', '**/*secret*'),
+        deny('read', '**/*credential*'),
+        deny('read', '**/*.pem'),
+        deny('read', '**/*.key'),
+        deny('read', '**/id_rsa*'),
+    ];
 }
 function buildBrainstormerPermissions(p) {
     const sw = dirGlob(p.superpowers);
@@ -112,80 +116,74 @@ function buildBrainstormerPermissions(p) {
     const specs = dirGlob(p.specs);
     const src = dirGlob(p.source);
     const tst = dirGlob(p.tests);
-    return `permission:
-${buildBroadReadPermissions()}
-  edit:
-    "*": deny
-    "${src}": deny
-    "${tst}": deny
-    "${sw}": allow
-    "${plans}": allow
-    "${specs}": allow
-    "${worktreeGlob(sw)}": allow
-    "${worktreeGlob(plans)}": allow
-    "${worktreeGlob(specs)}": allow
-  bash:
-    "*": deny
-    "git diff*": allow
-    "git log*": allow
-    "mkdir*": allow`;
+    return [
+        ...buildBroadReadPermissions(),
+        deny('edit', '*'),
+        deny('edit', src),
+        deny('edit', tst),
+        allow('edit', sw),
+        allow('edit', plans),
+        allow('edit', specs),
+        allow('edit', worktreeGlob(sw)),
+        allow('edit', worktreeGlob(plans)),
+        allow('edit', worktreeGlob(specs)),
+        deny('shell', '*'),
+        allow('shell', 'git diff*'),
+        allow('shell', 'git log*'),
+        allow('shell', 'mkdir*'),
+    ];
 }
 function buildImplementerPermissions(p) {
     const src = dirGlob(p.source);
     const tst = dirGlob(p.tests);
     const sw = dirGlob(p.superpowers);
-    return `permission:
-${buildBroadReadPermissions()}
-  edit:
-    "*": deny
-    "${sw}": deny
-    "${src}": allow
-    "${tst}": allow
-    "${worktreeGlob(src)}": allow
-    "${worktreeGlob(tst)}": allow
-    "/tmp/**": allow
-    "tmp/**": allow
-  external_directory:
-    "/tmp/**": allow
-    "tmp/**": allow
-  bash: allow`;
+    return [
+        ...buildBroadReadPermissions(),
+        deny('edit', '*'),
+        deny('edit', sw),
+        allow('edit', src),
+        allow('edit', tst),
+        allow('edit', worktreeGlob(src)),
+        allow('edit', worktreeGlob(tst)),
+        allow('edit', '/tmp/**'),
+        allow('edit', 'tmp/**'),
+        allow('external_directory', '/tmp/**'),
+        allow('external_directory', 'tmp/**'),
+        allow('shell', '*'),
+    ];
 }
 function buildReviewerPermissions(_p) {
-    return `permission:
-${buildBroadReadPermissions()}
-  edit:
-    "*": deny
-    "src/**": deny
-    "tests/**": deny
-    "docs/**": deny
-    ".agentic/reviews/*": allow
-    ".opencode/docs/reviews/*": allow
-    ".worktree/**/.agentic/reviews/*": allow
-    ".worktree/**/.opencode/docs/reviews/*": allow
-  external_directory:
-    "/tmp/**": allow
-    "tmp/**": allow
-  bash:
-    "*": deny
-    "git diff*": allow
-    "git log*": allow`;
+    return [
+        ...buildBroadReadPermissions(),
+        deny('edit', '*'),
+        deny('edit', 'src/**'),
+        deny('edit', 'tests/**'),
+        deny('edit', 'docs/**'),
+        allow('edit', '.agentic/reviews/*'),
+        allow('edit', '.opencode/docs/reviews/*'),
+        allow('edit', '.worktree/**/.agentic/reviews/*'),
+        allow('edit', '.worktree/**/.opencode/docs/reviews/*'),
+        allow('external_directory', '/tmp/**'),
+        allow('external_directory', 'tmp/**'),
+        deny('shell', '*'),
+        allow('shell', 'git diff*'),
+        allow('shell', 'git log*'),
+    ];
 }
 function buildEscalationPermissions() {
-    return `permission:
-${buildBroadReadPermissions()}
-  edit:
-    "*": deny
-    ".agentic/reviews/*": allow
-    ".opencode/docs/reviews/*": allow
-    ".worktree/**/.agentic/reviews/*": allow
-    ".worktree/**/.opencode/docs/reviews/*": allow
-  external_directory:
-    "/tmp/**": allow
-    "tmp/**": allow
-  bash:
-    "*": deny
-    "git diff*": allow
-    "git log*": allow`;
+    return [
+        ...buildBroadReadPermissions(),
+        deny('edit', '*'),
+        allow('edit', '.agentic/reviews/*'),
+        allow('edit', '.opencode/docs/reviews/*'),
+        allow('edit', '.worktree/**/.agentic/reviews/*'),
+        allow('edit', '.worktree/**/.opencode/docs/reviews/*'),
+        allow('external_directory', '/tmp/**'),
+        allow('external_directory', 'tmp/**'),
+        deny('shell', '*'),
+        allow('shell', 'git diff*'),
+        allow('shell', 'git log*'),
+    ];
 }
 function buildHistorianPermissions(p) {
     const src = dirGlob(p.source);
@@ -193,42 +191,48 @@ function buildHistorianPermissions(p) {
     const readmeGlob = fileGlob(p.readme);
     const changelogGlob = fileGlob(p.changelog);
     const docsGlob = dirGlob(p.docs);
-    const editLines = [
-        `"*": deny`,
-        `"${readmeGlob}": allow`,
-        `"${changelogGlob}": allow`,
-        `"${docsGlob}": allow`,
+    const rules = [
+        ...buildBroadReadPermissions(),
+        deny('edit', '*'),
+        allow('edit', readmeGlob),
+        allow('edit', changelogGlob),
+        allow('edit', docsGlob),
     ];
     if (p.decisions) {
         const decDir = fileDir(p.decisions);
         if (decDir) {
             const decGlob = dirGlob(decDir);
-            editLines.push(`"${decGlob}": allow`);
-            editLines.push(`"${worktreeGlob(decGlob)}": allow`);
+            rules.push(allow('edit', decGlob));
+            rules.push(allow('edit', worktreeGlob(decGlob)));
         }
     }
     if (p.knowledge) {
         const kgGlob = dirGlob(p.knowledge);
-        editLines.push(`"${kgGlob}": allow`);
-        editLines.push(`"${worktreeGlob(kgGlob)}": allow`);
+        rules.push(allow('edit', kgGlob));
+        rules.push(allow('edit', worktreeGlob(kgGlob)));
     }
-    editLines.push(`".agentic/**": allow`);
-    editLines.push(`"${worktreeGlob(readmeGlob)}": allow`);
-    editLines.push(`"${worktreeGlob(changelogGlob)}": allow`);
-    editLines.push(`"${worktreeGlob(docsGlob)}": allow`);
-    editLines.push(`".worktree/**/.agentic/**": allow`);
-    editLines.push(`"${src}": deny`);
-    editLines.push(`"${tst}": deny`);
-    editLines.push(`"${worktreeGlob(src)}": deny`);
-    editLines.push(`"${worktreeGlob(tst)}": deny`);
-    return `permission:
-${buildBroadReadPermissions()}
-  edit:
-    ${editLines.join('\n    ')}
-  bash:
-    "*": deny
-    "git log*": allow
-    "git diff*": allow`;
+    rules.push(allow('edit', '.agentic/**'));
+    rules.push(allow('edit', worktreeGlob(readmeGlob)));
+    rules.push(allow('edit', worktreeGlob(changelogGlob)));
+    rules.push(allow('edit', worktreeGlob(docsGlob)));
+    rules.push(allow('edit', '.worktree/**/.agentic/**'));
+    rules.push(deny('edit', src));
+    rules.push(deny('edit', tst));
+    rules.push(deny('edit', worktreeGlob(src)));
+    rules.push(deny('edit', worktreeGlob(tst)));
+    rules.push(deny('shell', '*'));
+    rules.push(allow('shell', 'git log*'));
+    rules.push(allow('shell', 'git diff*'));
+    return rules;
+}
+function renderPermissions(rules) {
+    const lines = ['permissions:'];
+    for (const rule of rules) {
+        lines.push(`  - action: ${rule.action}`);
+        lines.push(`    resource: ${JSON.stringify(rule.resource)}`);
+        lines.push(`    effect: ${rule.effect}`);
+    }
+    return lines.join('\n');
 }
 function buildHistorianResponsibilities(p) {
     const lines = [
@@ -255,7 +259,7 @@ mode: primary
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 
 ## Your Role
-Dispatch the correct subagent via the \`task\` tool. Do not write code, implementation files, docs, or run commands. The only direct file edit you may perform is updating \`${p.taskRegistry}\` for task state, phase transitions, and failure counts. Agent models and permissions are configured in global/project \`opencode.json\` or \`opencode.jsonc\` and resolved by OpenCode.
+Dispatch the correct subagent via the \`subagent\` tool. Do not write code, implementation files, docs, or run commands. The only direct file edit you may perform is updating \`${p.taskRegistry}\` for task state, phase transitions, and failure counts. Agent models and permissions are configured in global/project \`opencode.json\` or \`opencode.jsonc\` and resolved by OpenCode.
 
 ## Dispatch Rules
 - UI/frontend/visual/layout/component/design task → @kiki-gui-designer
@@ -277,7 +281,10 @@ Dispatch the correct subagent via the \`task\` tool. Do not write code, implemen
 8. **Complete:** Update \`${p.taskRegistry}\` with the task status and any failure metrics.
 
 ## Key Rules
-- Always dispatch the correct **kiki subagent** via \`task\`.
+- Always dispatch the correct **kiki subagent** via \`subagent\`.
+- Every dispatch MUST include the target \`agent\` ID and a 3–5-word \`description\`.
+- Optionally pass \`model\` with the dispatch and \`sessionID\` to continue an existing session.
+- Subagents MUST NOT dispatch other subagents; nested delegation is forbidden (\`experimental.subagent_depth\` is 1).
 - **NEVER** do implementation, spec, plan, review, or documentation work yourself.
 - Update the task registry after every phase transition.
 - Never hardcode secrets or log sensitive data.
@@ -298,7 +305,7 @@ export function generateBrainstormerTemplate(config) {
     return `---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
-${perms}
+${renderPermissions(perms)}
 ---
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.
 
@@ -315,7 +322,7 @@ export function generatePlannerTemplate(config) {
     return `---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
-${perms}
+${renderPermissions(perms)}
 ---
 You are the Kiki Planner. Your job is to write detailed implementation plans.
 
@@ -346,7 +353,7 @@ export function generateImplementerTemplate(config) {
     return `---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
-${perms}
+${renderPermissions(perms)}
 ---
 You are the Kiki Implementer. Implement code strictly per the approved plan.
 
@@ -380,7 +387,7 @@ export function generateGuiDesignerTemplate(config) {
     return `---
 description: Kiki GUI Designer — UI/UX design + implementation via superpowers skills
 mode: subagent
-${perms}
+${renderPermissions(perms)}
 ---
 
 You are the Kiki GUI Designer. You own UI/UX design and implementation end-to-end. Load the \`ui-ux-pro-max\` skill for design intelligence, the \`executing-plans\` skill for plan execution discipline, the \`test-driven-development\` skill for implementation, and the \`systematic-debugging\` skill for when things break. Follow all four exactly. Produce both design direction and working frontend code. Do not split visual work from implementation.
@@ -391,7 +398,7 @@ export function generateReviewerTemplate(config) {
     return `---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent
-${perms}
+${renderPermissions(perms)}
 ---
 You are the Kiki Reviewer. Review code against the approved plan.
 
@@ -419,7 +426,7 @@ export function generateEscalationTemplate(_config) {
     return `---
 description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
-${perms}
+${renderPermissions(perms)}
 ---
 You are the Kiki Escalation Agent. Diagnose why the pipeline failed.
 
@@ -442,7 +449,7 @@ export function generateHistorianTemplate(config) {
     return `---
 description: Kiki Historian — maintains project documentation, README and CHANGELOG
 mode: subagent
-${perms}
+${renderPermissions(perms)}
 ---
 You are the Kiki Historian. Keep project documentation accurate and up to date.
 
@@ -454,102 +461,6 @@ ${responsibilities}
 - You do NOT create plans or specs.
 - Use the **Implementation Summary** from the implementer as your primary input. Read changed files only if needed.
 - When updating CHANGELOG, follow Keep a Changelog format (Added, Changed, Fixed, Removed, Security).
-`;
-}
-export function generatePluginTemplate(opts = {}) {
-    const scope = opts.scope ?? 'project';
-    const version = opts.version ?? KIKI_VERSION;
-    return `import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
-import { join, dirname, resolve } from 'path';
-
-const KIKI_PLUGIN_VERSION = '${version}';
-const KIKI_PLUGIN_SCOPE = '${scope}';
-
-${WATCHDOG_SOURCE}
-
-${DEDUP_SOURCE}
-
-const DEFAULT_HEALTH = ${JSON.stringify(DEFAULT_HEALTH, null, 2)};
-
-function isPositiveInt(v: unknown): v is number {
-  return typeof v === 'number' && Number.isFinite(v) && v > 0 && Math.floor(v) === v;
-}
-
-function sanitizeHealth(raw: any): typeof DEFAULT_HEALTH {
-  const out = Object.assign({}, DEFAULT_HEALTH);
-  if (!raw || typeof raw !== 'object') return out;
-  if (typeof raw.watchdogEnabled === 'boolean') out.watchdogEnabled = raw.watchdogEnabled;
-  if (typeof raw.watchAllSubagents === 'boolean') out.watchAllSubagents = raw.watchAllSubagents;
-  if (typeof raw.logPath === 'string' && raw.logPath.length > 0) out.logPath = raw.logPath;
-  if (isPositiveInt(raw.stuckThresholdMs)) out.stuckThresholdMs = raw.stuckThresholdMs;
-  if (isPositiveInt(raw.gracePeriodMs)) out.gracePeriodMs = raw.gracePeriodMs;
-  if (isPositiveInt(raw.absoluteMaxMs)) out.absoluteMaxMs = raw.absoluteMaxMs;
-  if (isPositiveInt(raw.checkIntervalMs)) out.checkIntervalMs = raw.checkIntervalMs;
-  if (isPositiveInt(raw.loopRepeatCount) && raw.loopRepeatCount >= 2) out.loopRepeatCount = raw.loopRepeatCount;
-  return out;
-}
-
-function loadHealthConfig(directory: string) {
-  try {
-    const raw = JSON.parse(readFileSync(join(directory, '.agentic', 'kiki', 'config.json'), 'utf-8'));
-    return sanitizeHealth(raw.health);
-  } catch {
-    return sanitizeHealth(null);
-  }
-}
-
-interface RoutingLogEntry {
-  timestamp: string;
-  agent: string;
-  model: string;
-}
-
-export default function KikiPlugin({ client, directory }: { client: any; directory: string }) {
-  // Load-once plugin: interval is unref'd; no teardown hook needed (watchdog.stop unused by design).
-  const root = resolve(directory || process.cwd());
-
-  // --- ownership gate: first-loaded instance for this root owns the
-  // watchdog and routing logger. Non-owners return no-op hooks so the
-  // plugin contract stays stable. Keep the no-op hook names in sync with
-  // the owner branch if new hooks are added. ---
-  const ownership = acquireOwnership(root);
-  if (!ownership) {
-    const owner = getOwner(root);
-    if (owner && owner.version !== KIKI_PLUGIN_VERSION) {
-      reportVersionMismatch(root, owner, client, directory);
-    }
-    return {
-      'tool.execute.before': async (_input: any, _output: any) => {},
-      event: async (_args: { event: any }) => {}
-    };
-  }
-
-  const health = loadHealthConfig(root);
-  const watchdog = createWatchdog({ client, directory: root, config: health, now: () => Date.now() });
-  watchdog.start();
-
-  return {
-    'tool.execute.before': async (input: any, output: any) => {
-      if (input.tool !== 'task') return;
-      const subagentType = output.args?.subagent_type ?? '';
-      if (!subagentType.startsWith('kiki-')) return;
-
-      const logPath = join(process.cwd(), '.agentic', 'kiki', 'routing_log.jsonl');
-      const dir = dirname(logPath);
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
-      const entry: RoutingLogEntry = {
-        timestamp: new Date().toISOString(),
-        agent: subagentType,
-        model: output.args?.model ?? 'unknown',
-      };
-      appendFileSync(logPath, JSON.stringify(entry) + '\\n');
-    },
-    event: async ({ event }: { event: any }) => {
-      watchdog.handleEvent(event);
-    }
-  };
-}
 `;
 }
 export function generateWorkflowTemplate(config) {
@@ -579,7 +490,7 @@ The orchestrator dispatches the \`kiki-planner\` subagent. The planner loads the
 The orchestrator dispatches \`kiki-reviewer\` for architect review of the plan against \`.agentic/kiki/alignment.json\` guardrails. The reviewer appends an inline verdict to the plan document. The plan must pass this gate before implementation begins.
 
 ### 5. Implement
-The orchestrator dispatches the appropriate implementation subagent via the \`task\` tool. UI/frontend/visual/layout/component/design tasks route to \`kiki-gui-designer\`, which loads \`ui-ux-pro-max\`, \`executing-plans\`, \`test-driven-development\`, and \`systematic-debugging\` skills inline. All other tasks (backend/logic/data/tooling) route to \`kiki-implementer\`, which loads \`executing-plans\` and \`test-driven-development\` skills inline. Either agent implements the tasks per the plan.
+The orchestrator dispatches the appropriate implementation subagent via the \`subagent\` tool. UI/frontend/visual/layout/component/design tasks route to \`kiki-gui-designer\`, which loads \`ui-ux-pro-max\`, \`executing-plans\`, \`test-driven-development\`, and \`systematic-debugging\` skills inline. All other tasks (backend/logic/data/tooling) route to \`kiki-implementer\`, which loads \`executing-plans\` and \`test-driven-development\` skills inline. Either agent implements the tasks per the plan.
 
 ### 6. Review
 The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-review\` inline and verifies plan adherence, security, code quality, test coverage, and parallelization logic. An inline verdict is appended to the plan.
@@ -622,14 +533,14 @@ Every task begins with \`documentation.status\` set to \`pending\`. The \`not_re
 
 ## Role-Level Model Routing
 
-Model selection is one model per Kiki role. Set \`agent.<name>.model\` in global or project \`opencode.json\` / \`opencode.jsonc\`. OpenCode merges the settings; no synchronization command is needed.
+Model selection is one model per Kiki role. Set \`agents.<id>.model\` in global or project \`opencode.json\` / \`opencode.jsonc\`. OpenCode merges the settings; no synchronization command is needed.
 
 Example:
 
 \`\`\`json
 {
-  "agent": {
-    "kiki-reviewer": { "model": "openai/gpt-6.1-sol" }
+  "agents": {
+    "kiki-reviewer": { "model": { "providerID": "openai", "model": "gpt-6.1-sol" } }
   }
 }
 \`\`\`
@@ -637,19 +548,7 @@ Example:
 Use \`kiki doctor\` to check the installation. Existing local definitions can be imported with \`kiki migrate --project .\`; \`kiki reset --project .\` restores global agent defaults without deleting project work.
 `;
 }
-export const OPENCODE_PACKAGE_JSON_TEMPLATE = `{
-  "dependencies": {
-    "@opencode-ai/plugin": "1.15.13"
-  }
-}
-`;
-export const OPENCODE_GITIGNORE_TEMPLATE = `node_modules
-package.json
-package-lock.json
-bun.lock
-.gitignore
-`;
-export function generateAllTemplates(config, scope = 'project', version = KIKI_VERSION) {
+export function generateAllTemplates(config) {
     return {
         orchestrator: generateOrchestratorTemplate(config),
         brainstormer: generateBrainstormerTemplate(config),
@@ -659,9 +558,6 @@ export function generateAllTemplates(config, scope = 'project', version = KIKI_V
         reviewer: generateReviewerTemplate(config),
         escalation: generateEscalationTemplate(config),
         historian: generateHistorianTemplate(config),
-        plugin: generatePluginTemplate({ scope, version }),
-        packageJson: OPENCODE_PACKAGE_JSON_TEMPLATE,
-        gitignore: OPENCODE_GITIGNORE_TEMPLATE,
         workflow: generateWorkflowTemplate(config),
     };
 }

@@ -124,6 +124,8 @@ const DISTRIBUTABLE_OUTPUTS = [
   'dist/cli/index.js',
   'dist/index.js',
   'dist/index.d.ts',
+  'dist/server/index.js',
+  'dist/server/index.d.ts',
   'dist/tui/index.js',
   'dist/tui/index.d.ts',
 ];
@@ -133,6 +135,8 @@ async function writeDistributableOutputs(candidate: Candidate): Promise<void> {
     'dist/cli/index.js': 'export const cli = true;\n',
     'dist/index.js': 'export const index = true;\n',
     'dist/index.d.ts': 'export declare const index: true;\n',
+    'dist/server/index.js': 'export const server = true;\n',
+    'dist/server/index.d.ts': 'export declare const server: true;\n',
     'dist/tui/index.js': 'export const tui = true;\n',
     'dist/tui/index.d.ts': 'export declare const tui: true;\n',
   };
@@ -297,6 +301,7 @@ async function prepareInvariantCandidate(
     packageData.types = 'dist/index.d.ts';
     packageData.bin = { kiki: 'dist/cli/index.js' };
     packageData.exports = {
+      './server': { types: './dist/server/index.d.ts', import: './dist/server/index.js' },
       './tui': { types: './dist/tui/index.d.ts', import: './dist/tui/index.js' },
       '.': {
         types: './dist/index.d.ts',
@@ -940,13 +945,6 @@ describe('invariants and validateCandidate', () => {
     await expect(validateCandidate(candidate, NEXT, DATE)).rejects.toThrow(/version|synchron/i);
   });
 
-  it('rejects a mismatched generated plugin stamp from the candidate-cwd built generator', async () => {
-    const candidate = await newCandidate();
-    await prepareInvariantCandidate(candidate, { pluginVersion: '9.9.9' });
-
-    await expect(validateCandidate(candidate, NEXT, DATE)).rejects.toThrow(/plugin|KIKI_PLUGIN_VERSION/i);
-  });
-
   it('requires all four transformed files to change', async () => {
     const candidate = await newCandidate();
     await prepareInvariantCandidate(candidate);
@@ -1044,6 +1042,32 @@ describe('invariants and validateCandidate', () => {
     await expect(validateCandidate(candidate, NEXT, DATE)).rejects.toThrow(
       /dist|output|entrypoint/i,
     );
+  });
+
+  it.each(['dist/server/index.js', 'dist/server/index.d.ts'])(
+    'requires the planned server output %s even when package entrypoint fields are absent',
+    async (output) => {
+      const candidate = await newCandidate();
+      await prepareInvariantCandidate(candidate, { omitPackageEntrypoints: true });
+      await rm(join(candidate.root, output), { force: true });
+
+      await expect(validateCandidate(candidate, NEXT, DATE)).rejects.toThrow(
+        /dist|output|entrypoint/i,
+      );
+    },
+  );
+
+  it('does not apply an implicit security exception to a V2 high advisory', async () => {
+    const candidate = await newCandidate();
+    await installFakeTools(candidate);
+    const { runner } = createFakeRunner(candidate, {
+      audit: () => ({ status: 1, stdout: auditJson({ high: 1 }), stderr: '' }),
+    });
+
+    const results = await runCandidateGates(candidate, NEXT, DATE, runner);
+    const security = gate(results, 'security');
+    expect(security.status).toBe('failed');
+    expect(security.detail).not.toContain('approved exception');
   });
 });
 

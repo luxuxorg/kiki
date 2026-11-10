@@ -6,7 +6,7 @@ import { PassThrough } from 'node:stream';
 import { init, runWizard } from '../../src/cli/commands/init';
 import { installProjectConfig } from '../../src/cli/commands/install';
 import { DEFAULT_CONFIG, DEFAULT_HEALTH, loadConfig } from '../../src/cli/config';
-import { baselineAgents, readOpenCodeSettings } from '../../src/cli/opencode-config';
+import { baselineAgents, readOpenCodeSettings, type PermissionRule } from '../../src/cli/opencode-config';
 
 describe('project initialization', () => {
   let root: string;
@@ -18,13 +18,14 @@ describe('project initialization', () => {
     expect(existsSync(join(root, '.agentic/kiki/routing.json'))).toBe(false);
     const config = JSON.parse(readFileSync(join(root, '.agentic/kiki/config.json'), 'utf8'));
     expect(config.commands.security).toBe('npm audit');
-    expect(readOpenCodeSettings(root).agent['kiki-implementer'].permission.edit['src/**']).toBe('allow');
+    const permissions = readOpenCodeSettings(root).agents['kiki-implementer'].permissions as PermissionRule[];
+    expect(permissions).toContainEqual({ action: 'edit', resource: 'src/**', effect: 'allow' });
   });
   it('writes no models section and no agent model keys on a fresh init', async () => {
     await init(root, { wizard: false });
     const config = JSON.parse(readFileSync(join(root, '.agentic/kiki/config.json'), 'utf8'));
     expect(config).not.toHaveProperty('models');
-    const agents = readOpenCodeSettings(root).agent ?? {};
+    const agents = readOpenCodeSettings(root).agents ?? {};
     expect(Object.keys(agents).length).toBeGreaterThan(0);
     expect(Object.values(agents).some(settings => 'model' in settings)).toBe(false);
   });
@@ -122,41 +123,43 @@ describe('project initialization', () => {
 
 describe('global agent baselines', () => {
   const agents = baselineAgents();
+  const rules = (name: string): PermissionRule[] => agents[name].settings.permissions as PermissionRule[];
+  const rule = (name: string, action: string, resource: string) =>
+    rules(name).find(entry => entry.action === action && entry.resource === resource);
   it('retains role permissions, broad reads and protected secret paths', () => {
-    for (const [name, agent] of Object.entries(agents)) {
+    for (const [name] of Object.entries(agents)) {
       if (name === 'kiki-orchestrator') continue;
-      expect(agent.settings.permission.read['*']).toBe('allow');
-      expect(agent.settings.permission.read['**/.env*']).toBe('deny');
-      expect(agent.settings.permission.read['**/*credential*']).toBe('deny');
-      expect(agent.settings.permission).not.toHaveProperty('write');
+      expect(rule(name, 'read', '*')?.effect).toBe('allow');
+      expect(rule(name, 'read', '**/.env*')?.effect).toBe('deny');
+      expect(rule(name, 'read', '**/*credential*')?.effect).toBe('deny');
+      expect(rules(name).some(entry => ['write', 'patch', 'apply_patch'].includes(entry.action))).toBe(false);
     }
-    expect(agents['kiki-implementer'].settings.permission.edit['src/**']).toBe('allow');
-    expect(agents['kiki-historian'].settings.permission.edit['src/**']).toBe('deny');
-    expect(agents['kiki-reviewer'].settings.permission.edit['*']).toBe('deny');
+    expect(rule('kiki-implementer', 'edit', 'src/**')?.effect).toBe('allow');
+    expect(rule('kiki-historian', 'edit', 'src/**')?.effect).toBe('deny');
+    expect(rule('kiki-reviewer', 'edit', '*')?.effect).toBe('deny');
   });
   it('grants project-local .worktree access scoped to each role', () => {
-    const edit = (name: string) => agents[name].settings.permission.edit;
+    const edit = (name: string, resource: string) => rule(name, 'edit', resource)?.effect;
     for (const name of ['kiki-brainstormer', 'kiki-planner']) {
-      expect(edit(name)['*']).toBe('deny');
-      expect(edit(name)['.worktree/**/docs/superpowers/**']).toBe('allow');
-      expect(edit(name)).not.toHaveProperty('.worktree/**');
+      expect(edit(name, '*')).toBe('deny');
+      expect(edit(name, '.worktree/**/docs/superpowers/**')).toBe('allow');
+      expect(edit(name, '.worktree/**')).toBeUndefined();
     }
     for (const name of ['kiki-implementer', 'kiki-gui-designer']) {
-      expect(edit(name)['.worktree/**/src/**']).toBe('allow');
-      expect(edit(name)['.worktree/**/tests/**']).toBe('allow');
-      expect(edit(name)).not.toHaveProperty('.worktree/**');
+      expect(edit(name, '.worktree/**/src/**')).toBe('allow');
+      expect(edit(name, '.worktree/**/tests/**')).toBe('allow');
+      expect(edit(name, '.worktree/**')).toBeUndefined();
     }
     for (const name of ['kiki-reviewer', 'kiki-escalation']) {
-      expect(edit(name)['.worktree/**/.agentic/reviews/*']).toBe('allow');
-      expect(edit(name)['.worktree/**/.opencode/docs/reviews/*']).toBe('allow');
-      expect(edit(name)).not.toHaveProperty('.worktree/**');
+      expect(edit(name, '.worktree/**/.agentic/reviews/*')).toBe('allow');
+      expect(edit(name, '.worktree/**/.opencode/docs/reviews/*')).toBe('allow');
+      expect(edit(name, '.worktree/**')).toBeUndefined();
     }
-    const historian = edit('kiki-historian');
-    expect(historian['.worktree/**/README*']).toBe('allow');
-    expect(historian['.worktree/**/docs/**']).toBe('allow');
-    expect(historian['.worktree/**/src/**']).toBe('deny');
-    expect(historian['.worktree/**/tests/**']).toBe('deny');
-    expect(historian).not.toHaveProperty('.worktree/**');
+    expect(edit('kiki-historian', '.worktree/**/README*')).toBe('allow');
+    expect(edit('kiki-historian', '.worktree/**/docs/**')).toBe('allow');
+    expect(edit('kiki-historian', '.worktree/**/src/**')).toBe('deny');
+    expect(edit('kiki-historian', '.worktree/**/tests/**')).toBe('deny');
+    expect(edit('kiki-historian', '.worktree/**')).toBeUndefined();
   });
   it('retains the documentation completion gate and inline skills', () => {
     expect(agents['kiki-orchestrator'].prompt).toContain('Documentation decision required');

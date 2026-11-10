@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-11-10
+
+### Added
+- **Kiki 3.0.0 OC2-only port:** support for OpenCode exactly 2.2.6 with the exact runtime dependency `@opencode/plugin@2.2.6`; package exports `./server`, `./tui` and `.`.
+- **Native OC2 agent files:** eight Kiki agent Markdown definitions with `mode`, ordered `permissions` rules and package-style server/TUI registration. `experimental.subagent_depth` remains `1` in the isolated machine configuration.
+- **Fail-closed OC1 migration:** `kiki migrate [--from <sanitized-dir>] [--project <path>] [--force]` translates OC1 models/permissions into native `agents.<id>.model` objects and ordered rule arrays. The source is read-only; credential-bearing sources are refused; per-agent rejections are reported; successful runs write a marker and `--force` creates a fresh backup.
+- **Parallel OC1/OC2 runbook and acceptance evidence:** user-operated wrapper/root isolation, rollback guidance, and separate ACTUAL_V3_VALIDATION, RELEASE_REHEARSAL and FUTURE_RELEASE_AUTHORIZATION status reporting.
+- **Task 13 final acceptance evidence:** actual final-snapshot tarball `952be150…` (input manifest `74bccc17…`, dist `f0da220c…`, pack manifest `14005d97…`), 24/24 required real-binary tests with zero skips, 632-pass/2-by-design-skip full suite, fresh audit 0 high/critical/32 moderate with no exception, and a PASS synthetic 2.4.0→3.0.0 release rehearsal with no apply.
+
+### Changed
+- **Configuration format:** V2 native `agents.<id>.model` objects, ordered `permissions` arrays, and `plugins` lists replace V1 `agent`/`permission`/`plugin` shapes. Kiki never writes top-level `permissions`.
+- **Install/update ownership:** `kiki install`/`kiki update` write Kiki-owned native agent Markdown files and back up existing targets before writing. User models and existing frontmatter permissions are preserved. Regenerating the Kiki-owned prompt body is the V1-equivalent baseline; preserving user edits to those global bodies would be a separate post-switch ownership change, not a migration blocker.
+- **Routing:** `kiki routing` is retired and prints a read-only migration notice; models are configured only in native OpenCode configuration.
+- **Parallel wrappers:** the isolated OC2 wrapper sets `OPENCODE_CONFIG_DIR` plus all four XDG roots; `opencode` targets OC2 and `opencode-v1` targets the retained OC1 binary. The frozen V1 TUI loader target stays detached from the moving development checkout.
+
+### Removed
+- **OC1 plugin runtime:** the generated V1 plugin source, OC1 compatibility adapter and `globalThis` dedup shim are retired for the OC2 package plugin.
+- **V1 config keys and model seeding:** fresh setup writes no model values and does not use `.agentic/kiki/config.json` as a model source.
+
+### Security
+- **Fresh audit completed:** the 2026-11-04 exception for the retired `@opencode-ai/plugin@1.18.35` graph does not apply to Kiki 3.0.0. The final audit of the actual `@opencode/plugin@2.2.6` graph reported 0 high, 0 critical, 32 moderate, 0 low and 0 info across 454 dependencies, with no exception supplied. The moderate findings are non-blocking under the existing gate policy. The user accepted 3.0.0 and authorized commit, release and push on 2026-11-10.
+- Credential handling remains metadata-only; Kiki does not read, copy or print `.env`, `auth.json` or provider credentials. Provider login is user-owned.
+
 ## [2.4.0] — 2026-11-09
 ### Added
 - support role-scoped permissions in project worktrees

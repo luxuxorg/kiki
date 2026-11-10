@@ -37,6 +37,8 @@ const DISTRIBUTABLE_OUTPUTS = [
   'dist/cli/index.js',
   'dist/index.js',
   'dist/index.d.ts',
+  'dist/server/index.js',
+  'dist/server/index.d.ts',
   'dist/tui/index.js',
   'dist/tui/index.d.ts',
 ];
@@ -148,6 +150,8 @@ async function writeBuiltDist(root: string, next: string): Promise<void> {
     'dist/cli/index.js': 'export const cli = true;\n',
     'dist/index.js': 'export const index = true;\n',
     'dist/index.d.ts': 'export declare const index: true;\n',
+    'dist/server/index.js': 'export const server = true;\n',
+    'dist/server/index.d.ts': 'export declare const server: true;\n',
     'dist/tui/index.js': 'export const tui = true;\n',
     'dist/tui/index.d.ts': 'export declare const tui: true;\n',
   };
@@ -202,7 +206,6 @@ function createRunner(fake: FakeRunnerOptions = {}): {
         return ok('tsc ok\n');
       }
       if (isEslint(tool)) return ok('eslint ok\n');
-      if (tool.endsWith('release-gate-check.mjs')) return ok(`${next}\n`);
     }
     if (file === 'npm' && args[0] === 'test') {
       await writeGateArtifacts(callOptions.cwd);
@@ -717,13 +720,17 @@ describe('successful dry-run command', () => {
     const lintCalls = calls.filter(
       (call) => call.file === process.execPath && isEslint(call.args[0] ?? ''),
     );
-    const pluginCalls = calls.filter(
+    // Task 7 removed the V1 generated-plugin gate (`release-gate-check.mjs`)
+    // together with the retired generated-plugin machinery, so the six current
+    // gates spawn only build/test/typecheck/lint/security subprocesses. Assert
+    // the retired gate is never invoked (and never silently restored).
+    const retiredPluginGateCalls = calls.filter(
       (call) => call.file === process.execPath && (call.args[0] ?? '').endsWith('release-gate-check.mjs'),
     );
     expect(buildCalls).toHaveLength(1);
     expect(typecheckCalls).toHaveLength(1);
     expect(lintCalls).toHaveLength(1);
-    expect(pluginCalls).toHaveLength(1);
+    expect(retiredPluginGateCalls).toHaveLength(0);
 
     const auditCalls = calls.filter((call) => call.file === 'npm' && call.args[0] === 'audit');
     expect(auditCalls).toHaveLength(1);

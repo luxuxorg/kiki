@@ -1,76 +1,40 @@
-import { describe, it, expect } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
-import { createRequire } from 'node:module';
-import { generateAllTemplates, DEFAULT_CONFIG } from '../../src/cli/config';
+import { describe, expect, it } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import plugin from '../../src/server/index';
+import distPlugin from '../../dist/server/index.js';
 
-const require = createRequire(import.meta.url);
+describe('server plugin entrypoint', () => {
+  it('defines the kiki server plugin with an awaited setup function', () => {
+    expect(plugin.id).toBe('kiki');
+    expect(typeof plugin.setup).toBe('function');
+    expect(distPlugin.id).toBe('kiki');
+    expect(typeof distPlugin.setup).toBe('function');
+  });
 
-function localTsc(): string {
-  try {
-    return require.resolve('typescript/bin/tsc');
-  } catch {
-    throw new Error('Local TypeScript compiler not found; install devDependencies before running this test.');
-  }
-}
+  it('loads the typed server dependency closure from source and the built package', async () => {
+    const logger = await import('../../src/server/routing-logger');
+    const watchdog = await import('../../src/server/watchdog');
+    const events = await import('../../src/server/watchdog-events');
+    expect(typeof logger.startRoutingLogger).toBe('function');
+    expect(typeof watchdog.createWatchdog).toBe('function');
+    expect(typeof watchdog.createWatchdogSessionAdapter).toBe('function');
+    expect(typeof events.decodeWatchdogEvent).toBe('function');
 
-function assertPluginSyntax(plugin: string, name: string): void {
-  const tmpDir = `tmp/watchdog-plugin-syntax-${name}-${Date.now()}`;
-  try {
-    mkdirSync(tmpDir, { recursive: true });
-    const pluginPath = join(tmpDir, 'kiki-plugin-check.ts');
-    writeFileSync(pluginPath, plugin);
-    // Type-check the generated plugin with the local tsc (noEmit). The inlined
-    // watchdog body is intentionally untyped ES5-style JS, so --strict
-    // (noImplicitAny, strictNullChecks) would flag every unannotated parameter
-    // and null-literal initializer. Run without --strict to validate
-    // syntactic/structural soundness, which is what this check guards against
-    // (broken template literal, unescaped sequences, malformed default export).
-    execFileSync(process.execPath, [localTsc(), '--noEmit', '--skipLibCheck', '--module', 'esnext', '--target', 'es2020', '--moduleResolution', 'bundler', pluginPath], { stdio: 'pipe' });
-  } finally {
-    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
-  }
-}
-
-describe('generated plugin file', () => {
-  it('is syntactically valid JavaScript/TypeScript as evaluated structure', () => {
-    assertPluginSyntax(generateAllTemplates(DEFAULT_CONFIG).plugin, 'project');
-  }, 60_000);
-
-  it('generateAllTemplates project plugin writes the watchdog-enabled plugin on disk', () => {
-    const tmpDir = `tmp/watchdog-write-files-${Date.now()}`;
-    try {
-      const templates = generateAllTemplates(DEFAULT_CONFIG);
-      const pluginsDir = join(tmpDir, '.opencode', 'plugins');
-      mkdirSync(pluginsDir, { recursive: true });
-      writeFileSync(join(pluginsDir, 'kiki.ts'), templates.plugin);
-      const content = readFileSync(join(pluginsDir, 'kiki.ts'), 'utf-8');
-      expect(content).toContain('function createWatchdog(deps)');
-      expect(content).toContain('watchdog.start()');
-    } finally {
-      if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+    for (const file of [
+      'dist/server/index.js', 'dist/server/routing-logger.js',
+      'dist/server/watchdog.js', 'dist/server/watchdog-events.js',
+      'dist/server/index.d.ts', 'dist/tui/index.js', 'dist/cli/index.js',
+    ]) {
+      expect(existsSync(resolve(file)), file).toBe(true);
     }
   });
 
-  it('global-scoped generated plugin is syntactically valid TypeScript', () => {
-    assertPluginSyntax(generateAllTemplates(DEFAULT_CONFIG, 'global').plugin, 'global');
-  }, 60_000);
-
-  it('generateAllTemplates global plugin writes the watchdog plugin with global scope and dedup on disk', () => {
-    const tmpDir = `tmp/watchdog-write-files-global-${Date.now()}`;
-    try {
-      const templates = generateAllTemplates(DEFAULT_CONFIG, 'global');
-      const pluginsDir = join(tmpDir, '.opencode', 'plugins');
-      mkdirSync(pluginsDir, { recursive: true });
-      writeFileSync(join(pluginsDir, 'kiki.ts'), templates.plugin);
-      const content = readFileSync(join(pluginsDir, 'kiki.ts'), 'utf-8');
-      expect(content).toContain("const KIKI_PLUGIN_SCOPE = 'global';");
-      expect(content).toContain('function createWatchdog(deps)');
-      expect(content).toContain('watchdog.start()');
-      expect(content).toContain("Symbol.for('kiki.plugin')");
-    } finally {
-      if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+  it('does not depend on the retired V1 generated plugin sources', () => {
+    for (const file of ['src/server/index.ts', 'dist/server/index.js']) {
+      const source = readFileSync(resolve(file), 'utf8');
+      expect(source, file).not.toMatch(/watchdog-source|dedup-source|WATCHDOG_SOURCE|DEDUP_SOURCE/);
+      expect(source, file).not.toMatch(/globalThis/);
     }
   });
 });

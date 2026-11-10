@@ -1,6 +1,6 @@
 {
   "name": "kiki",
-  "version": "2.4.0",
+  "version": "3.0.0",
   "description": "OpenCode agent orchestration framework with static routing, parallel execution, and structured workflow",
   "license": "MIT",
   "keywords": [
@@ -20,6 +20,10 @@
     "dist/"
   ],
   "exports": {
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
     "./tui": {
       "types": "./dist/tui/index.d.ts",
       "import": "./dist/tui/index.js"
@@ -41,7 +45,6 @@
     "lint": "eslint \"src/**/*.ts\""
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "1.18.35",
     "@types/node": "^20.0.0",
     "eslint": "^9.39.4",
     "typescript": "^5.4.0",
@@ -52,6 +55,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@opencode/plugin": "2.2.6",
     "jsonc-parser": "^3.3.1",
     "yaml": "^2.9.1"
   }

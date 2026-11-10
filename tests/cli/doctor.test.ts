@@ -1,25 +1,19 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
-  readdirSync,
-  readlinkSync,
-  rmSync,
-  statSync,
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync,
 } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { parse } from 'jsonc-parser';
 import { init } from '../../src/cli/commands/init';
 import { doctor } from '../../src/cli/commands/doctor';
-import { installGlobalFiles, readOpenCodeSettings } from '../../src/cli/opencode-config';
-import { REQUIRED_SKILLS, TESTED_SUPERPOWERS_VERSION } from '../../src/cli/doctor-skills';
+import { installGlobalFiles } from '../../src/cli/opencode-config';
 
 let root: string;
 let project: string;
 let home: string;
 let xdgConfig: string;
+let xdgData: string;
 let xdgCache: string;
 let globalDir: string;
 
@@ -27,15 +21,30 @@ beforeEach(async () => {
   root = mkdtempSync(join(tmpdir(), 'kiki-doctor-'));
   home = join(root, 'home');
   xdgConfig = join(root, 'xdg-config');
+  xdgData = join(root, 'xdg-data');
   xdgCache = join(root, 'xdg-cache');
   mkdirSync(home, { recursive: true });
   mkdirSync(xdgConfig, { recursive: true });
+  mkdirSync(xdgData, { recursive: true });
   mkdirSync(xdgCache, { recursive: true });
   vi.stubEnv('HOME', home);
   vi.stubEnv('XDG_CONFIG_HOME', xdgConfig);
+  vi.stubEnv('XDG_DATA_HOME', xdgData);
   vi.stubEnv('XDG_CACHE_HOME', xdgCache);
+  vi.stubEnv('XDG_STATE_HOME', join(root, 'xdg-state'));
   globalDir = join(xdgConfig, 'opencode');
   installGlobalFiles(globalDir);
+  // Doctor recognizes the package-managed registration name. A release
+  // candidate checkout basename is not stable, so this setup uses that form
+  // rather than assuming the repository directory is named "kiki".
+  const serverConfig = join(globalDir, 'opencode.jsonc');
+  const serverData = parse(readFileSync(serverConfig, 'utf8')) as { plugins?: unknown };
+  serverData.plugins = ['kiki'];
+  writeFileSync(serverConfig, JSON.stringify(serverData));
+  const cliConfig = join(globalDir, 'cli.json');
+  const cliData = parse(readFileSync(cliConfig, 'utf8')) as { plugins?: unknown };
+  cliData.plugins = ['kiki'];
+  writeFileSync(cliConfig, JSON.stringify(cliData));
   project = join(root, 'project');
   mkdirSync(project);
   await init(project, { wizard: false });
@@ -72,171 +81,135 @@ function snapshotTree(directory: string): Record<string, string> {
     for (const entry of entries) {
       const full = join(current, entry.name);
       const key = relative(directory, full);
-      if (entry.isSymbolicLink()) {
-        snapshot[key] = `link:${readlinkSync(full)}`;
-      } else if (entry.isDirectory()) {
-        snapshot[key] = 'dir';
-        walk(full);
-      } else {
-        snapshot[key] = `${statSync(full).mode}:${readFileSync(full).toString('base64')}`;
-      }
+      if (entry.isSymbolicLink()) snapshot[key] = `link:${readlinkSync(full)}`;
+      else if (entry.isDirectory()) { snapshot[key] = 'dir'; walk(full); }
+      else snapshot[key] = `${statSync(full).mode}:${readFileSync(full).toString('base64')}`;
     }
   };
   walk(directory);
   return snapshot;
 }
 
-async function runDoctor(target = project): Promise<void> {
+async function runDoctor(
+  target = project,
+  observeVersion: () => string = () => '2.2.6',
+): Promise<void> {
   const before = snapshotTree(root);
   try {
-    await doctor(target);
+    await doctor(target, { observeVersion });
   } finally {
     expect(snapshotTree(root)).toEqual(before);
   }
 }
 
-function writeSkill(directory: string, name: string): void {
-  mkdirSync(directory, { recursive: true });
-  writeFileSync(
-    join(directory, 'SKILL.md'),
-    `---\nname: ${name}\ndescription: fixture\n---\nSkill body`,
-  );
-}
-
-function installAllSkills(): void {
-  const packageRoot = join(
-    xdgCache,
-    'opencode',
-    'packages',
-    'superpowers@fixture',
-    'node_modules',
-    'superpowers',
-  );
-  for (const name of REQUIRED_SKILLS) {
-    if (name === 'ui-ux-pro-max') continue;
-    writeSkill(join(packageRoot, 'skills', name), name);
-  }
-  writeFileSync(
-    join(packageRoot, 'package.json'),
-    JSON.stringify({ name: 'superpowers', version: TESTED_SUPERPOWERS_VERSION }),
-  );
-  writeSkill(join(project, '.opencode', 'skills', 'ui-ux-pro-max'), 'ui-ux-pro-max');
-}
-
-it('passes with global JSON agents and no project Markdown/plugin copies or routing.json', async () => {
+it('passes with native agents, package registration and the exact target version', async () => {
   await runDoctor();
+  expect(output()).toContain('✓ OC2 version — 2.2.6');
+  expect(output()).toContain('✓ native agent: kiki-orchestrator — primary');
+  expect(output()).toContain('✓ native agent: kiki-reviewer — subagent');
+  expect(output()).toContain('✓ server plugin registration');
+  expect(output()).toContain('✓ cli.json TUI registration');
+  expect(output()).toContain('• agent kiki-orchestrator model — inherits OpenCode default; set via /kiki');
 });
 
-it('accepts model inheritance from native OpenCode top-level settings', async () => {
-  const config = readOpenCodeSettings(globalDir, true);
-  config.model = 'inherited/model';
-  delete config.agent['kiki-orchestrator'].model;
-  writeFileSync(join(globalDir, 'opencode.jsonc'), JSON.stringify(config));
-  await runDoctor();
+it('accepts the real raw binary version prefix as exactly the target version', async () => {
+  await runDoctor(project, () => 'opencode v2.2.6');
+  expect(output()).toContain('✓ OC2 version — 2.2.6');
 });
 
-it.each(['lint', 'security', 'build', 'test'])('reports missing %s command', async key => {
-  const file = join(project, '.agentic/kiki/config.json');
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.commands[key] = '';
-  writeFileSync(file, JSON.stringify(config));
+it('reports an observed version mismatch and an unobserved binary honestly', async () => {
+  await runDoctor(project, () => '2.3.0');
+  expect(output()).toContain('! OC2 version — observed 2.3.0; Kiki 3.0.0 targets exactly 2.2.6');
+
+  vi.mocked(console.log).mockClear();
+  await runDoctor(project, () => { throw new Error('missing'); });
+  expect(output()).toContain('! OC2 version — not observed; Kiki 3.0.0 targets exactly 2.2.6');
+});
+
+it('fails closed on overlapping OC2 roots without writing', async () => {
+  vi.stubEnv('XDG_CONFIG_HOME', root);
+  vi.stubEnv('XDG_DATA_HOME', root);
+  vi.stubEnv('XDG_CACHE_HOME', root);
+  vi.stubEnv('XDG_STATE_HOME', root);
   await expect(runDoctor()).rejects.toThrow('exit(1)');
-  expect(output()).toContain(`commands.${key}`);
-  expect(output()).toContain('! skill brainstorming — not found on disk');
-  expect(output()).toMatch(/\d+ warnings/);
-  expect(output()).toMatch(/\d+ passed, \d+ warnings, 1 failed/);
+  expect(output()).toContain('✗ OC2 roots');
+  expect(output()).toMatch(/overlap|same|nested|inside/i);
 });
 
-it('reports remaining duplicate plugin copies with a migration instruction', async () => {
+it('warns when OPENCODE_CONFIG_DIR and XDG_CONFIG_HOME disagree', async () => {
+  vi.stubEnv('OPENCODE_CONFIG_DIR', join(root, 'isolated', 'config', 'opencode'));
+  await expect(runDoctor()).rejects.toThrow('exit(1)');
+  expect(output()).toContain('! OC2 environment — OPENCODE_CONFIG_DIR and XDG_CONFIG_HOME disagree; the config root is overridden');
+});
+
+it('accepts an isolated root with a legacy TUI config while still reporting registration state', async () => {
+  writeFileSync(join(globalDir, 'tui.json'), '{"theme":"custom"}');
+  await runDoctor();
+  expect(output()).toContain('✓ OC2 roots');
+  expect(output()).toContain('✓ server plugin registration');
+});
+
+it('fails an unparsable native agent file and a non-native mode', async () => {
+  writeFileSync(join(globalDir, 'agents/kiki-planner.md'), '---\ninvalid: [\n---\nbody');
+  await expect(runDoctor()).rejects.toThrow('exit(1)');
+  expect(output()).toContain('✗ native agent: kiki-planner — missing or unparsable');
+
+  vi.mocked(console.log).mockClear();
+  writeFileSync(join(globalDir, 'agents/kiki-planner.md'), '---\ndescription: bad\nmode: primary\n---\nbody');
+  await expect(runDoctor()).rejects.toThrow('exit(1)');
+  expect(output()).toContain('✗ native agent: kiki-planner — mode primary; expected subagent');
+});
+
+it('reports a configured model informationally without requiring one', async () => {
+  const file = join(globalDir, 'opencode.jsonc');
+  const data = parse(readFileSync(file, 'utf8'));
+  data.agents = {
+    ...(data.agents || {}),
+    'kiki-orchestrator': { model: { providerID: 'openai', model: 'gpt' } },
+  };
+  writeFileSync(file, JSON.stringify(data));
+
+  await runDoctor();
+  expect(output()).toContain('• agent kiki-orchestrator model — openai/gpt');
+  expect(output()).toContain('0 failed');
+});
+
+it('fails duplicate local/global/package server sources and a missing cli.json registration', async () => {
   mkdirSync(join(project, '.opencode/plugins'), { recursive: true });
   writeFileSync(join(project, '.opencode/plugins/kiki.ts'), 'legacy');
   await expect(runDoctor()).rejects.toThrow('exit(1)');
-  expect(output()).toContain('migrate');
-  expect(output()).toContain('! skill brainstorming');
-});
+  expect(output()).toContain('✗ server plugin registration — duplicate Kiki server plugin sources; keep exactly one');
 
-it('passes when no agent model is configured anywhere and reports native default inheritance', async () => {
-  const config = readOpenCodeSettings(globalDir, true);
-  for (const name of Object.keys(config.agent)) delete config.agent[name].model;
-  delete config.model;
-  writeFileSync(join(globalDir, 'opencode.jsonc'), JSON.stringify(config));
-  await runDoctor();
-  expect(output()).toContain('agent kiki-orchestrator model — inherits OpenCode default; set via /kiki');
-});
-
-it('reports native model inheritance precedence: agent override, then project, then global', async () => {
-  const config = readOpenCodeSettings(globalDir, true);
-  for (const name of Object.keys(config.agent)) delete config.agent[name].model;
-  config.model = 'global/model';
-  writeFileSync(join(globalDir, 'opencode.jsonc'), JSON.stringify(config));
-  writeFileSync(join(project, 'opencode.json'), JSON.stringify({ model: 'project/model' }));
-
-  await runDoctor();
-  expect(output()).toContain('agent kiki-orchestrator model — project/model');
-
+  rmSync(join(project, '.opencode'), { recursive: true, force: true });
   vi.mocked(console.log).mockClear();
-  writeFileSync(
-    join(project, 'opencode.json'),
-    JSON.stringify({
-      model: 'project/model',
-      agent: { 'kiki-orchestrator': { model: 'agent/model' } },
-    }),
-  );
-  await runDoctor();
-  expect(output()).toContain('agent kiki-orchestrator model — agent/model');
+  rmSync(join(globalDir, 'cli.json'));
+  await expect(runDoctor()).rejects.toThrow('exit(1)');
+  expect(output()).toContain('✗ cli.json TUI registration — missing; run kiki update');
 });
 
-it('reports a legacy models section informationally without reading or printing its values', async () => {
+it('checks credential presence by metadata only and never reads the file', async () => {
+  mkdirSync(join(xdgData, 'opencode', 'auth.json'), { recursive: true });
+  await runDoctor();
+  expect(output()).toContain('• provider credentials — present in OC2 data root (metadata only; user-owned)');
+  expect(output()).not.toContain('sk-live-secret');
+});
+
+it('reports missing project commands as failures while missing skills remain warnings', async () => {
   const file = join(project, '.agentic/kiki/config.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.models = {
-    standard: 'legacy/standard',
-    critical: 'legacy/critical',
-    workhorse: 'legacy/workhorse',
-  };
+  config.commands.security = '';
   writeFileSync(file, JSON.stringify(config));
-  await runDoctor();
-  expect(output()).toContain('legacy models section present; ignored');
-  expect(output()).not.toContain('legacy/standard');
-  expect(output()).not.toContain('legacy/critical');
-  expect(output()).not.toContain('legacy/workhorse');
-});
-
-it.each(['', '   '])('still rejects a blank native agent model value %j', async value => {
-  const config = readOpenCodeSettings(globalDir, true);
-  config.agent['kiki-orchestrator'].model = value;
-  writeFileSync(join(globalDir, 'opencode.jsonc'), JSON.stringify(config));
-  await expect(runDoctor()).rejects.toThrow(/Invalid agent model/);
-});
-
-it('warns for missing skills without changing the successful exit status', async () => {
-  await runDoctor();
-
+  await expect(runDoctor()).rejects.toThrow('exit(1)');
+  expect(output()).toContain('config.commands.security');
   expect(output()).toContain('! skill brainstorming — not found on disk');
-  expect(output()).toMatch(/\d+ passed, 9 warnings, 0 failed/);
-  expect(output()).toContain('superpowers OpenCode package');
-  expect(output()).toContain('install the ui-ux-pro-max skill in ~/.opencode/skills');
+  expect(output()).toMatch(/\d+ passed, \d+ warnings, 1 failed/);
 });
 
 it('prints the disk-only registration caveat exactly once', async () => {
   await runDoctor();
-
   const caveat =
     /Skill checks verify files on disk; they cannot confirm OpenCode plugin registration or live availability in a running session\./g;
   expect(output().match(caveat)).toHaveLength(1);
-});
-
-it('reports no skill warnings when all required skills and the tested version are present', async () => {
-  installAllSkills();
-
-  await runDoctor();
-
-  expect(output()).not.toContain('! skill ');
-  expect(output()).not.toMatch(/! superpowers version/);
-  expect(output()).toContain(
-    `✓ superpowers version — ${TESTED_SUPERPOWERS_VERSION} (matches tested version)`,
-  );
-  expect(output()).toMatch(/\d+ passed, 0 warnings, 0 failed/);
 });
 
 it('documents doctor scope without models in CLI help source', () => {

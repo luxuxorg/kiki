@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process';
 import {
   chmod,
   lstat,
@@ -14,7 +13,6 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { promisify } from 'node:util';
 import {
   changedPaths,
   type Candidate,
@@ -30,7 +28,6 @@ export interface GateResult {
   detail: string;
 }
 
-const execFileAsync = promisify(execFile);
 const AUDIT_ARGS = ['audit', '--json', '--include=dev', '--include=optional', '--include=peer'];
 const REQUIRED_TRANSFORMED_FILES = [
   'package.json',
@@ -46,6 +43,8 @@ const KNOWN_DISTRIBUTABLE_OUTPUTS = [
   'dist/cli/index.js',
   'dist/index.js',
   'dist/index.d.ts',
+  'dist/server/index.js',
+  'dist/server/index.d.ts',
   'dist/tui/index.js',
   'dist/tui/index.d.ts',
 ];
@@ -470,54 +469,6 @@ function testGateEnvironment(npmEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
-function pluginCheckScript(): string {
-  return [
-    "import { generateAllTemplates, DEFAULT_CONFIG } from '../dist/cli/config.js';",
-    'const plugin = generateAllTemplates(DEFAULT_CONFIG).plugin;',
-    "const match = /KIKI_PLUGIN_VERSION = '([^']+)'/.exec(plugin);",
-    "if (!match) { console.error('missing KIKI_PLUGIN_VERSION'); process.exit(1); }",
-    'process.stdout.write(match[1]);',
-    '',
-  ].join('\n');
-}
-
-async function checkGeneratedPlugin(
-  candidate: Candidate,
-  next: string,
-  runner: CommandRunner,
-  candidateRoot: string,
-): Promise<string[]> {
-  const tmpDirectory = join(candidateRoot, 'tmp');
-  const script = join(tmpDirectory, 'release-gate-check.mjs');
-  try {
-    await mkdir(tmpDirectory, { recursive: true });
-    await writeFile(script, pluginCheckScript());
-    const result = await runner(process.execPath, [script], {
-      cwd: candidateRoot,
-      env: candidate.npmEnv,
-    });
-    if (result.signal !== undefined && result.signal !== null) {
-      return [`generated plugin check terminated by signal ${String(result.signal)}`];
-    }
-    if (typeof result.status !== 'number' || result.status !== 0) {
-      return [
-        `generated plugin check failed (exit ${result.status}); ${sanitizeDetail(result.stderr ?? '')}`,
-      ];
-    }
-    const observed = result.stdout.trim();
-    if (observed !== next) {
-      return [
-        `generated plugin KIKI_PLUGIN_VERSION '${sanitizeDetail(observed, 80)}' does not match '${next}'`,
-      ];
-    }
-    return [];
-  } catch (error) {
-    return [`generated plugin check could not be started: ${sanitizeDetail(errorMessage(error))}`];
-  } finally {
-    await rm(script, { force: true }).catch(() => undefined);
-  }
-}
-
 function addDistributableTarget(
   raw: string,
   field: string,
@@ -637,7 +588,6 @@ async function checkInvariants(
   candidate: Candidate,
   next: string,
   date: string,
-  runner: CommandRunner,
   transformErrors: string[] = [],
   distResetError?: string,
 ): Promise<GateResult> {
@@ -743,10 +693,6 @@ async function checkInvariants(
     }
   }
 
-  if (distConfig !== undefined) {
-    failures.push(...(await checkGeneratedPlugin(candidate, next, runner, candidateRoot)));
-  }
-
   const trackedSecretPaths = [...candidate.before.keys()]
     .filter((relativePath) => relativeHasSecretSegment(relativePath))
     .sort();
@@ -787,33 +733,6 @@ async function checkInvariants(
   }
   return passed('invariants', 'invariants: passed');
 }
-
-const defaultRunner: CommandRunner = async (file, args, options) => {
-  try {
-    const result = await execFileAsync(file, args, {
-      cwd: options.cwd,
-      env: options.env,
-      encoding: 'utf8',
-      maxBuffer: 32 * 1024 * 1024,
-      timeout: 120_000,
-    });
-    return { status: 0, stdout: result.stdout, stderr: result.stderr };
-  } catch (error) {
-    const failure = error as {
-      code?: number | string;
-      stdout?: string;
-      stderr?: string;
-      message?: string;
-      signal?: NodeJS.Signals | null;
-    };
-    return {
-      status: typeof failure.code === 'number' ? failure.code : 1,
-      stdout: failure.stdout ?? '',
-      stderr: failure.stderr ?? failure.message ?? String(error),
-      signal: failure.signal ?? null,
-    };
-  }
-};
 
 export async function createAuditInvocation(
   root: string,
@@ -960,7 +879,6 @@ export async function runCandidateGates(
     candidate,
     next,
     date,
-    runner,
     transformErrors,
     distResetError,
   );
@@ -973,7 +891,7 @@ export async function validateCandidate(
   next: string,
   date: string,
 ): Promise<void> {
-  const result = await checkInvariants(candidate, next, date, defaultRunner);
+  const result = await checkInvariants(candidate, next, date);
   if (result.status !== 'passed') {
     throw new Error(result.detail);
   }

@@ -1,0 +1,187 @@
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { Plugin } from '@opencode/plugin';
+import { DEFAULT_HEALTH, type KikiHealthConfig } from '../cli/config.js';
+import { startRoutingLogger } from './routing-logger.js';
+import { createWatchdog, createWatchdogSessionAdapter, type Watchdog } from './watchdog.js';
+import { decodeWatchdogEvent, type OpenCodeEvent } from './watchdog-events.js';
+
+/**
+ * Canonical server context derived from the published SDK, as pinned by the
+ * Task 2 contract. `Plugin.Context` is the exact context handed to setup.
+ */
+export type ServerContext = Parameters<typeof Plugin.define>[0]['setup'] extends (
+  ctx: infer C,
+) => unknown
+  ? C
+  : never;
+
+const ITERATOR_SHUTDOWN_TIMEOUT_MS = 250;
+const WATCHDOG_STOP_TIMEOUT_MS = 1_000;
+
+function isPositiveInt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && Math.floor(value) === value;
+}
+
+/**
+ * Sanitizes a health section exactly like the V1 runtime did: invalid values
+ * fall back to the default for that field, never to an unvalidated input.
+ */
+export function sanitizeHealth(raw: unknown): KikiHealthConfig {
+  const out: KikiHealthConfig = { ...DEFAULT_HEALTH };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  const source = raw as Record<string, unknown>;
+  if (typeof source.watchdogEnabled === 'boolean') out.watchdogEnabled = source.watchdogEnabled;
+  if (typeof source.watchAllSubagents === 'boolean') {
+    out.watchAllSubagents = source.watchAllSubagents;
+  }
+  if (typeof source.logPath === 'string' && source.logPath.length > 0) {
+    out.logPath = source.logPath;
+  }
+  if (isPositiveInt(source.stuckThresholdMs)) out.stuckThresholdMs = source.stuckThresholdMs;
+  if (isPositiveInt(source.gracePeriodMs)) out.gracePeriodMs = source.gracePeriodMs;
+  if (isPositiveInt(source.absoluteMaxMs)) out.absoluteMaxMs = source.absoluteMaxMs;
+  if (isPositiveInt(source.checkIntervalMs)) out.checkIntervalMs = source.checkIntervalMs;
+  if (isPositiveInt(source.loopRepeatCount) && source.loopRepeatCount >= 2) {
+    out.loopRepeatCount = source.loopRepeatCount;
+  }
+  return out;
+}
+
+/** Loads only the project-scoped health settings; no global or cwd fallback. */
+export function loadHealthConfig(directory: string): KikiHealthConfig {
+  try {
+    const raw = JSON.parse(
+      readFileSync(join(directory, '.agentic', 'kiki', 'config.json'), 'utf-8'),
+    ) as Record<string, unknown>;
+    return sanitizeHealth(raw.health);
+  } catch {
+    return sanitizeHealth(null);
+  }
+}
+
+function createHealthWriter(
+  directory: string,
+  config: KikiHealthConfig,
+): (level: string, entry: Record<string, unknown>) => void {
+  return (level, entry) => {
+    try {
+      const logPath = join(directory, config.logPath);
+      const logDirectory = dirname(logPath);
+      if (!existsSync(logDirectory)) mkdirSync(logDirectory, { recursive: true });
+      appendFileSync(
+        logPath,
+        `${JSON.stringify({ level, timestamp: new Date().toISOString(), ...entry })}\n`,
+      );
+    } catch {
+      // A failing health log must never break watchdog evaluation or cleanup.
+    }
+  };
+}
+
+/**
+ * Resolves when `promise` settles or after `timeoutMs`, whichever comes first.
+ * Cleanup uses this so an idle stream or a stalled discovery cannot block
+ * plugin unload forever; the watchdog's own `stopped` latch suppresses any
+ * late result.
+ */
+function settleWithin(promise: Promise<unknown>, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    }, timeoutMs);
+    timer.unref?.();
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    promise.then(finish, finish);
+  });
+}
+
+export async function setup(ctx: ServerContext): Promise<Plugin.Cleanup> {
+  const root = ctx.location.directory;
+  const health = loadHealthConfig(root);
+
+  // The logger is acquired first; every later failure must release it.
+  const stopLogger = await startRoutingLogger(ctx);
+
+  const controller = new AbortController();
+  let watchdog: Watchdog | null = null;
+  let iterator: AsyncIterator<OpenCodeEvent> | null = null;
+  let streamLoop: Promise<void> | null = null;
+  let disposal: Promise<void> | null = null;
+
+  const dispose = (): Promise<void> => {
+    if (disposal) return disposal;
+    disposal = (async () => {
+      controller.abort();
+
+      // `stop()` latches `stopped` and clears the interval synchronously before
+      // awaiting an in-flight tick, so start it before the iterator waits.
+      const watchdogStop = watchdog
+        ? settleWithin(watchdog.stop(), WATCHDOG_STOP_TIMEOUT_MS)
+        : null;
+
+      const currentIterator = iterator;
+      if (currentIterator?.return) {
+        try {
+          await settleWithin(
+            Promise.resolve(currentIterator.return()),
+            ITERATOR_SHUTDOWN_TIMEOUT_MS,
+          );
+        } catch {
+          // Cancellation must not reject cleanup.
+        }
+      }
+      if (streamLoop) await settleWithin(streamLoop, ITERATOR_SHUTDOWN_TIMEOUT_MS);
+
+      if (watchdogStop) await watchdogStop;
+
+      await stopLogger();
+    })();
+    return disposal;
+  };
+
+  try {
+    const adapter = createWatchdogSessionAdapter(ctx.session, root);
+    watchdog = createWatchdog({
+      config: health,
+      directory: root,
+      now: () => Date.now(),
+      interrupt: (id) => adapter.interrupt(id),
+      discover: () => adapter.discover(),
+      writeHealth: createHealthWriter(root, health),
+    });
+    watchdog.start();
+
+    const stream = ctx.event.subscribe({ signal: controller.signal });
+    iterator = stream[Symbol.asyncIterator]();
+    const liveIterator = iterator;
+    const liveWatchdog = watchdog;
+    streamLoop = (async () => {
+      try {
+        while (!controller.signal.aborted) {
+          const next = await liveIterator.next();
+          if (next.done) break;
+          if (controller.signal.aborted) break;
+          for (const event of decodeWatchdogEvent(next.value)) liveWatchdog.handle(event);
+        }
+      } catch {
+        // Aborted/cancelled streams and transport failures are expected during cleanup.
+      }
+    })();
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
+
+  return dispose;
+}
+
+export default Plugin.define({ id: 'kiki', setup });

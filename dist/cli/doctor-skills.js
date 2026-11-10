@@ -1,7 +1,9 @@
 import * as fs from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { parse as parseJsonc } from 'jsonc-parser';
 import { parse as parseYaml } from 'yaml';
+import { resolveOC2Roots } from './oc2-paths.js';
 /**
  * Skills the Kiki agent templates require. The last entry is a user-level
  * skill rather than a superpowers skill; it is included because the
@@ -23,31 +25,143 @@ export const REQUIRED_SKILLS = [
  */
 export const TESTED_SUPERPOWERS_VERSION = '7.0.1';
 const SKILL_FILE = 'SKILL.md';
-const MAX_CACHE_DEPTH = 8;
+const CONFIG_NAMES = ['opencode.json', 'opencode.jsonc'];
+const SKILL_ROOT_NAMES = ['skill', 'skills'];
+const MAX_CACHE_DEPTH = 6;
 const NUMERIC_IDENTIFIER = /^(?:0|[1-9]\d*)/;
 const IDENTIFIER_CHARACTERS = /^[0-9A-Za-z-]+/;
 const DIGITS_ONLY = /^\d+/;
+function isMissingError(error) {
+    const code = error?.code;
+    return code === 'ENOENT' || code === 'ENOTDIR';
+}
+function sortEntries(entries) {
+    return [...entries].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+function isDirectory(path, skipped) {
+    try {
+        return fs.statSync(path).isDirectory();
+    }
+    catch {
+        skipped.count++;
+        return false;
+    }
+}
+function record(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function readConfig(file) {
+    try {
+        const parsed = parseJsonc(fs.readFileSync(file, 'utf8'), [], { allowTrailingComma: true });
+        return record(parsed) ? parsed : undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+/** Nearest ancestor carrying package.json, for observation-only version reads. */
+function packageRootFor(directory) {
+    let current = resolve(directory);
+    for (;;) {
+        try {
+            if (fs.statSync(join(current, 'package.json')).isFile())
+                return current;
+        }
+        catch {
+            // Continue with the parent.
+        }
+        const parent = dirname(current);
+        if (parent === current)
+            return undefined;
+        current = parent;
+    }
+}
+function projectChain(project) {
+    const chain = [];
+    let current = resolve(project);
+    for (;;) {
+        chain.push(current);
+        const parent = dirname(current);
+        if (parent === current)
+            break;
+        current = parent;
+    }
+    return chain;
+}
+function configDocuments(project, global) {
+    const documents = [];
+    const read = (file, scope, directory) => {
+        if (!fs.existsSync(file))
+            return;
+        const settings = readConfig(file);
+        if (settings)
+            documents.push({ file, scope, directory, settings });
+    };
+    for (const name of CONFIG_NAMES)
+        read(join(global, name), 'global', global);
+    const projectRoot = resolve(project);
+    for (const directory of projectChain(project)) {
+        const scope = directory === projectRoot ? 'project' : 'ancestor';
+        for (const name of CONFIG_NAMES)
+            read(join(directory, name), scope, directory);
+        for (const name of CONFIG_NAMES)
+            read(join(directory, '.opencode', name), scope, join(directory, '.opencode'));
+    }
+    return documents;
+}
+function configSkillPaths(project, global, home) {
+    const result = [];
+    const seen = new Set();
+    for (const document of configDocuments(project, global)) {
+        const items = document.settings.skills;
+        if (!Array.isArray(items))
+            continue;
+        for (const item of items) {
+            if (typeof item !== 'string' || !item.trim())
+                continue;
+            if (/^https?:\/\//i.test(item))
+                continue; // Cached URL skills are scanned from the cache root.
+            const expanded = item.startsWith('~/') ? join(home, item.slice(2)) : item;
+            const path = isAbsolute(expanded) ? resolve(expanded) : resolve(project, expanded);
+            if (seen.has(path))
+                continue;
+            seen.add(path);
+            result.push(path);
+        }
+    }
+    return result;
+}
 /**
- * Read-only discovery of the required skills across project, legacy user,
- * XDG user and package-cache locations. Returns copies in deterministic
- * precedence/lexical order; the first copy per name wins for observations.
+ * Read-only discovery of required skills in the native OC2 locations:
+ * config `skill/` and `skills/` directories, explicit config `skills` paths and
+ * the isolated URL-skill cache. V1 package-cache directories are never treated
+ * as evidence that a skill is live.
  */
 export function discoverSkills(project, env = process.env) {
     const byName = Object.fromEntries(REQUIRED_SKILLS.map(name => [name, []]));
     const skipped = { count: 0 };
-    // Traversal-cycle prevention and skill-record deduplication are separate:
-    // a directory walked generically must not hide the same skill when a real
-    // package path is scanned afterwards.
     const traversalDirectories = new Set();
     const skillDirectories = new Set();
     const home = env.HOME ? resolve(env.HOME) : resolve(homedir());
-    const configHome = env.XDG_CONFIG_HOME ? resolve(env.XDG_CONFIG_HOME) : join(home, '.config');
-    const cacheHome = env.XDG_CACHE_HOME ? resolve(env.XDG_CACHE_HOME) : join(home, '.cache');
-    const record = (directory, packageRoot) => recordSkill(directory, packageRoot, byName, skillDirectories, skipped);
-    scanSkillRoot(join(project, '.opencode', 'skills'), record, skipped);
-    scanSkillRoot(join(home, '.opencode', 'skills'), record, skipped);
-    scanSkillRoot(join(configHome, 'opencode', 'skills'), record, skipped);
-    scanCacheRoot(join(cacheHome, 'opencode', 'packages'), record, traversalDirectories, skipped);
+    const roots = resolveOC2Roots(env, home);
+    const recordSkill = (directory, packageRoot, source) => recordSkillCopy(directory, packageRoot, source ?? 'config-directory', byName, skillDirectories, skipped);
+    // Project `.opencode` directories are the config directories OC2 registers
+    // for skills; nearest project first, then every ancestor `.opencode`.
+    for (const directory of projectChain(project)) {
+        for (const name of SKILL_ROOT_NAMES) {
+            scanSkillRoot(join(directory, '.opencode', name), recordSkill, skipped);
+        }
+    }
+    // Global config directory skill roots.
+    for (const name of SKILL_ROOT_NAMES)
+        scanSkillRoot(join(roots.config, name), recordSkill, skipped);
+    // Explicit config `skills` paths (project entries first).
+    for (const directory of configSkillPaths(project, roots.config, home)) {
+        const packageRoot = packageRootFor(directory);
+        scanSkillTree(directory, recordSkill, packageRoot, 'config-skills', traversalDirectories, skipped);
+    }
+    // Isolated URL-skill cache: <global cache>/skills/<hash>/<skill-name>.
+    scanSkillTree(join(roots.cache, 'skills'), recordSkill, undefined, 'url-cache', traversalDirectories, skipped);
     return { byName, skippedEntries: skipped.count };
 }
 /**
@@ -64,8 +178,8 @@ export function observeSkills(discovery) {
                 level: 'warn',
                 label: `skill ${name}`,
                 detail: name === 'ui-ux-pro-max'
-                    ? 'not found on disk; install the ui-ux-pro-max skill in ~/.opencode/skills'
-                    : 'not found on disk; install the superpowers OpenCode package (or place it in ~/.opencode/skills)',
+                    ? 'not found on disk; add the ui-ux-pro-max skill to an OpenCode config skills/ directory or config skills list'
+                    : 'not found on disk; add the superpowers skills to an OpenCode config skills/ directory or config skills list',
             });
             continue;
         }
@@ -80,10 +194,13 @@ export function observeSkills(discovery) {
             });
         }
         else {
+            const suffix = first.source === 'config-directory'
+                ? 'config skills directory'
+                : first.source === 'config-skills' ? 'configured skills path; disk-only' : 'URL cache; disk-only';
             observations.push({
                 level: 'pass',
                 label: `skill ${name}`,
-                detail: `found at ${first.path}`,
+                detail: `found at ${first.path} (${suffix})`,
             });
         }
         if (copies.length > 1) {
@@ -95,7 +212,7 @@ export function observeSkills(discovery) {
         }
     }
     // ui-ux-pro-max is a user-level skill, not a superpowers package member;
-    // its cache location must not be mistaken for a superpowers version source.
+    // its location must not be mistaken for a superpowers version source.
     const packageRoots = new Set();
     for (const name of REQUIRED_SKILLS) {
         if (name === 'ui-ux-pro-max')
@@ -123,7 +240,7 @@ function observePackageVersion(packageRoot) {
     catch {
         return unknownVersion();
     }
-    const value = isRecord(raw) ? raw.version : undefined;
+    const value = record(raw) ? raw.version : undefined;
     const parsed = parseVersion(value);
     if (!parsed)
         return unknownVersion();
@@ -215,7 +332,7 @@ function scanSkillRoot(directory, record, skipped) {
         record(child);
     }
 }
-function scanCacheRoot(directory, record, traversalDirectories, skipped) {
+function scanSkillTree(directory, record, packageRoot, source, traversalDirectories, skipped) {
     const root = resolve(directory);
     let realRoot;
     try {
@@ -229,11 +346,21 @@ function scanCacheRoot(directory, record, traversalDirectories, skipped) {
     if (traversalDirectories.has(realRoot))
         return;
     traversalDirectories.add(realRoot);
-    walkCache(root, 0, record, traversalDirectories, skipped);
+    walkSkillTree(root, 0, record, packageRoot, source, traversalDirectories, skipped);
 }
-function walkCache(directory, depth, record, traversalDirectories, skipped) {
+function walkSkillTree(directory, depth, record, packageRoot, source, traversalDirectories, skipped) {
     if (depth > MAX_CACHE_DEPTH)
         return;
+    try {
+        if (fs.statSync(join(directory, SKILL_FILE)).isFile()
+            || fs.statSync(join(directory, `${basename(directory)}.md`)).isFile()) {
+            record(directory, packageRoot, source);
+            return;
+        }
+    }
+    catch {
+        // No entry file here; inspect children.
+    }
     let entries;
     try {
         entries = fs.readdirSync(directory, { withFileTypes: true });
@@ -243,8 +370,9 @@ function walkCache(directory, depth, record, traversalDirectories, skipped) {
         return;
     }
     for (const entry of sortEntries(entries)) {
+        if (entry.name.startsWith('.'))
+            continue;
         const child = join(directory, entry.name);
-        const childDepth = depth + 1;
         let realChild;
         try {
             realChild = fs.realpathSync(child);
@@ -258,85 +386,12 @@ function walkCache(directory, depth, record, traversalDirectories, skipped) {
         if (traversalDirectories.has(realChild))
             continue;
         traversalDirectories.add(realChild);
-        if (childDepth > MAX_CACHE_DEPTH)
+        if (depth + 1 > MAX_CACHE_DEPTH)
             continue;
-        if (basename(child) === 'node_modules') {
-            scanNodeModules(child, childDepth, record, skipped);
-            continue;
-        }
-        walkCache(child, childDepth, record, traversalDirectories, skipped);
+        walkSkillTree(child, depth + 1, record, packageRoot, source, traversalDirectories, skipped);
     }
 }
-function scanNodeModules(directory, depth, record, skipped) {
-    let entries;
-    try {
-        entries = fs.readdirSync(directory, { withFileTypes: true });
-    }
-    catch {
-        skipped.count++;
-        return;
-    }
-    for (const entry of sortEntries(entries)) {
-        const child = join(directory, entry.name);
-        if (!isDirectory(child, skipped))
-            continue;
-        if (entry.name.startsWith('@')) {
-            scanScope(child, depth + 1, record, skipped);
-        }
-        else {
-            scanPackage(child, depth + 1, record, skipped);
-        }
-    }
-}
-function scanScope(directory, depth, record, skipped) {
-    let entries;
-    try {
-        entries = fs.readdirSync(directory, { withFileTypes: true });
-    }
-    catch {
-        skipped.count++;
-        return;
-    }
-    for (const entry of sortEntries(entries)) {
-        const child = join(directory, entry.name);
-        if (!isDirectory(child, skipped))
-            continue;
-        scanPackage(child, depth + 1, record, skipped);
-    }
-}
-function scanPackage(directory, depth, record, skipped) {
-    // The skill directory sits two levels below the package directory.
-    if (depth + 2 > MAX_CACHE_DEPTH)
-        return;
-    const skillsDirectory = join(directory, 'skills');
-    let skillsStat;
-    try {
-        skillsStat = fs.statSync(skillsDirectory);
-    }
-    catch (error) {
-        // Packages without a skills/ directory are normal, not skipped entries.
-        if (!isMissingError(error))
-            skipped.count++;
-        return;
-    }
-    if (!skillsStat.isDirectory())
-        return;
-    let entries;
-    try {
-        entries = fs.readdirSync(skillsDirectory, { withFileTypes: true });
-    }
-    catch {
-        skipped.count++;
-        return;
-    }
-    for (const entry of sortEntries(entries)) {
-        const child = join(skillsDirectory, entry.name);
-        if (!isDirectory(child, skipped))
-            continue;
-        record(child, resolve(directory));
-    }
-}
-function recordSkill(directory, packageRoot, byName, skillDirectories, skipped) {
+function recordSkillCopy(directory, packageRoot, source, byName, skillDirectories, skipped) {
     const resolvedDirectory = resolve(directory);
     let realDirectory;
     try {
@@ -349,14 +404,26 @@ function recordSkill(directory, packageRoot, byName, skillDirectories, skipped) 
     if (skillDirectories.has(realDirectory))
         return;
     skillDirectories.add(realDirectory);
-    const path = join(resolvedDirectory, SKILL_FILE);
+    let path = join(resolvedDirectory, SKILL_FILE);
     let text;
     try {
         text = fs.readFileSync(path, 'utf8');
     }
-    catch {
-        skipped.count++;
-        return;
+    catch (error) {
+        if (!isMissingError(error)) {
+            skipped.count++;
+            return;
+        }
+        // A URL-cache entry may use <name>.md instead of SKILL.md.
+        const alternate = join(resolvedDirectory, `${basename(resolvedDirectory)}.md`);
+        try {
+            text = fs.readFileSync(alternate, 'utf8');
+            path = alternate;
+        }
+        catch {
+            skipped.count++;
+            return;
+        }
     }
     const frontmatter = parseFrontmatter(text);
     const frontmatterName = typeof frontmatter?.name === 'string' ? frontmatter.name : undefined;
@@ -371,6 +438,7 @@ function recordSkill(directory, packageRoot, byName, skillDirectories, skipped) 
             directoryName,
             frontmatterName,
             nameDrift: !matchesFrontmatter,
+            source,
         };
         if (packageRoot)
             copy.packageRoot = packageRoot;
@@ -383,30 +451,11 @@ function parseFrontmatter(text) {
         return undefined;
     try {
         const parsed = parseYaml(match[1], { uniqueKeys: false });
-        return isRecord(parsed) ? parsed : undefined;
+        return record(parsed) ? parsed : undefined;
     }
     catch {
         // Unreadable frontmatter falls back to the directory name with drift.
         return undefined;
     }
-}
-function isRecord(value) {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-function isMissingError(error) {
-    const code = error?.code;
-    return code === 'ENOENT' || code === 'ENOTDIR';
-}
-function isDirectory(path, skipped) {
-    try {
-        return fs.statSync(path).isDirectory();
-    }
-    catch {
-        skipped.count++;
-        return false;
-    }
-}
-function sortEntries(entries) {
-    return [...entries].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 //# sourceMappingURL=doctor-skills.js.map

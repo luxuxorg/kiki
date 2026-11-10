@@ -49,14 +49,14 @@ async function main() {
         default:
             console.log(`Usage: kiki <command>
 Commands:
-  install              Install global JSON agents, prompts and plugin
+  install              Install global native agents and Kiki package registration
   install --project <path>  Scaffold .agentic/kiki/ in a project
   init [path]          Initialize project configuration only
-  update [--global]    Refresh global Kiki; preserve project settings
-  migrate --project <path>  Extract local rights/models and remove duplicate copies
-  reset --project <path>    Reset Kiki agent overrides to global defaults
+  update [--global]    Refresh global Kiki installation; preserve project settings
+  migrate [--from <dir>] [--project <path>] [--force]  Migrate OC1 models/permissions into OC2 (global by default)
+  reset --project <path>    Remove project Kiki agent overrides after backup
   status [path]       Show global/project configuration
-  routing             Retired; configure agent models in opencode.json
+  routing             Retired; configure agents.<id>.model in opencode.json
   verify <file>        Check for TBDs/TODOs/placeholders
   doctor [path]        Validate config, paths, agent files, and skills
   release [options]    Validate (default) or apply a local release candidate`);

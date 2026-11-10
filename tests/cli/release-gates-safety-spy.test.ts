@@ -21,6 +21,8 @@ const DISTRIBUTABLE_OUTPUTS = [
   'dist/cli/index.js',
   'dist/index.js',
   'dist/index.d.ts',
+  'dist/server/index.js',
+  'dist/server/index.d.ts',
   'dist/tui/index.js',
   'dist/tui/index.d.ts',
 ];

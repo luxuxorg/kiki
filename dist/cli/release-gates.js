@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process';
 import { chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, readlink, realpath, rm, stat, writeFile, } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { promisify } from 'node:util';
 import { changedPaths, } from './release-candidate.js';
 import { prepareChangelog, transformVersions } from './release-policy.js';
-const execFileAsync = promisify(execFile);
 const AUDIT_ARGS = ['audit', '--json', '--include=dev', '--include=optional', '--include=peer'];
 const REQUIRED_TRANSFORMED_FILES = [
     'package.json',
@@ -20,6 +17,8 @@ const KNOWN_DISTRIBUTABLE_OUTPUTS = [
     'dist/cli/index.js',
     'dist/index.js',
     'dist/index.d.ts',
+    'dist/server/index.js',
+    'dist/server/index.d.ts',
     'dist/tui/index.js',
     'dist/tui/index.d.ts',
 ];
@@ -384,49 +383,6 @@ function testGateEnvironment(npmEnv) {
     }
     return env;
 }
-function pluginCheckScript() {
-    return [
-        "import { generateAllTemplates, DEFAULT_CONFIG } from '../dist/cli/config.js';",
-        'const plugin = generateAllTemplates(DEFAULT_CONFIG).plugin;',
-        "const match = /KIKI_PLUGIN_VERSION = '([^']+)'/.exec(plugin);",
-        "if (!match) { console.error('missing KIKI_PLUGIN_VERSION'); process.exit(1); }",
-        'process.stdout.write(match[1]);',
-        '',
-    ].join('\n');
-}
-async function checkGeneratedPlugin(candidate, next, runner, candidateRoot) {
-    const tmpDirectory = join(candidateRoot, 'tmp');
-    const script = join(tmpDirectory, 'release-gate-check.mjs');
-    try {
-        await mkdir(tmpDirectory, { recursive: true });
-        await writeFile(script, pluginCheckScript());
-        const result = await runner(process.execPath, [script], {
-            cwd: candidateRoot,
-            env: candidate.npmEnv,
-        });
-        if (result.signal !== undefined && result.signal !== null) {
-            return [`generated plugin check terminated by signal ${String(result.signal)}`];
-        }
-        if (typeof result.status !== 'number' || result.status !== 0) {
-            return [
-                `generated plugin check failed (exit ${result.status}); ${sanitizeDetail(result.stderr ?? '')}`,
-            ];
-        }
-        const observed = result.stdout.trim();
-        if (observed !== next) {
-            return [
-                `generated plugin KIKI_PLUGIN_VERSION '${sanitizeDetail(observed, 80)}' does not match '${next}'`,
-            ];
-        }
-        return [];
-    }
-    catch (error) {
-        return [`generated plugin check could not be started: ${sanitizeDetail(errorMessage(error))}`];
-    }
-    finally {
-        await rm(script, { force: true }).catch(() => undefined);
-    }
-}
 function addDistributableTarget(raw, field, targets, errors) {
     const value = raw.trim();
     if (value === '') {
@@ -527,7 +483,7 @@ async function distributableOutputFailures(candidateRoot, packageData) {
     }
     return errors;
 }
-async function checkInvariants(candidate, next, date, runner, transformErrors = [], distResetError) {
+async function checkInvariants(candidate, next, date, transformErrors = [], distResetError) {
     const failures = [...transformErrors];
     if (distResetError !== undefined)
         failures.push(`dist reset failed: ${distResetError}`);
@@ -627,9 +583,6 @@ async function checkInvariants(candidate, next, date, runner, transformErrors = 
             }
         }
     }
-    if (distConfig !== undefined) {
-        failures.push(...(await checkGeneratedPlugin(candidate, next, runner, candidateRoot)));
-    }
     const trackedSecretPaths = [...candidate.before.keys()]
         .filter((relativePath) => relativeHasSecretSegment(relativePath))
         .sort();
@@ -662,27 +615,6 @@ async function checkInvariants(candidate, next, date, runner, transformErrors = 
     }
     return passed('invariants', 'invariants: passed');
 }
-const defaultRunner = async (file, args, options) => {
-    try {
-        const result = await execFileAsync(file, args, {
-            cwd: options.cwd,
-            env: options.env,
-            encoding: 'utf8',
-            maxBuffer: 32 * 1024 * 1024,
-            timeout: 120_000,
-        });
-        return { status: 0, stdout: result.stdout, stderr: result.stderr };
-    }
-    catch (error) {
-        const failure = error;
-        return {
-            status: typeof failure.code === 'number' ? failure.code : 1,
-            stdout: failure.stdout ?? '',
-            stderr: failure.stderr ?? failure.message ?? String(error),
-            signal: failure.signal ?? null,
-        };
-    }
-};
 export async function createAuditInvocation(root, runRoot, ambient) {
     const rootPath = resolve(root);
     let rootReal;
@@ -774,11 +706,11 @@ export async function runCandidateGates(candidate, next, date, runner, securityE
         ? failed('lint', `failed (${eslint.error})`)
         : await runCommandGate('lint', process.execPath, [eslint.realPath, 'src/**/*.ts'], { cwd: candidateRoot, env: candidate.npmEnv }, runner, 'lint: passed (src/)');
     const security = await runSecurityGate(candidate, runner, securityException);
-    const invariants = await checkInvariants(candidate, next, date, runner, transformErrors, distResetError);
+    const invariants = await checkInvariants(candidate, next, date, transformErrors, distResetError);
     return [build, test, typecheck, lint, security, invariants];
 }
 export async function validateCandidate(candidate, next, date) {
-    const result = await checkInvariants(candidate, next, date, defaultRunner);
+    const result = await checkInvariants(candidate, next, date);
     if (result.status !== 'passed') {
         throw new Error(result.detail);
     }
