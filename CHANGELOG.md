@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.0.1] — 2026-11-11
+
 ### Fixed
 - **Standard OpenCode config directory:** OpenCode 1 and OpenCode 2 both use
   `~/.config/opencode`, so Kiki no longer treats the presence of

@@ -1,6 +1,6 @@
 {
   "name": "kiki",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "OpenCode agent orchestration framework with static routing, parallel execution, and structured workflow",
   "license": "MIT",
   "keywords": [
