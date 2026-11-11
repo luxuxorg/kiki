@@ -1,4 +1,3 @@
-import { execFileSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
@@ -7,17 +6,6 @@ import { discoverSkills, observeSkills } from '../doctor-skills.js';
 import { AGENT_NAMES, formatModelID, globalDirectory, mergeSettings, parseAgent, readOpenCodeSettings, } from '../opencode-config.js';
 import { assertOC2Target, canonicalPath, resolveOC2Roots } from '../oc2-paths.js';
 import { autoDiscoveredKikiPlugins, kikiCliSources, kikiServerSources } from '../oc2-registration.js';
-function runOC2Version() {
-    const output = execFileSync('opencode', ['--version'], {
-        encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    return String(output).trim().split(/\r?\n/)[0]?.trim() ?? '';
-}
-/** The pinned raw binary prints `opencode v2.2.6`; compare only the version. */
-function normalizeVersion(observed) {
-    const match = observed.match(/^(?:opencode\s+v)?(\d+\.\d+\.\d+)$/i);
-    return match ? match[1] : observed;
-}
 function modelString(value) {
     if (typeof value === 'string')
         return value;
@@ -30,7 +18,7 @@ function modelString(value) {
         return undefined;
     }
 }
-export async function doctor(targetPath = '.', options = {}) {
+export async function doctor(targetPath = '.') {
     console.log(`Kiki Doctor — ${targetPath}`);
     let failures = 0;
     let passes = 0;
@@ -49,44 +37,30 @@ export async function doctor(targetPath = '.', options = {}) {
     const roots = resolveOC2Roots(process.env, homedir());
     let rootsValid = true;
     try {
-        assertOC2Target(roots, homedir(), { allowKnownV1Artifacts: true });
-        check('OC2 roots', 'pass', 'config/data/cache/state are isolated');
+        assertOC2Target(roots, homedir());
+        check('OC2 roots', 'pass', 'config/data/cache/state are distinct');
     }
     catch (error) {
         rootsValid = false;
         check('OC2 roots', 'fail', error instanceof Error ? error.message : 'invalid OpenCode 2 roots');
     }
-    if (!process.env.OPENCODE_CONFIG_DIR && !process.env.XDG_CONFIG_HOME
-        && !process.env.XDG_DATA_HOME && !process.env.XDG_CACHE_HOME && !process.env.XDG_STATE_HOME) {
-        check('OC2 environment', 'warn', 'no isolated OC2 environment detected; use the user wrapper');
-    }
-    else if (process.env.OPENCODE_CONFIG_DIR && process.env.XDG_CONFIG_HOME
+    if (process.env.OPENCODE_CONFIG_DIR && process.env.XDG_CONFIG_HOME
         && canonicalPath(process.env.OPENCODE_CONFIG_DIR)
             !== canonicalPath(join(process.env.XDG_CONFIG_HOME, 'opencode'))) {
         check('OC2 environment', 'warn', 'OPENCODE_CONFIG_DIR and XDG_CONFIG_HOME disagree; the config root is overridden');
     }
-    else {
-        info('OC2 environment', process.env.OPENCODE_CONFIG_DIR
-            ? 'OPENCODE_CONFIG_DIR overrides the config root only; data/cache/state use the XDG roots'
-            : 'config follows XDG_CONFIG_HOME/opencode; no OPENCODE_CONFIG_DIR override');
+    else if (process.env.OPENCODE_CONFIG_DIR) {
+        info('OC2 environment', 'OPENCODE_CONFIG_DIR overrides the config root only; data/cache/state use the XDG roots');
     }
-    const observed = (() => {
-        try {
-            return (options.observeVersion ?? runOC2Version)();
-        }
-        catch {
-            return '';
-        }
-    })();
-    const version = normalizeVersion(observed);
-    if (!observed)
-        check('OC2 version', 'warn', 'not observed; Kiki 3.0.0 targets exactly 2.2.6');
-    else if (version === '2.2.6')
-        check('OC2 version', 'pass', '2.2.6');
-    else
-        check('OC2 version', 'warn', `observed ${version}; Kiki 3.0.0 targets exactly 2.2.6`);
-    // A failed root guard may mean the config file is credential-bearing. Report
-    // the metadata failure and never parse that file.
+    else if (process.env.XDG_CONFIG_HOME || process.env.XDG_DATA_HOME
+        || process.env.XDG_CACHE_HOME || process.env.XDG_STATE_HOME) {
+        info('OC2 environment', 'XDG-derived roots; no OPENCODE_CONFIG_DIR override');
+    }
+    else {
+        info('OC2 environment', 'standard OpenCode 2 roots; no wrapper or environment override required');
+    }
+    // Do not inspect configuration when the roots guard failed (overlap or
+    // leftover V1 Kiki artifacts); report that failure and stop.
     if (!rootsValid) {
         console.log(`${passes} passed, ${warnings} warnings, ${failures} failed`);
         if (failures)

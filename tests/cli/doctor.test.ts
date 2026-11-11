@@ -92,38 +92,23 @@ function snapshotTree(directory: string): Record<string, string> {
 
 async function runDoctor(
   target = project,
-  observeVersion: () => string = () => '2.2.6',
 ): Promise<void> {
   const before = snapshotTree(root);
   try {
-    await doctor(target, { observeVersion });
+    await doctor(target);
   } finally {
     expect(snapshotTree(root)).toEqual(before);
   }
 }
 
-it('passes with native agents, package registration and the exact target version', async () => {
+it('passes with native agents and package registration without gating on the binary version', async () => {
   await runDoctor();
-  expect(output()).toContain('✓ OC2 version — 2.2.6');
+  expect(output()).not.toContain('OC2 version');
   expect(output()).toContain('✓ native agent: kiki-orchestrator — primary');
   expect(output()).toContain('✓ native agent: kiki-reviewer — subagent');
   expect(output()).toContain('✓ server plugin registration');
   expect(output()).toContain('✓ cli.json TUI registration');
   expect(output()).toContain('• agent kiki-orchestrator model — inherits OpenCode default; set via /kiki');
-});
-
-it('accepts the real raw binary version prefix as exactly the target version', async () => {
-  await runDoctor(project, () => 'opencode v2.2.6');
-  expect(output()).toContain('✓ OC2 version — 2.2.6');
-});
-
-it('reports an observed version mismatch and an unobserved binary honestly', async () => {
-  await runDoctor(project, () => '2.3.0');
-  expect(output()).toContain('! OC2 version — observed 2.3.0; Kiki 3.0.0 targets exactly 2.2.6');
-
-  vi.mocked(console.log).mockClear();
-  await runDoctor(project, () => { throw new Error('missing'); });
-  expect(output()).toContain('! OC2 version — not observed; Kiki 3.0.0 targets exactly 2.2.6');
 });
 
 it('fails closed on overlapping OC2 roots without writing', async () => {
@@ -142,11 +127,40 @@ it('warns when OPENCODE_CONFIG_DIR and XDG_CONFIG_HOME disagree', async () => {
   expect(output()).toContain('! OC2 environment — OPENCODE_CONFIG_DIR and XDG_CONFIG_HOME disagree; the config root is overridden');
 });
 
+it('reports the standard OpenCode roots as the normal setup', async () => {
+  const standard = join(home, '.config', 'opencode');
+  installGlobalFiles(standard);
+  for (const name of ['opencode.jsonc', 'cli.json']) {
+    const file = join(standard, name);
+    const data = parse(readFileSync(file, 'utf8')) as { plugins?: unknown };
+    data.plugins = ['kiki'];
+    writeFileSync(file, JSON.stringify(data));
+  }
+  vi.stubEnv('XDG_CONFIG_HOME', '');
+  vi.stubEnv('XDG_DATA_HOME', '');
+  vi.stubEnv('XDG_CACHE_HOME', '');
+  vi.stubEnv('XDG_STATE_HOME', '');
+
+  await runDoctor();
+  expect(output()).toContain('• OC2 environment — standard OpenCode 2 roots; no wrapper or environment override required');
+  expect(output()).toContain('✓ OC2 roots');
+  expect(output()).not.toContain('use the user wrapper');
+});
+
 it('accepts an isolated root with a legacy TUI config while still reporting registration state', async () => {
   writeFileSync(join(globalDir, 'tui.json'), '{"theme":"custom"}');
   await runDoctor();
   expect(output()).toContain('✓ OC2 roots');
   expect(output()).toContain('✓ server plugin registration');
+});
+
+it('fails closed on leftover V1 Kiki artifacts instead of masking them', async () => {
+  mkdirSync(join(globalDir, 'plugins'), { recursive: true });
+  writeFileSync(join(globalDir, 'plugins/kiki.ts'), 'legacy');
+
+  await expect(runDoctor()).rejects.toThrow('exit(1)');
+  expect(output()).toContain('✗ OC2 roots');
+  expect(output()).toMatch(/V1|OC1|version 1|legacy/i);
 });
 
 it('fails an unparsable native agent file and a non-native mode', async () => {

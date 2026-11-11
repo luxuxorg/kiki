@@ -457,7 +457,7 @@ function removeStaleDirectory(directory) {
     }
 }
 export function installGlobalFiles(directory = globalDirectory(), update = false) {
-    // Reject overlapping machine defaults and malformed tiers before any write.
+    // Reject V1 artifacts and malformed tiers before any write.
     assertNotOC1Config(canonicalPath(directory), homedir(), { allowKnownV1Artifacts: true });
     for (const file of configFiles(directory, true))
         readSettings(file);

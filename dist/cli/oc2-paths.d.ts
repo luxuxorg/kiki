@@ -27,25 +27,24 @@ export declare function pathsOverlap(first: string, second: string): boolean;
 export declare function hasOC1Markers(directory: string): boolean;
 export interface OC1GuardOptions {
     /**
-     * Installation/update owns a small set of Kiki-generated V1 artifacts and may
-     * back up and remove them during an explicitly requested cleanup. This never
-     * relaxes the machine-default credential boundary.
+     * Installation/update owns the documented V1 Kiki artifacts and may back up
+     * and remove them during an explicitly requested cleanup.
      */
     allowKnownV1Artifacts?: boolean;
 }
 /**
- * Fail closed when a target is, contains, or is contained by the machine-default
- * config directory and that directory cannot be proven Kiki-free using metadata
- * alone. The machine-default config may hold OC1's singular `agent.kiki-*`
- * entries next to provider credentials; metadata cannot distinguish them, so
- * Kiki refuses and asks for a user-created secret-free export instead of
- * parsing a possibly credential-bearing file.
+ * Fail closed when the target is, contains, or is contained by a directory with
+ * OpenCode 1 (V1) Kiki artifacts. OpenCode 1 and OpenCode 2 share the standard
+ * config directory (`~/.config/opencode`), so the presence of
+ * `opencode.json(c)` proves nothing about the installed generation and is not a
+ * marker. Only V1-specific Kiki files identify a legacy installation; config
+ * contents are never inspected here because they may carry credentials.
  */
 export declare function assertNotOC1Config(target: string, home: string, options?: OC1GuardOptions): void;
 /**
  * Fail closed before Kiki 3.0.0 reads or writes an OpenCode 2 destination.
- * Refuses overlapping config/data/cache/state roots and any root that aliases
- * or nests inside a live OpenCode 1 installation.
+ * Refuses overlapping config/data/cache/state roots and any config root that
+ * aliases or nests inside a directory with OpenCode 1 Kiki artifacts.
  */
 export declare function assertOC2Target(roots: OC2Roots, home: string, options?: OC1GuardOptions): void;
 //# sourceMappingURL=oc2-paths.d.ts.map

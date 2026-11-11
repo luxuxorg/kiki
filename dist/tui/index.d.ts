@@ -7,10 +7,10 @@ export declare class LocationNotReadyError extends Error {
 export declare const SETUP_ERROR_MESSAGE = "Kiki konnte nicht gestartet werden: OpenCode-2-Konfiguration ist \u00FCberlappend, ung\u00FCltig oder nicht beschreibbar. Konfiguration und Zugriffsrechte pr\u00FCfen.";
 /**
  * Build the ModelContext used by the shared Task 3 model functions. The global
- * config comes from the same isolated XDG/OPENCODE_CONFIG_DIR resolution as the
- * CLI; the project comes from the verified V2 host location. Config files are
- * parsed through the shared readers (never auth/.env or arbitrary files) and
- * every guard fails before the menu can write.
+ * config comes from the same XDG/OPENCODE_CONFIG_DIR resolution as the CLI; the
+ * project comes from the verified V2 host location. Config files are parsed
+ * through the shared readers (never auth/.env or arbitrary files) and every
+ * guard fails before the menu can write.
  */
 export declare function buildModelContext(ctx: Plugin.Context, env?: NodeJS.ProcessEnv, home?: string): ModelContext;
 /**

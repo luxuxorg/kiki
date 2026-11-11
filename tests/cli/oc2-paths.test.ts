@@ -70,44 +70,31 @@ describe('OpenCode 2 root resolution', () => {
     expect(readdirSync(config)).toEqual(['plugins']);
   });
 
-  it('refuses_oc1_tui_marker_before_writes', () => {
-    const config = defaultConfig();
-    mkdirSync(config, { recursive: true });
-    writeFileSync(join(config, 'tui.json'), '{"plugin":["./kiki/tui.js"]}\n');
-    expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).toThrow(/V1|OC1|version 1|legacy/i);
-  });
-
-  it.each(['opencode.json', 'opencode.jsonc'])(
-    'refuses_machine_default_config_file_without_file_markers (%s)',
+  it.each(['tui.json', 'tui.jsonc'])(
+    'accepts_legacy_cli_config_without_a_kiki_loader (%s)',
     name => {
       const config = defaultConfig();
       mkdirSync(config, { recursive: true });
-      const credential = join(config, name);
-      writeFileSync(credential, '{"agent":{"kiki-orchestrator":{"model":"secret/provider"}},"provider":{"token":"sk-live-secret"}}\n');
-      const before = readFileSync(credential, 'utf8');
+      writeFileSync(join(config, name), '{"plugin":["./kiki/tui.js"],"theme":"custom"}\n');
 
-      let error: unknown;
-      try {
-        assertOC2Target(resolveOC2Roots({}, home), home);
-      } catch (cause) {
-        error = cause;
-      }
-      expect(error).toBeInstanceOf(Error);
-      // Metadata alone cannot prove the file is Kiki-free, so the guard refuses
-      // and asks for a secret-free export instead of parsing it.
-      expect((error as Error).message).toMatch(/credential-bearing|secret-free export/i);
-      expect((error as Error).message).not.toContain('sk-live-secret');
-      expect((error as Error).message).not.toContain('secret/provider');
-      expect(readFileSync(credential, 'utf8')).toBe(before);
+      // The V1 CLI file is generic OpenCode config; without kiki/tui.js it cannot
+      // load V1 Kiki code, and OpenCode 2 uses cli.json instead.
+      expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).not.toThrow();
+    },
+  );
 
-      // An isolated config root is unaffected by an unverifiable live default.
-      const isolated = join(home, '.opencode2');
-      expect(() => assertOC2Target({
-        config: join(isolated, 'config', 'opencode'),
-        data: join(isolated, 'data', 'opencode'),
-        cache: join(isolated, 'cache', 'opencode'),
-        state: join(isolated, 'state', 'opencode'),
-      }, home)).not.toThrow();
+  it.each(['opencode.json', 'opencode.jsonc'])(
+    'accepts_standard_config_files_shared_by_oc1_and_oc2 (%s)',
+    name => {
+      const config = defaultConfig();
+      mkdirSync(config, { recursive: true });
+      const shared = join(config, name);
+      writeFileSync(shared, '{"model":"provider/model","provider":{"token":"sk-live-secret"}}\n');
+      const before = readFileSync(shared, 'utf8');
+
+      // Both generations use ~/.config/opencode; a config file is not a V1 marker.
+      expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).not.toThrow();
+      expect(readFileSync(shared, 'utf8')).toBe(before);
     },
   );
 
@@ -115,6 +102,22 @@ describe('OpenCode 2 root resolution', () => {
     expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).not.toThrow();
     mkdirSync(defaultConfig(), { recursive: true });
     expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).not.toThrow();
+  });
+
+  it('allows_install_cleanup_of_v1_artifacts_in_the_standard_config', () => {
+    const config = defaultConfig();
+    mkdirSync(join(config, 'plugins'), { recursive: true });
+    writeFileSync(join(config, 'plugins', 'kiki.ts'), 'legacy\n');
+
+    // Install/update backs up and replaces the known artifacts.
+    expect(() => assertOC2Target(
+      resolveOC2Roots({}, home),
+      home,
+      { allowKnownV1Artifacts: true },
+    )).not.toThrow();
+    // Any other write still fails closed on the live V1 artifacts.
+    expect(() => assertOC2Target(resolveOC2Roots({}, home), home))
+      .toThrow(/V1|OC1|version 1|legacy/i);
   });
 
   it('rejects_aliases_into_oc1_roots', () => {

@@ -145,16 +145,18 @@ Custom prompt
     expect(existsSync(join(global, 'cli.json'))).toBe(false);
   });
 
-  it('refuses a machine-default OC1 marker before writing', async () => {
+  it('backs up and replaces a stale V1 artifact in the standard config on install', async () => {
     vi.stubEnv('HOME', root);
     vi.stubEnv('XDG_CONFIG_HOME', '');
     const config = join(root, '.config', 'opencode');
     mkdirSync(join(config, 'plugins'), { recursive: true });
     writeFileSync(join(config, 'plugins/kiki.ts'), 'legacy');
 
-    await expect(install([])).rejects.toThrow(/V1|OC1|version 1|legacy/i);
-    expect(existsSync(join(config, 'agents'))).toBe(false);
-    expect(existsSync(join(config, 'cli.json'))).toBe(false);
+    await install([]);
+
+    expect(existsSync(join(config, 'agents'))).toBe(true);
+    expect(existsSync(join(config, 'plugins/kiki.ts'))).toBe(false);
+    expect(filesUnder(join(config, 'kiki/backups')).some(file => file.endsWith('kiki.ts'))).toBe(true);
   });
 
   it('help, unknown options and conflicting scopes never perform an install', async () => {

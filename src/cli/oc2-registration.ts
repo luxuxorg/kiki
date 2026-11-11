@@ -120,8 +120,8 @@ function newServerConfig(): string {
 }
 
 function guard(directory: string): void {
-  // Installation/update may own a stale V1 artifact in an isolated root; the
-  // machine-default credential boundary is never relaxed.
+  // Installation/update owns the documented V1 artifacts and may back them up
+  // and replace them.
   assertNotOC1Config(canonicalPath(directory), homedir(), { allowKnownV1Artifacts: true });
 }
 

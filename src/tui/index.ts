@@ -40,10 +40,10 @@ function assertWritableDirectory(target: string): void {
 
 /**
  * Build the ModelContext used by the shared Task 3 model functions. The global
- * config comes from the same isolated XDG/OPENCODE_CONFIG_DIR resolution as the
- * CLI; the project comes from the verified V2 host location. Config files are
- * parsed through the shared readers (never auth/.env or arbitrary files) and
- * every guard fails before the menu can write.
+ * config comes from the same XDG/OPENCODE_CONFIG_DIR resolution as the CLI; the
+ * project comes from the verified V2 host location. Config files are parsed
+ * through the shared readers (never auth/.env or arbitrary files) and every
+ * guard fails before the menu can write.
  */
 export function buildModelContext(
   ctx: Plugin.Context,

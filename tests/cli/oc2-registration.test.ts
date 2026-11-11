@@ -93,21 +93,18 @@ describe('package registration planning', () => {
     expect(readFileSync(join(root, 'opencode.jsonc'), 'utf8')).toBe('{}');
   });
 
-  it('fails closed before inspecting a machine-default credential-bearing config', () => {
+  it('registers in the config directory shared with OpenCode 1 without rewriting credentials', () => {
     vi.stubEnv('HOME', root);
     const config = join(root, '.config', 'opencode');
     mkdirSync(config, { recursive: true });
     const file = join(config, 'opencode.json');
     writeFileSync(file, '{"provider":{"token":"sk-live-secret"}}');
-    const before = readFileSync(file, 'utf8');
 
-    expect(() => prepareRegistration(config, 'kiki')).toThrow(/credential-bearing|secret-free export/i);
-    try {
-      prepareRegistration(config, 'kiki');
-    } catch (error) {
-      expect((error as Error).message).not.toContain('sk-live-secret');
-    }
-    expect(readFileSync(file, 'utf8')).toBe(before);
+    prepareRegistration(config, 'kiki').apply();
+
+    const settings = parse(readFileSync(file, 'utf8'));
+    expect(settings.plugins).toEqual(['kiki']);
+    expect(settings.provider.token).toBe('sk-live-secret');
   });
 });
 

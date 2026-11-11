@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Standard OpenCode config directory:** OpenCode 1 and OpenCode 2 both use
+  `~/.config/opencode`, so Kiki no longer treats the presence of
+  `opencode.json(c)` there as proof of a V1 Kiki installation. The guard now
+  keys only on V1-specific Kiki files (`plugins/kiki.*`, `kiki/tui.js`,
+  `kiki/prompts/`); a generic `tui.json(c)` is no longer a marker.
+  `kiki install`/`update` may back up and remove stale artifacts in the
+  standard directory. No wrapper or XDG overrides are required.
+- **No OpenCode binary version gate:** `kiki doctor` no longer probes
+  `opencode --version` or warns when the installed OpenCode is newer than
+  `2.2.6`. Kiki targets OpenCode V2; `2.2.6` remains the validated baseline,
+  not a runtime requirement.
+
 ## [3.0.0] — 2026-11-10
 
 ### Added

@@ -5,9 +5,8 @@ definitions and a package-style server/TUI plugin for the Intake → Brainstorm 
 Architect Review → Implement → Review → Document → Complete workflow. Project
 configuration is kept separate from Kiki updates.
 
-Kiki 3.0.0 targets OpenCode **exactly 2.2.6** and is OC2-only. Kiki 2.4.0 remains the
-frozen OC1 fallback; the two generations use separate binaries, wrappers, config, data,
-cache and state roots.
+Kiki 3.0.0 targets OpenCode V2 (validated against **2.2.6**) and is OC2-only.
+OpenCode 1 is deprecated; there is no parallel V1/V2 setup.
 
 **Status:** 3.0.0 accepted for release by the user on 2026-11-10, after live OC2/V1
 startup and `/kiki` smoke checks. Automated **ACTUAL_V3_VALIDATION** and the synthetic
@@ -19,20 +18,19 @@ rollback drill are user-owned; unreported checks are not claimed. See
 ## Requirements
 
 - Runtime Node `>=18.0.0`.
-- OpenCode exactly `2.2.6` for the Kiki 3.0.0 server and TUI entrypoints.
+- OpenCode V2 for the Kiki server and TUI entrypoints. Kiki 3.0.0 was validated
+  against `2.2.6`; newer V2 releases are not gated by `kiki doctor`.
 - Runtime dependency `@opencode/plugin@2.2.6` (exact pin). The package exports
   `./server`, `./tui` and `.` and ships `dist/`.
-- `experimental.subagent_depth: 1` and `update: "disable"` in the isolated OC2
-  configuration.
-- For the parallel machine setup, `opencode` resolves to the isolated OC2 wrapper and
-  `opencode-v1` to the retained OC1 binary. The OC2 wrapper sets all five isolation
-  variables together: `OPENCODE_CONFIG_DIR`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`,
-  `XDG_CACHE_HOME` and `XDG_STATE_HOME`. `OPENCODE_CONFIG_DIR` overrides the config
-  root only; data, cache and state still follow their XDG roots. The OC1 wrappers
-  (`opencode-v1`, `kiki-v1`) inherit a clean OC1 environment and set none of them.
-
-Until the human switches real work, the OC1 fallback remains `opencode-v1` plus
-`kiki-v1`. Do not run fallback commands from a shell that exports OC2 roots.
+- `experimental.subagent_depth: 1` and `update: "disable"` in the global
+  OpenCode configuration.
+- OpenCode 1 and OpenCode 2 share the standard global paths
+  (`~/.config/opencode`, `~/.local/share/opencode`, `~/.cache/opencode`,
+  `~/.local/state/opencode`). Kiki 3 needs no wrapper and no environment
+  overrides: run `opencode` directly. `OPENCODE_CONFIG_DIR` and the XDG
+  variables remain supported when separate roots are wanted deliberately;
+  `OPENCODE_CONFIG_DIR` overrides the config root only, while data, cache and
+  state still follow their XDG roots.
 
 ## Installation and updates
 
@@ -44,8 +42,8 @@ npm run build
 node dist/cli/index.js install
 ```
 
-Run Kiki through the isolated OC2 wrapper so it resolves the OC2 config directory
-(`~/.opencode2/config/opencode`), or provide the same five variables explicitly.
+Run `kiki` normally. It writes to the standard global OpenCode config directory
+(`~/.config/opencode`); no wrapper or environment overrides are required.
 `kiki install` writes the eight native agent Markdown files, the workflow reference and
 the package registrations, backs up existing Kiki-owned targets, and asks for an
 OpenCode restart.
@@ -241,9 +239,9 @@ It does not repair an already running or stuck OpenCode session.
 
 - `kiki status [path]`: global OC2 installation, effective `agents.<id>.model` values,
   and project overrides.
-- `kiki doctor [path]`: checks the OC2 root isolation, observed OC2 version (expects
-  exactly `2.2.6`), native agent files and modes, prompt files, one server plugin
-  registration, one `cli.json` TUI registration, project commands/paths and skills.
+- `kiki doctor [path]`: checks the OC2 root layout, native agent files and
+  modes, prompt files, one server plugin registration, one `cli.json` TUI
+  registration, project commands/paths and skills.
   Agent model presence is informational: it shows the resolved model or inherited
   OpenCode default and never fails a fresh install. Credential status is
   presence/metadata only. Required skills are checked as files on disk; missing skills,
@@ -386,7 +384,9 @@ gates.
 
 The optional native tests use disposable HOME and all XDG roots plus an explicit
 `OPENCODE_CONFIG_DIR`; child processes receive a whitelisted environment and never
-inherit live auth/provider/config values. The binary must report exactly `2.2.6`.
+inherit live auth/provider/config values. The optional integration fixture is pinned to
+an OpenCode `2.2.6` binary for reproducibility; that is a test pin, not a runtime
+requirement.
 The `/kiki` integration test also requires Python 3 and a POSIX pseudo-terminal; it opens
 the real TUI, exercises the menu with the German copy, and asserts zero provider
 requests.
