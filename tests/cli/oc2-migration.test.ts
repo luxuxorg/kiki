@@ -12,6 +12,7 @@ import { translatePermissions } from '../../src/cli/oc2-permissions';
 import { migrateProject, mergeSettings } from '../../src/cli/opencode-config';
 import { migrate } from '../../src/cli/commands/migrate';
 import { parseMigrationArgs } from '../../src/cli/args';
+import { KIKI_VERSION } from '../../src/cli/config';
 
 // Deterministic, post-backup I/O fault injection for the transaction rollback
 // tests. The real rename is always delegated unless a test installs a hook.
@@ -144,7 +145,7 @@ describe('one-time OC1 to OC2 migration', () => {
     const markerFile = join(destination, '.agentic/kiki/migration.json');
     const marker = readJson(markerFile);
     expect(marker.source).toBe(source);
-    expect(marker.version).toBe('3.0.0');
+    expect(marker.version).toBe(KIKI_VERSION);
     expect(typeof marker.timestamp).toBe('string');
 
     const backups = backupDirs(destination);

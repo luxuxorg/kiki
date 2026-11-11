@@ -159,7 +159,8 @@ describe('packed V3 consumer', () => {
     expect(packed.tarballSha256).toMatch(/^[a-f0-9]{64}$/);
 
     const installed = JSON.parse(readFileSync(join(packed.packageDir, 'package.json'), 'utf8'));
-    expect(installed.version).toBe('3.0.0');
+    const expectedVersion = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).version;
+    expect(installed.version).toBe(expectedVersion);
     expect(installed.dependencies['@opencode/plugin']).toBe('2.2.6');
     // Dev dependencies remain declared in the manifest but are not installed
     // into the production-only consumer.

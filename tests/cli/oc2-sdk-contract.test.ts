@@ -182,9 +182,9 @@ export function registerTuiMenu(context: TuiPlugin.Context): void {
 }
 
 describe('package boundary', () => {
-  it('declares Kiki version 3.0.0 in package.json and KIKI_VERSION', () => {
-    expect(packageJson().version).toBe('3.0.0');
-    expect(KIKI_VERSION).toBe('3.0.0');
+  it('declares one Kiki version in package.json and KIKI_VERSION', () => {
+    expect(KIKI_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(packageJson().version).toBe(KIKI_VERSION);
   });
 
   it('pins the published @opencode/plugin 2.2.6 as a runtime dependency', () => {
@@ -231,12 +231,13 @@ describe('package boundary', () => {
     expect(pkg.devDependencies?.vitest).toBe('4.1.0');
   });
 
-  it('synchronizes the lockfile root with the 3.0.0 manifest without dropping runtime deps', () => {
+  it('synchronizes the lockfile root with the manifest without dropping runtime deps', () => {
+    const version = packageJson().version;
     const lock = packageLock();
     const root = lock.packages?.[''] ?? {};
-    expect(lock.version).toBe('3.0.0');
+    expect(lock.version).toBe(version);
     expect(lock.lockfileVersion).toBe(3);
-    expect(root.version).toBe('3.0.0');
+    expect(root.version).toBe(version);
     expect(root.dependencies).toEqual({
       '@opencode/plugin': SDK_VERSION,
       'jsonc-parser': '^3.3.1',
