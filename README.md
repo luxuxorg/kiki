@@ -297,6 +297,112 @@ relying on it. See the
 [plan](docs/superpowers/plans/2026-11-12-security-boundaries-plan.md) and
 [probe record](docs/research/2026-11-12-security-boundaries-probes.md).
 
+## Loop controls and review governance
+
+The generated agent prompts carry a bounded dispatch/review loop and an
+evidence-based review contract. This is prompt-level guidance, not a sandbox:
+the native permission arrays and the wall-clock watchdog remain the mechanical
+backstops, and the transcript is the final backstop.
+
+**Reviewer report.** The reviewer reports exactly one verdict: `PASS`,
+`PASS_WITH_NOTES` or `FAIL`; there is no binary or fourth verdict. Each `FAIL`
+item carries `Reason` (`implementation` | `plan` | `spec` | `user-decision` |
+`environment/permission`), `Severity` (`critical` | `major` | `minor`) and
+`Evidence` (the scenario, the violated rule or requirement, and the file/line;
+for `plan` and `spec`, the faulty passage quoted plus why no implementation can
+satisfy it). Critical and major block; a minor item, or one whose evidence is
+incomplete, downgrades to a note whatever its Reason, so a `FAIL` stands only
+while a critical/major item with complete evidence remains. `PASS` and
+`PASS_WITH_NOTES` state their `Basis:`; non-blocking notes go in the review
+document and the task's phase/progress prose, never in `reviewNotes` (reserved
+for unresolved issues).
+
+**Routing.** `FAIL` + `implementation` earns exactly one fix round with the
+original builder, then re-review. `FAIL` + `plan` sends the plan back to the
+planner with no fix round, and every revised plan passes the reviewer loop
+before implementation resumes. `FAIL` + `spec` or `user-decision` stops and asks
+the user directly. `FAIL` + `environment/permission` is terminal: no retry and
+no workaround. A second failure on the same task is classified before spending
+escalation: `user-decision` and `environment/permission` are user-only and stop
+for the user, and an ostensibly technical failure caused by a missing
+credential is treated the same way. Only a technical deadlock dispatches
+escalation, at most once per task.
+
+**Ownership.** The user approves the spec; plans are machine-owned only while
+the spec's requirements, scope, security intent and acceptance criteria stay
+unchanged. Changing what is delivered or what is allowed is a spec change and
+needs explicit user approval.
+
+**Escalation.** Escalation reads both review reports, the diff and the builder's
+recorded evidence (registry, health and routing logs on request), may reproduce
+checks in the current tree or a scratch copy under `/tmp/opencode`, and writes
+one report plus at most one optional unapplied patch to `.agentic/reviews/*`. It
+recommends exactly one of Fix with guidance, Rewrite plan, Rewrite spec, Split,
+or Stop-needs-user; rewrite recommendations quote the faulty passage. It does
+not edit source, publish, perform remote writes, or change permissions —
+prompt-level restrictions, with the review-directory edit grant as the one
+mechanical limit. The orchestrator presents the recommendation to the user;
+nothing is rewritten automatically.
+
+**Check ownership.** The implementer and gui-designer run the configured
+build/test/lint/security commands and report the exact command output (including
+failure output); the reviewer judges the diff and recorded evidence without
+rerunning them, and the orchestrator runs no project checks. A builder that
+cannot proceed reports the explicit `BLOCKED` form (`Blocker:`, `Tried:`,
+`Need:`) and stops; silent retry and workaround are forbidden.
+
+**Standing checks.** In every review the reviewer also looks for silent scope
+creep — unrequested features, widened permissions, new dependencies, extra
+behavior beyond the task, and unrelated refactors — and for guardrail
+violations. Creep in the implementation is `FAIL`/`implementation`; creep in a
+plan is `FAIL`/`plan` with the offending passage quoted; a genuine need to
+expand scope is a spec change and needs user approval.
+
+**Guardrail baseline.** Every one of the eight generated agent prompts carries
+this fixed block exactly once, alongside the unchanged permission block:
+
+```text
+Project guardrails (non-negotiable; source: .agentic/kiki/alignment.json): Never hardcode secrets in source code. Use parameterized statements for every database query. Never leak internal stack traces in API responses. If a guardrail cannot be satisfied, stop and report it; do not work around it.
+```
+
+The block is a fixed constant whose three rule sentences correspond one-to-one
+to the three default guardrails, plus a stop-and-report rule; it is not
+generated from the active project file. In every review the reviewer additionally reads the active
+project's `.agentic/kiki/alignment.json` fresh and checks the diff against all
+of its guardrails, so custom project rules are caught there. A violation is
+`FAIL`/`implementation`/`critical` (or `spec` when the spec itself demands it),
+and a conflict between the fixed block and the active file stops for a user
+decision. Per-project dynamic prompt injection is deferred, not rejected. The
+block is guidance: tests prove the wording is present in each prompt, not that a
+model obeys it.
+
+**Caps and recording.** Prompt-level: at most one dispatch retry (only for a
+non-`BLOCKED` empty or failed result), at most two review rounds per task with
+the one implementation fix round between them, one escalation per task, and the
+same failure twice stops automatic work. Dispatch retries and fix rounds
+increment the existing numeric `failures` field; review rounds, escalation use
+and notes are summarized in phase/progress prose, with no new registry counters
+or schema fields. The 30-minute dispatch timeout and watchdog thresholds remain
+the wall-clock backstop; a token/wall-clock budget engine is deferred, not
+dropped.
+
+**Implementation status (2026-11-13).** The prompt changes and their static
+tests are implemented in `src/cli/config.ts`, `tests/cli/loop-controls.test.ts`
+and the sandbox delivery tests in `tests/cli/install.test.ts`. No commit, global
+install, real `kiki update`, or rollout was performed; existing installations
+receive the new prompt bodies on the next `kiki update`. Behavioral outcomes,
+including whether agents actually stop when required or read the active
+alignment file each review, remain observe-in-use. In this change's final
+verification run, with `OPENCODE_TEST_BINARY` set to the local OpenCode 2.2.7
+binary, the serial full suite reported 46 files passed and 2 skipped, 682 tests
+passed, 2 skipped and 0 failed; `npm run build`, `npm run lint` and
+`npx tsc --noEmit` all exited 0, and the 2 skips are by-design opt-in release
+tests. An earlier run without that integration prerequisite reported 666
+passed, 14 skipped and 4 failed; those four integration failures occur only
+when `OPENCODE_TEST_BINARY` is unset and are unrelated to this change.
+`npm audit` reported 32 pre-existing moderate findings with no dependency
+changes.
+
 ## Migrate from OC1 once
 
 Migration reads a **secret-free OC1 export**, never a live credential-bearing
@@ -495,7 +601,7 @@ npm run lint
 npm run build
 # Source-only typecheck, separate from lint (tsconfig excludes tests):
 node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
-# Optional integration tests against an installed OpenCode 2.2.6 binary:
+# Optional integration tests against an installed OpenCode 2.x binary:
 OPENCODE_TEST_BINARY=/absolute/path/to/opencode npm test
 ```
 
@@ -505,8 +611,9 @@ gates.
 
 The optional native tests use disposable HOME and all XDG roots plus an explicit
 `OPENCODE_CONFIG_DIR`; child processes receive a whitelisted environment and never
-inherit live auth/provider/config values. The optional integration fixture is pinned to
-an OpenCode `2.2.6` binary for reproducibility; that is a test pin, not a runtime
+inherit live auth/provider/config values. The optional integration fixture accepts any
+OpenCode 2.x binary and records the exact version it observed for the test evidence; it
+rejects V1, malformed and future-major binaries. That is a test gate, not a runtime
 requirement.
 The `/kiki` integration test also requires Python 3 and a POSIX pseudo-terminal; it opens
 the real TUI, exercises the menu with the German copy, and asserts zero provider

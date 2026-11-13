@@ -604,38 +604,63 @@ describe('ordered native permission translation', () => {
     expect(orchestrator).toContain('do not retry; report the blocked command and stop');
   });
 
-  it('prompt_body_only_changes_delegation', () => {
-    const approvedAdditions = new Set([
-      '- Every dispatch MUST include the target `agent` ID and a 3–5-word `description`.',
-      '- Optionally pass `model` with the dispatch and `sessionID` to continue an existing session.',
-      '- Subagents MUST NOT dispatch other subagents; nested delegation is forbidden (`experimental.subagent_depth` is 1).',
-      noCircumventionLine,
-      '- **Permission block override:** if a subagent reports `PERMISSION_BLOCKED: <command>`, do not retry; report the blocked command and stop.',
-    ]);
-    const canonical = (value: string) => value
-      .replace(/`task`/g, '`DELEGATE`')
-      .replace(/`subagent`/g, '`DELEGATE`')
-      .replace(/subagent_type/g, 'agent');
-    const withoutApprovedAdditions = (value: string) => value
-      .split('\n')
-      .filter(line => !approvedAdditions.has(line.trim()))
-      .join('\n');
+  it('prompt_bodies_preserve_native_delegation_contract', () => {
+    const skillLoadingRoles: Record<string, string[]> = {
+      brainstormer: ['`brainstorming` superpowers skill', 'follow it **inline**'],
+      planner: ['`writing-plans` superpowers skill', 'follow it **inline**'],
+      implementer: [
+        '`executing-plans`',
+        '`test-driven-development`',
+        '`systematic-debugging`',
+        'follow them **inline**',
+      ],
+      guiDesigner: [
+        '`ui-ux-pro-max`',
+        '`executing-plans`',
+        '`test-driven-development`',
+        '`systematic-debugging`',
+        'Follow all four exactly',
+      ],
+      reviewer: [
+        '`receiving-code-review`',
+        '`requesting-code-review`',
+        'follow it **inline**',
+      ],
+      escalation: ['`systematic-debugging` superpowers skill', 'follow it **inline**'],
+    };
 
-    for (const [config, templates, bodies] of [
-      [DEFAULT_CONFIG, fixture.templates, fixture.promptBodies],
-      [fixture.customConfig, fixture.customTemplates, fixture.customPromptBodies],
+    for (const [label, config] of [
+      ['default', DEFAULT_CONFIG],
+      ['custom', fixture.customConfig],
     ] as const) {
+      const orchestrator = bodyOf(generateOrchestratorTemplate(config));
+      expect(orchestrator, label).toContain('`subagent` tool');
+      expect(orchestrator, label).toContain(
+        'Every dispatch MUST include the target `agent` ID and a 3–5-word `description`.',
+      );
+      expect(orchestrator, label).toContain(
+        'Optionally pass `model` with the dispatch and `sessionID` to continue an existing session.',
+      );
+      expect(orchestrator, label).toContain(
+        'Subagents MUST NOT dispatch other subagents; nested delegation is forbidden',
+      );
+      expect(orchestrator, label).toContain('**Permission block override:**');
+      expect(orchestrator, label).not.toContain('`task` tool');
+      expect(orchestrator, label).not.toContain('subagent_type');
+
+      for (const [role, expectedFragments] of Object.entries(skillLoadingRoles)) {
+        const body = bodyOf(roleGenerators[role](config));
+        for (const fragment of expectedFragments) {
+          expect(body, `${label} ${role}: ${fragment}`).toContain(fragment);
+        }
+      }
+
       for (const [role, generate] of Object.entries(roleGenerators)) {
-        const actual = bodyOf(generate(config));
-        expect(canonical(withoutApprovedAdditions(actual)), role)
-          .toBe(canonical(bodies[role]));
+        const body = bodyOf(generate(config));
+        expect(body, `${label} ${role}: no legacy task tool`).not.toContain('`task` tool');
+        expect(body, `${label} ${role}: no legacy subagent_type`).not.toContain('subagent_type');
       }
     }
-
-    const orchestrator = bodyOf(generateOrchestratorTemplate(DEFAULT_CONFIG));
-    for (const line of approvedAdditions) expect(orchestrator).toContain(line);
-    expect(orchestrator).toContain('`subagent` tool');
-    expect(orchestrator).not.toContain('`task` tool');
   });
 
   it('workflow_uses_v2_delegation_and_config_keys', () => {

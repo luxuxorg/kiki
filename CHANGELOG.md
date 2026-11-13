@@ -8,6 +8,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Bounded loop controls and review governance in generated agent prompts:**
+  the reviewer reports exactly one of `PASS`, `PASS_WITH_NOTES` or `FAIL`, with
+  `Reason` (`implementation` | `plan` | `spec` | `user-decision` |
+  `environment/permission`), `Severity` (`critical` | `major` | `minor`) and
+  `Evidence` per blocking item; minor or incomplete-evidence items downgrade to
+  non-blocking notes, which go to the review document and phase prose rather
+  than `reviewNotes`. An implementation FAIL earns one fix round, a plan FAIL
+  returns to the planner and must re-pass review, spec and user-decision FAILs
+  stop for the user, and environment/permission FAILs are terminal. A second
+  failure is classified user-only versus technical before escalation, which is
+  limited to one technical-deadlock diagnosis per task with five possible
+  recommendations (Fix with guidance, Rewrite plan, Rewrite spec, Split,
+  Stop-needs-user). Prompt-level caps are one dispatch retry, two review rounds,
+  one escalation, and stop on the same failure twice; retries and fix rounds
+  increment the existing `failures` field, review rounds stay in phase prose,
+  and the watchdog remains the wall-clock backstop. The token/wall-clock budget
+  engine remains deferred.
+- **Fixed guardrail block in all eight generated agent prompts:** the three
+  default guardrails plus their stop-and-report rule appear verbatim exactly
+  once per prompt; the reviewer reads the active project's
+  `.agentic/kiki/alignment.json` fresh in every review to catch custom rules,
+  and a violation is critical (implementation, or spec when demanded). The
+  block is a constant, not per-project generation; dynamic injection is
+  deferred.
+- **Builder evidence handoff and explicit blocking:** implementer and
+  gui-designer run the configured build/test/lint/security commands, record
+  exact command output, and report `BLOCKED` with `Blocker:`, `Tried:` and
+  `Need:` instead of silently retrying or working around a blocker. The
+  reviewer judges the diff and recorded evidence without rerunning checks, and
+  the orchestrator runs no project checks.
+- **Loop-control and delivery regression tests:** static assertions cover
+  verdict/report fields, routing, caps, escalation, builder handoff, guardrails,
+  alignment checks and plan ownership (R1–R13, R15, R16); sandbox install/update
+  tests assert the delivered prompt bodies and preserved native settings.
 - **Publishing-gated generated agent permissions:** all eight roles, including
   the orchestrator, get `allow shell *` first so routine local work runs without
   prompts. After it come 18 `ask` rules for publishing and remote-changing
@@ -54,6 +88,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Reviewer, orchestrator, escalation and workflow prompt contracts
+  replaced:** binary `PASS`/`FAIL` became the three-verdict report above;
+  unconditional twice-failed escalation became reason-based routing with a
+  user-only checkpoint; escalation now receives both review reports, the diff
+  and recorded evidence, may reproduce in the tree or a `/tmp/opencode` scratch
+  copy, and writes only one report plus an optional unapplied patch under
+  `.agentic/reviews/*`, with no source edits, publishing, remote writes or
+  permission changes (prompt-level restrictions). Plans remain machine-owned
+  only within an unchanged user-approved spec.
+- **Agent prompt bodies changed for existing installations:** the new prompts
+  and guardrail block ship in the generated templates and are picked up by the
+  next `kiki update`. No commit, global install, real `kiki update`, or rollout
+  was performed with this change.
+- **Verification and enforcement limits:** enforcement is prompt-level, not a
+  sandbox; the permission arrays and watchdog remain the mechanical backstops.
+  Static tests prove the prompt wording is present, not that a model obeys it,
+  and the behavioral outcomes remain observe-in-use. In this change's final
+  verification run, with `OPENCODE_TEST_BINARY` set, the serial full suite
+  reported 46 files passed and 2 skipped, 682 tests passed, 2 skipped and 0
+  failed; `npm run build`, `npm run lint` and `npx tsc --noEmit` all exited 0,
+  and the 2 skips are by-design opt-in release tests. The four integration
+  failures seen in an earlier run occur only when that prerequisite is unset
+  and are unrelated to this change. `npm audit` reported 32 pre-existing
+  moderate findings with no dependency changes.
 - **Corrected shell scope (2026-11-13):** the earlier blanket `shell *` → `ask`
   generated policy was too broad and made routine local work impractical. It was
   replaced by `allow shell *` plus 18 publishing/remote-changing asks and five

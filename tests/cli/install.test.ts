@@ -15,6 +15,17 @@ const AGENTS = [
   'kiki-gui-designer', 'kiki-reviewer', 'kiki-escalation', 'kiki-historian',
 ];
 
+// The pinned §3 guardrail block. This delivery test asserts the installed
+// copies carry it verbatim exactly once, matching the generated templates.
+const GUARDRAIL_BLOCK =
+  'Project guardrails (non-negotiable; source: .agentic/kiki/alignment.json): Never hardcode secrets in source code. Use parameterized statements for every database query. Never leak internal stack traces in API responses. If a guardrail cannot be satisfied, stop and report it; do not work around it.';
+
+const REVIEWER_CONTRACT_LINE = 'Verdict: PASS | PASS_WITH_NOTES | FAIL';
+
+function bodyCount(text: string, marker: string): number {
+  return text.split(marker).length - 1;
+}
+
 function filesUnder(directory: string): string[] {
   if (!existsSync(directory)) return [];
   return readdirSync(directory, { withFileTypes: true })
@@ -56,6 +67,128 @@ describe('global installation CLI', () => {
     expect(existsSync(join(global, 'package.json'))).toBe(false);
     expect(existsSync(join(global, 'node_modules'))).toBe(false);
     expect(existsSync(join(global, 'kiki/agentic-workflow.md'))).toBe(true);
+  });
+
+  it('installs_loop_control_prompts_for_all_eight_roles', async () => {
+    await install([]);
+
+    for (const name of AGENTS) {
+      const file = join(global, 'agents', `${name}.md`);
+      const { prompt } = parseAgent(readFileSync(file, 'utf8'), file);
+      expect(bodyCount(prompt, GUARDRAIL_BLOCK), `${name}: guardrail block exactly once`).toBe(1);
+    }
+
+    const reviewerFile = join(global, 'agents', 'kiki-reviewer.md');
+    const reviewer = parseAgent(readFileSync(reviewerFile, 'utf8'), reviewerFile).prompt;
+    expect(reviewer, 'reviewer: three-verdict contract').toContain(REVIEWER_CONTRACT_LINE);
+    expect(reviewer, 'reviewer: no binary verdict').not.toContain('Verdict: PASS | FAIL');
+    expect(reviewer, 'reviewer: fresh active alignment read').toContain(
+      "read the active project's `.agentic/kiki/alignment.json` fresh",
+    );
+
+    const workflow = readFileSync(join(global, 'kiki/agentic-workflow.md'), 'utf8');
+    expect(workflow, 'workflow: three-verdict contract').toContain(REVIEWER_CONTRACT_LINE);
+    expect(workflow, 'workflow: Reason categories').toContain(
+      '`Reason: implementation | plan | spec | user-decision | environment/permission`',
+    );
+    expect(workflow, 'workflow: Severity levels').toContain(
+      '`Severity: critical | major | minor`',
+    );
+    expect(workflow, 'workflow: Evidence field').toContain('`Evidence:`');
+    expect(workflow, 'workflow: fresh active alignment read').toContain(
+      "reads the active project's `.agentic/kiki/alignment.json` fresh in every review",
+    );
+  });
+
+  it('updates_stale_prompt_bodies_without_changing_native_settings', async () => {
+    // A deliberate native reviewer restriction and model override, as in the
+    // existing preservation fixture; update must leave both untouched.
+    mkdirSync(global, { recursive: true });
+    writeFileSync(join(global, 'opencode.jsonc'), `{
+  "agents": {
+    "kiki-reviewer": {
+      "model": { "providerID": "custom", "model": "reviewer-model" },
+      "permissions": [
+        { "action": "edit", "resource": "src/**", "effect": "deny" }
+      ]
+    }
+  }
+}`);
+
+    await install([]);
+
+    const nativeBefore = readOpenCodeSettings(global, true).agents['kiki-reviewer'];
+    expect(nativeBefore).toEqual({
+      model: { providerID: 'custom', model: 'reviewer-model' },
+      permissions: [{ action: 'edit', resource: 'src/**', effect: 'deny' }],
+    });
+
+    const recorded: Record<string, {
+      settings: Record<string, unknown>;
+      permissions: unknown;
+      mode: unknown;
+      hasModel: boolean;
+    }> = {};
+    for (const name of AGENTS) {
+      const file = join(global, 'agents', `${name}.md`);
+      const text = readFileSync(file, 'utf8');
+      const { settings } = parseAgent(text, name);
+      recorded[name] = {
+        settings,
+        permissions: settings.permissions,
+        mode: settings.mode,
+        hasModel: 'model' in settings,
+      };
+
+      const match = text.match(/^((?:---\r?\n[\s\S]*?\r?\n---\r?\n))([\s\S]*)$/);
+      expect(match, `${name}: frontmatter retained`).not.toBeNull();
+      writeFileSync(file, `${match![1]}STALE_BODY_MARKER_${name}\n`);
+    }
+
+    await update([]);
+
+    for (const name of AGENTS) {
+      const file = join(global, 'agents', `${name}.md`);
+      const { settings, prompt } = parseAgent(readFileSync(file, 'utf8'), file);
+      expect(prompt, `${name}: stale body replaced`).not.toContain(`STALE_BODY_MARKER_${name}`);
+      expect(bodyCount(prompt, GUARDRAIL_BLOCK), `${name}: guardrail block exactly once`).toBe(1);
+      expect(settings, `${name}: native settings unchanged`).toEqual(recorded[name].settings);
+      expect(settings.permissions, `${name}: permissions unchanged`).toEqual(recorded[name].permissions);
+      expect(settings.mode, `${name}: mode unchanged`).toBe(recorded[name].mode);
+      expect('model' in settings, `${name}: model presence unchanged`).toBe(recorded[name].hasModel);
+    }
+
+    expect(readOpenCodeSettings(global, true).agents['kiki-reviewer']).toEqual(nativeBefore);
+
+    const reviewerFile = join(global, 'agents', 'kiki-reviewer.md');
+    const reviewer = parseAgent(readFileSync(reviewerFile, 'utf8'), reviewerFile).prompt;
+    expect(reviewer, 'reviewer: three-verdict contract').toContain(REVIEWER_CONTRACT_LINE);
+    expect(reviewer, 'reviewer: fresh active alignment read').toContain(
+      "read the active project's `.agentic/kiki/alignment.json` fresh",
+    );
+
+    const orchestratorFile = join(global, 'agents', 'kiki-orchestrator.md');
+    const orchestrator = parseAgent(readFileSync(orchestratorFile, 'utf8'), orchestratorFile).prompt;
+    expect(orchestrator, 'orchestrator: reason routing').toContain(
+      "Route by the reviewer's Reason before retrying or escalating",
+    );
+    expect(orchestrator, 'orchestrator: implementation fix round').toContain(
+      '**FAIL + Reason `implementation`** → exactly one fix round',
+    );
+
+    const workflow = readFileSync(join(global, 'kiki/agentic-workflow.md'), 'utf8');
+    expect(workflow, 'workflow: fresh active alignment read').toContain(
+      "reads the active project's `.agentic/kiki/alignment.json` fresh in every review",
+    );
+
+    const afterFirstUpdate = Object.fromEntries(
+      filesUnder(global).map(file => [file, readFileSync(file, 'utf8')]),
+    );
+    await update([]);
+    const afterSecondUpdate = Object.fromEntries(
+      filesUnder(global).map(file => [file, readFileSync(file, 'utf8')]),
+    );
+    expect(afterSecondUpdate).toEqual(afterFirstUpdate);
   });
 
   it('accepts repeated install/update without changing files or duplicating registration', async () => {
