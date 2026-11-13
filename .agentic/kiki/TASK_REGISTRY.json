@@ -1,6 +1,16 @@
 {
   "tasks": [
     {
+      "id": "reviewer-precision-eval",
+      "description": "Build a small real-data reviewer eval set to measure whether the new PASS/PASS_WITH_NOTES/FAIL contract catches known bugs without over-blocking clean changes. Data: pre-fix parents of real fix commits, one real clean control, one real incident report; synthetic probe cases as smoke tests only.",
+      "status": "in_progress",
+      "phase": "brainstorm",
+      "startedAt": "2026-11-13",
+      "failures": 0,
+      "dataSources": { "bug1": "parent of 1decc15 fix: plugin hook registration", "bug2": "parent of afa31c5 fix: validate health config values", "bug3": "parent of b870bc7 fix: support standard OpenCode config and drop 2.2.6 gate", "cleanControl": "3e3749d docs: add security/evals research inputs and critical review", "incident": ".agentic/reviews/2026-11-09-kiki-implementer-protocol-failure.md", "syntheticSmokeOnly": "/tmp/opencode/kiki-loop-probe/" },
+      "documentation": { "status": "pending", "reason": "Historian to document eval set/runbook after design; decide not_required if only internal evidence." }
+    },
+    {
       "id": "stop-runaway-loops",
       "description": "Prompt-level loop controls for runaway dispatch/review cycles and permission-missing waits: permission block is terminal, reviewer has PASS/PASS_WITH_NOTES/FAIL + Reason/Severity evidence rules, second FAIL routes user-only issues to the user and technical deadlocks to escalation, spec is user-owned and plan is machine-owned, reviewer checks plan changes and silent scope creep. Token and wall-clock budget engine is deferred, not dropped; watchdog remains the time backstop for this iteration.",
       "status": "completed",
