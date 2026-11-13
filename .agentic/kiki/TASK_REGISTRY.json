@@ -1,6 +1,16 @@
 {
   "tasks": [
     {
+      "id": "stop-runaway-loops",
+      "description": "Add per-task loop/runaway budgets and make permission-missing waits stop instead of looping: no retry/workaround on permission blocks, pending approvals pause watchdog accounting, and tasks have hard caps on dispatches, review rounds, tokens and wall clock with escalation on breach.",
+      "status": "in_progress",
+      "phase": "brainstorm",
+      "startedAt": "2026-11-13",
+      "failures": 0,
+      "userRequirements": ["Stop runaway loops in Kiki orchestration.", "A missing permission must stop the loop, not cause retries or workarounds.", "User is non-expert; keep controls deterministic and maintainable, not a new subsystem."],
+      "documentation": { "status": "pending", "reason": "Historian to document after implementation; decide not_required with reason if no user-facing change." }
+    },
+    {
       "id": "security-boundaries-design",
       "localPermissionAmendment": { "authorization": "User: please update the local permissions so we can continue.", "changed": "opencode.jsonc implementer edit allows for exact plan/spec paths plus .superpowers/sdd workspace", "backup": "/tmp/opencode/kiki-opencode.jsonc.pre-security-grant.bak", "scope": "Exact temporary paths only; remove during final security transition/cleanup. No shell or other agent widening.", "verification": "git diff reviewed; V1 edit rules already demonstrably enforced by prior denial." },
       "workspaceAuthorization": "User explicitly instructed continue on main, no need for a worktree. Work in existing checkout, preserve pre-existing changes; no worktree creation or commits.",
