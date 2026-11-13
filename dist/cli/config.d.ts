@@ -53,7 +53,7 @@ export declare function generateBrainstormerTemplate(config: KikiConfig): string
 export declare function generatePlannerTemplate(config: KikiConfig): string;
 export declare function generateImplementerTemplate(config: KikiConfig): string;
 export declare function generateGuiDesignerTemplate(config: KikiConfig): string;
-export declare function generateReviewerTemplate(config: KikiConfig): string;
+export declare function generateReviewerTemplate(_config: KikiConfig): string;
 export declare function generateEscalationTemplate(_config: KikiConfig): string;
 export declare function generateHistorianTemplate(config: KikiConfig): string;
 export declare function generateWorkflowTemplate(config: KikiConfig): string;

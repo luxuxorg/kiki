@@ -15,6 +15,16 @@ unmeasured behavior is listed under **PENDING** and is not asserted as fact.
 > and tested the source; alternate-route runtime evidence was measured under
 > Task 3 (§5.3). Human/TUI, long-wait and watchdog-while-waiting evidence remain
 > **PENDING** and block the related rollout gates.
+>
+> **Policy correction (2026-11-13):** the shipped generated policy was corrected
+> after these probes. All eight roles now get `allow shell *` first, 18
+> publishing/remote-changing `ask` rules, then five force-push `deny` rules.
+> The ask-gate configurations in §3 are **probe fixtures** that measure runtime
+> semantics (ask/reject, saved grants, scanner limits, precedence); they are not
+> the current shipped policy. The measurements remain valid for those semantics,
+> but §3.1's `ask shell *` fixture no longer describes Kiki behavior, and unknown
+> local commands now run under the allow instead of asking. `kiki update`
+> refreshed the active global prompts with the no-circumvention line.
 
 ---
 
@@ -286,12 +296,12 @@ if the ask gate were absent:
 
 ---
 
-## 4. Expected RED — current generated policy (not a probe failure)
+## 4. Expected RED at the Task 1 run — then-current generated policy (historical; since replaced)
 
 `security_shape_precedence` also asserts the **proposed generated policy** as
 `expect.soft` checks, so all measured runtime assertions above run first. On the
-current generator the test is intentionally RED on exactly these 11 soft
-assertions (recorded in the Vitest log):
+generator at the Task 1 run the test was intentionally RED on exactly these 11
+soft assertions (recorded in the Vitest log):
 
 | # | Assertion |
 |---|---|
@@ -307,10 +317,12 @@ assertions (recorded in the Vitest log):
 | 10 | `kiki-historian: first shell rule must be the ask fallback` |
 | 11 | `orchestrator: primary permissions block` (`false` received — missing) |
 
-These are the expected policy gaps for **Task 2**: the current implementer and
-gui-designer still contain `allow shell *`, and the orchestrator has no primary
-`permissions` block. They are **not** runtime-enforcement failures, and they
-must not be reported as a Task 1 pass.
+These were the expected policy gaps for **Task 2** at that time: the
+then-current implementer and gui-designer contained `allow shell *`, and the
+orchestrator had no primary `permissions` block. Later source implementation
+replaced both; this section is retained as historical Task 1 evidence. They are
+**not** runtime-enforcement failures, and they must not be reported as a Task 1
+pass.
 
 Test-level result of the fix-round-1 recorded run:
 
@@ -337,7 +349,7 @@ as verified, and it blocks the rollout gates that depend on it.
 
 ### 5.1 Human / TUI evidence
 
-**Later manual observation (2026-11-13):** the user confirmed that an
+**Later manual observation (2026-11-13, under the then-applied ask-first policy):** the user confirmed that an
 orchestrator-dispatched implementer's `printf 'kiki primary boundary test\n'`
 raised a permission prompt in the root TUI and returned the expected stdout.
 This supplies informal evidence for the root-visible subagent ask path only;
@@ -391,21 +403,23 @@ Still **PENDING** or qualified:
 
 ### 5.4 Configuration transition and other out-of-scope items
 
-- Current `opencode.jsonc` transition: a **preview only** was generated on
+- `opencode.jsonc` transition history: a **preview only** was generated on
   disposable copies (Task 5, 2026-11-12;
   `.superpowers/sdd/2026-11-12-security-boundaries-plan/task-5-preview.md`).
-   At preview time the live project config was unchanged and still used V1
-   rules ignored on 2.2.7. **Later update (2026-11-13):** the user authorized
-   application and the live config now uses V2 `permissions`. The registry
-   records config/load checks, final route validation after narrowing, and
-   remaining verification limits; §5.1 records the user's live subagent prompt
-   observation. This supersedes the earlier unapplied status, not the remaining
-   unverified checks. The preview was regenerated after the 2026-11-12 ruling: it retains
-  the permanent narrow `.superpowers/sdd/**` edit grant for the implementer,
-  gui-designer, and orchestrator, and removes only the other 19 temporary
-  implementer path grants. The implementer's grant already exists in the live
-  config and is carried forward; the gui-designer and orchestrator receive it
-  newly from the generated owner.
+  At preview time the live project config was unchanged and still used V1
+  rules ignored on 2.2.7. **Later update (2026-11-13):** the user authorized
+  application and the live config now uses V2 `permissions`, first under the
+  ask-first policy and then under the corrected scope (`allow shell *`, 18
+  publishing asks, five force-push denies). The registry records config/load
+  checks, final route validation after narrowing, and remaining verification
+  limits; §5.1 records the user's live subagent prompt observation from the
+  ask-first period. This supersedes the earlier unapplied status, not the
+  remaining unverified checks. The preview was regenerated after the 2026-11-12 ruling: it
+  retains the permanent narrow `.superpowers/sdd/**` edit grant for the
+  implementer, gui-designer, and orchestrator, and removes only the other 19
+  temporary implementer path grants. The implementer's grant already exists in
+  the live config and is carried forward; the gui-designer and orchestrator
+  receive it newly from the generated owner.
 - Saved-grant inventory remains pending (Task 5; separately approved).
 - Real hosting clients, credentials, live remotes, and Windows-side separation.
 - Alias/wrapper universality: the measured wrapper case (`sh -c`) asked, but

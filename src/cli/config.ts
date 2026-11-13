@@ -147,18 +147,35 @@ function deny(action: string, resource: string): PermissionRule {
   return { action, resource, effect: 'deny' };
 }
 
-// Task 2 operation table. Exact grants only: no suffix wildcard, so extra
-// arguments fall through to the ask fallback.
-const RESEARCH_SHELL_ALLOWS: readonly string[] = [
-  'git status --short',
-  'git diff --stat',
-  'git log --oneline -20',
+// Routine local work runs without approval prompts; the role prompts still
+// govern behavior (the orchestrator remains coordination-only by instruction).
+// The baseline allow comes first so publishing/remote-changing asks appended
+// after it win (last matching rule wins).
+const PUBLISH_ASK_PATTERNS: readonly string[] = [
+  'git push*',
+  'gh pr merge*',
+  'gh release*',
+  'gh workflow run*',
+  'scalingo *deploy*',
+  'railway up*',
+  'railway deploy*',
+  'ssh*',
+  'sftp*',
+  'scp*',
+  'rsync*',
+  'lftp*',
+  'ftp*',
+  'curl*',
+  'wget*',
+  'npm publish*',
+  'yarn publish*',
+  'pnpm publish*',
 ];
 
-// Force-push taboos. They follow the ask fallback so the last matching rule
+// Force-push taboos. They follow the publishing asks so the last matching rule
 // wins and denies; aliases and wrappers remain a known limitation. The trailing
 // forms require the flag to be its own final argument, so branch names that
-// merely contain `-f` (e.g. `my-feature`, `hot-fix`) stay on the ask fallback.
+// merely contain `-f` (e.g. `my-feature`, `hot-fix`) stay on the ask rule.
 const FORCE_PUSH_DENIES: readonly string[] = [
   'git push --force*',
   'git push -f*',
@@ -167,54 +184,22 @@ const FORCE_PUSH_DENIES: readonly string[] = [
   'git push * --force',
 ];
 
-const NETWORK_SHELL_COMMANDS = new Set([
-  'ssh', 'sftp', 'ftps', 'ftp', 'scp', 'rsync', 'lftp', 'curl', 'wget',
-]);
-
-const INTERPRETER_SHELL_COMMANDS = new Set([
-  'sh', 'bash', 'zsh', 'fish', 'dash', 'ksh',
-  'node', 'deno', 'python', 'python3', 'perl', 'ruby', 'php',
-  'eval', 'exec', 'source',
-]);
-
-const UNSAFE_SHELL_CHARS = [
-  '*', '?', '(', ')', '[', ']', '{', '}', '|', '&', ';', '<', '>',
-  '$', '`', "'", '"', '\\', '\n', '\r',
-];
-
 /**
- * Only reviewed literal command strings may become exact grants. Wildcards,
- * shell metacharacters, quotes/escapes, network clients and interpreters stay
- * behind the ask fallback and are never widened into prefixes.
+ * Shell order: allow everything routine, then ask the publishing routes, then
+ * deny the force-push taboos. Denies are last-match wins, so they survive the
+ * baseline allow.
  */
-function isSafeConfiguredCommand(command: string): boolean {
-  if (typeof command !== 'string') return false;
-  const value = command.trim();
-  if (!value) return false;
-  if (UNSAFE_SHELL_CHARS.some(char => value.includes(char))) return false;
-  const head = value.split(/\s+/)[0];
-  return !NETWORK_SHELL_COMMANDS.has(head) && !INTERPRETER_SHELL_COMMANDS.has(head);
-}
-
-function shellRules(allows: readonly string[], configured: readonly string[] = []): PermissionRule[] {
-  const grants: string[] = [];
-  for (const command of allows) {
-    if (!grants.includes(command)) grants.push(command);
-  }
-  for (const command of configured) {
-    if (!isSafeConfiguredCommand(command)) continue;
-    const value = command.trim();
-    if (!grants.includes(value)) grants.push(value);
-  }
+function shellRules(): PermissionRule[] {
+  const asks: PermissionRule[] = PUBLISH_ASK_PATTERNS.map(resource => ({
+    action: 'shell',
+    resource,
+    effect: 'ask',
+  }));
   return [
-    { action: 'shell', resource: '*', effect: 'ask' },
-    ...grants.map(resource => allow('shell', resource)),
+    allow('shell', '*'),
+    ...asks,
     ...FORCE_PUSH_DENIES.map(resource => deny('shell', resource)),
   ];
-}
-
-function evaluationCommands(config: KikiConfig): string[] {
-  return [config.commands.build, config.commands.test, config.commands.lint, config.commands.security];
 }
 
 function buildBroadReadPermissions(): PermissionRule[] {
@@ -305,7 +290,7 @@ function buildBrainstormerPermissions(p: KikiPaths): PermissionRule[] {
     allow('edit', worktreeGlob(sw)),
     allow('edit', worktreeGlob(plans)),
     allow('edit', worktreeGlob(specs)),
-    ...shellRules(RESEARCH_SHELL_ALLOWS),
+    ...shellRules(),
     ...routeRules({ research: true }),
   ];
 }
@@ -326,15 +311,12 @@ function buildImplementerPermissions(config: KikiConfig): PermissionRule[] {
     allow('edit', '/tmp/**'),
     allow('edit', 'tmp/**'),
     allow('edit', SDD_WORKSPACE_GLOB),
-    ...shellRules(
-      [...RESEARCH_SHELL_ALLOWS, 'git ls-files --others --exclude-standard'],
-      evaluationCommands(config),
-    ),
+    ...shellRules(),
     ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
   ];
 }
 
-function buildReviewerPermissions(config: KikiConfig): PermissionRule[] {
+function buildReviewerPermissions(): PermissionRule[] {
   return [
     ...buildBroadReadPermissions(),
     deny('edit', '*'),
@@ -345,7 +327,7 @@ function buildReviewerPermissions(config: KikiConfig): PermissionRule[] {
     allow('edit', '.opencode/docs/reviews/*'),
     allow('edit', '.worktree/**/.agentic/reviews/*'),
     allow('edit', '.worktree/**/.opencode/docs/reviews/*'),
-    ...shellRules(RESEARCH_SHELL_ALLOWS, evaluationCommands(config)),
+    ...shellRules(),
     ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
   ];
 }
@@ -358,7 +340,7 @@ function buildEscalationPermissions(): PermissionRule[] {
     allow('edit', '.opencode/docs/reviews/*'),
     allow('edit', '.worktree/**/.agentic/reviews/*'),
     allow('edit', '.worktree/**/.opencode/docs/reviews/*'),
-    ...shellRules(RESEARCH_SHELL_ALLOWS),
+    ...shellRules(),
     ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
   ];
 }
@@ -404,21 +386,22 @@ function buildHistorianPermissions(p: KikiPaths): PermissionRule[] {
   rules.push(deny('edit', worktreeGlob(src)));
   rules.push(deny('edit', worktreeGlob(tst)));
 
-  rules.push(...shellRules(RESEARCH_SHELL_ALLOWS));
+  rules.push(...shellRules());
   rules.push(...routeRules({ research: false }));
   return rules;
 }
 
 function buildOrchestratorPermissions(p: KikiPaths): PermissionRule[] {
-  // Coordination stays command-free: no shell allows, only the ask fallback
-  // and force-push taboos. Read protections apply and the only edit grants are
-  // the task registry and the SDD ledger/briefs workspace.
+  // The shared shell baseline applies here too, so a primary session does not
+  // prompt for routine local work; the orchestrator prompt keeps coordination
+  // authoritative by instruction. Read protections apply and the only edit
+  // grants are the task registry and the SDD ledger/briefs workspace.
   return [
     ...buildBroadReadPermissions(),
     deny('edit', '*'),
     allow('edit', p.taskRegistry),
     allow('edit', SDD_WORKSPACE_GLOB),
-    ...shellRules([]),
+    ...shellRules(),
     ...routeRules({ research: false, orchestrator: true }),
   ];
 }
@@ -435,10 +418,11 @@ function renderPermissions(rules: PermissionRule[]): string {
   return lines.join('\n');
 }
 
-// Every generated agent prompt carries this exact line: a blocked or rejected
-// operation must never be retried or worked around (remote-change safety).
+// Every generated agent prompt carries this exact no-circumvention line: the
+// publishing-route approval must not be routed around by other means, and a
+// rejected approval must stop the agent (remote-change safety).
 const PERMISSION_BLOCK_PROMPT =
-  'If a command is blocked or its approval is rejected, do not retry and do not work around it; report `PERMISSION_BLOCKED: <command>` and stop.';
+  'Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
 
 function buildHistorianResponsibilities(p: KikiPaths): string {
   const lines: string[] = [
@@ -613,8 +597,8 @@ ${PERMISSION_BLOCK_PROMPT}
 `;
 }
 
-export function generateReviewerTemplate(config: KikiConfig): string {
-  const perms = buildReviewerPermissions(config);
+export function generateReviewerTemplate(_config: KikiConfig): string {
+  const perms = buildReviewerPermissions();
   return `---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent

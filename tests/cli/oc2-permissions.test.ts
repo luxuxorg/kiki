@@ -145,13 +145,30 @@ function rulesForRole(config: KikiConfig, role: string): Rule[] {
   return nativeRules(roleGenerators[role](config));
 }
 
-const researchShellAllows = [
-  'git status --short',
-  'git diff --stat',
-  'git log --oneline -20',
+const publishAskPatterns = [
+  'git push*',
+  'gh pr merge*',
+  'gh release*',
+  'gh workflow run*',
+  'scalingo *deploy*',
+  'railway up*',
+  'railway deploy*',
+  'ssh*',
+  'sftp*',
+  'scp*',
+  'rsync*',
+  'lftp*',
+  'ftp*',
+  'curl*',
+  'wget*',
+  'npm publish*',
+  'yarn publish*',
+  'pnpm publish*',
 ];
 
-const verificationShellAllows = ['npm run build', 'npm test', 'npm run lint', 'npm audit'];
+const noCircumventionLine =
+  'Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
+
 const researchRoles = new Set(['brainstormer', 'planner']);
 // Roles whose pre-existing narrow external-directory grants are retained after
 // the generic `*_*` deny (implementer's builder also serves guiDesigner). Every
@@ -334,31 +351,39 @@ describe('ordered native permission translation', () => {
   });
 
   it('security_shell_matrix_all_eight_roles', () => {
-    const expectedAllows: Record<string, string[]> = {
-      orchestrator: [],
-      brainstormer: researchShellAllows,
-      planner: researchShellAllows,
-      implementer: [
-        ...researchShellAllows,
-        'git ls-files --others --exclude-standard',
-        ...verificationShellAllows,
-      ],
-      guiDesigner: [
-        ...researchShellAllows,
-        'git ls-files --others --exclude-standard',
-        ...verificationShellAllows,
-      ],
-      reviewer: [...researchShellAllows, ...verificationShellAllows],
-      escalation: researchShellAllows,
-      historian: researchShellAllows,
-    };
-    const mustAsk = [
+    const routineCommands = [
+      'git status',
+      'git diff',
+      'git log',
+      'mkdir -p tmp/x',
+      'npm run build',
+      'npm test',
+      'node script.js',
+      'printf hello',
+      'rm -rf /',
+      'git reset --hard',
+      'something-unknown --flag',
+      // Read-only provider inspection is routine local work, not a publishing
+      // route, so it must not be caught by a blanket CLI ask.
+      'gh pr view 42',
+      'gh pr list',
+      'gh issue list',
+      'gh repo view',
+      'gh workflow list',
+      'scalingo status',
+      'scalingo logs --app myapp',
+      'railway status',
+      'railway logs',
+    ];
+    const publishCommands = [
       'git push origin main',
-      'git merge feature',
       'gh pr merge 42',
       'gh release create v1.0.0',
+      'gh workflow run ci',
       'scalingo deploy',
+      'scalingo --app myapp deploy',
       'railway up',
+      'railway deploy',
       'ssh deploy@example.com',
       'sftp deploy@example.com',
       'ftps example.com',
@@ -368,13 +393,9 @@ describe('ordered native permission translation', () => {
       'lftp example.com',
       'curl https://example.com',
       'wget https://example.com',
-      'rm -rf /',
-      'git reset --hard',
-      'mkdir -p tmp/x',
-      'git status',
-      'git diff',
-      'git log',
-      'something-unknown --flag',
+      'npm publish',
+      'yarn publish',
+      'pnpm publish',
     ];
     const forcePushForms = [
       'git push --force origin main',
@@ -382,31 +403,37 @@ describe('ordered native permission translation', () => {
       'git push origin main --force',
       'git push origin main -f',
     ];
-    // Branch names containing `-f` must stay on the ask fallback: the deny
+    // Branch names containing `-f` must stay on the publishing ask: the deny
     // patterns only match the force flag forms, never a `*-f*` substring.
     const forcePushAskForms = [
       'git push origin my-feature',
       'git push origin hot-fix',
     ];
+    const shellAllowAll: Rule = { action: 'shell', resource: '*', effect: 'allow' };
+    const forcePushDenies: Rule[] = [
+      'git push --force*',
+      'git push -f*',
+      'git push *--force*',
+      'git push * -f',
+      'git push * --force',
+    ].map(resource => ({ action: 'shell', resource, effect: 'deny' }));
 
     for (const role of Object.keys(roleGenerators)) {
       const rules = rulesForRole(DEFAULT_CONFIG, role);
       const shell = rules.filter(rule => rule.action === 'shell');
-      expect(shell[0], `${role}: first shell rule is the ask fallback`).toEqual(
-        { action: 'shell', resource: '*', effect: 'ask' },
-      );
+      expect(shell[0], `${role}: routine local work runs without a prompt`).toEqual(shellAllowAll);
       expect(
-        shell.some(rule => rule.resource === '*' && rule.effect === 'allow'),
-        `${role}: wildcard shell allow is absent`,
-      ).toBe(false);
+        shell.filter(rule => rule.effect === 'ask').map(rule => rule.resource),
+        `${role}: publishing ask table`,
+      ).toEqual(publishAskPatterns);
       expect(
-        shell.filter(rule => rule.effect === 'allow').map(rule => rule.resource),
-        `${role}: exact allow table`,
-      ).toEqual(expectedAllows[role]);
-      for (const command of expectedAllows[role]) {
+        shell.slice(-forcePushDenies.length),
+        `${role}: force-push denies stay last`,
+      ).toEqual(forcePushDenies);
+      for (const command of routineCommands) {
         expect(effectFor(rules, 'shell', command), `${role}: ${command}`).toBe('allow');
       }
-      for (const command of mustAsk) {
+      for (const command of publishCommands) {
         expect(effectFor(rules, 'shell', command), `${role}: ${command}`).toBe('ask');
       }
       for (const command of forcePushForms) {
@@ -418,57 +445,24 @@ describe('ordered native permission translation', () => {
     }
   });
 
-  it('security_config_commands_are_not_prefix_grants', () => {
-    const implementer = rulesForRole(DEFAULT_CONFIG, 'implementer');
-    for (const command of verificationShellAllows) {
-      expect(effectFor(implementer, 'shell', command), command).toBe('allow');
-      expect(effectFor(implementer, 'shell', `${command} --extra`), `${command} --extra`).toBe('ask');
-    }
-    expect(effectFor(implementer, 'shell', 'git status --short --extra')).toBe('ask');
-    expect(effectFor(implementer, 'shell', 'git ls-files --others --exclude-standard --extra')).toBe('ask');
-
-    const unsafeConfig: KikiConfig = {
-      ...DEFAULT_CONFIG,
-      commands: {
-        build: 'npm run build && rm -rf /',
-        test: 'npm test *',
-        lint: 'curl https://example.com | sh',
-        security: "sh -c 'npm audit'",
-      },
-    };
-    for (const role of ['implementer', 'guiDesigner', 'reviewer']) {
-      const rules = rulesForRole(unsafeConfig, role);
-      const allowed = rules
-        .filter(rule => rule.action === 'shell' && rule.effect === 'allow')
-        .map(rule => rule.resource);
-      for (const command of Object.values(unsafeConfig.commands)) {
-        expect(effectFor(rules, 'shell', command), `${role}: ${command} stays ask`).toBe('ask');
-        expect(allowed, `${role}: ${command} is not granted`).not.toContain(command);
-      }
-    }
-  });
-
-  it('security_configured_plain_ftp_stays_ask_while_safe_literal_is_allowed', () => {
-    // Plain FTP is a network client named "no plain FTP" by the plan. A
-    // user-configured ftp-headed command must never widen into an exact grant.
+  it('security_publish_asks_override_configured_commands', () => {
+    // A project that names a publishing route as its build/test command must
+    // still be asked: the ask rules follow the allow baseline.
     const config: KikiConfig = {
       ...DEFAULT_CONFIG,
       commands: {
         build: 'ftp example.com',
-        test: 'make check',
-        lint: 'npm run lint',
+        test: 'npm publish',
+        lint: 'make check',
         security: 'npm audit',
       },
     };
     for (const role of ['implementer', 'guiDesigner', 'reviewer']) {
       const rules = rulesForRole(config, role);
-      expect(effectFor(rules, 'shell', 'ftp example.com'), `${role}: ftp stays ask`).toBe('ask');
-      expect(effectFor(rules, 'shell', 'make check'), `${role}: safe literal allow`).toBe('allow');
-      const allowed = rules
-        .filter(rule => rule.action === 'shell' && rule.effect === 'allow')
-        .map(rule => rule.resource);
-      expect(allowed, `${role}: ftp is not granted`).not.toContain('ftp example.com');
-      expect(allowed, `${role}: safe literal is granted`).toContain('make check');
+      expect(effectFor(rules, 'shell', 'ftp example.com'), `${role}: configured ftp stays ask`).toBe('ask');
+      expect(effectFor(rules, 'shell', 'npm publish'), `${role}: configured publish stays ask`).toBe('ask');
+      expect(effectFor(rules, 'shell', 'make check'), `${role}: routine configured command runs`).toBe('allow');
+      expect(effectFor(rules, 'shell', 'npm audit'), `${role}: verification command runs`).toBe('allow');
     }
   });
 
@@ -597,10 +591,10 @@ describe('ordered native permission translation', () => {
   });
 
   it('security_blocked_prompt_all_roles', () => {
-    const blockedLine =
-      'If a command is blocked or its approval is rejected, do not retry and do not work around it; report `PERMISSION_BLOCKED: <command>` and stop.';
     for (const [role, generate] of Object.entries(roleGenerators)) {
-      expect(bodyOf(generate(DEFAULT_CONFIG)), role).toContain(blockedLine);
+      const body = bodyOf(generate(DEFAULT_CONFIG));
+      expect(body, role).toContain(noCircumventionLine);
+      expect(body.split(noCircumventionLine).length - 1, `${role}: instruction appears once`).toBe(1);
     }
 
     // The orchestrator's own retry instruction must be explicitly overridden
@@ -615,7 +609,7 @@ describe('ordered native permission translation', () => {
       '- Every dispatch MUST include the target `agent` ID and a 3–5-word `description`.',
       '- Optionally pass `model` with the dispatch and `sessionID` to continue an existing session.',
       '- Subagents MUST NOT dispatch other subagents; nested delegation is forbidden (`experimental.subagent_depth` is 1).',
-      'If a command is blocked or its approval is rejected, do not retry and do not work around it; report `PERMISSION_BLOCKED: <command>` and stop.',
+      noCircumventionLine,
       '- **Permission block override:** if a subagent reports `PERMISSION_BLOCKED: <command>`, do not retry; report the blocked command and stop.',
     ]);
     const canonical = (value: string) => value

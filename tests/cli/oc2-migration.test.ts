@@ -396,13 +396,15 @@ describe('one-time OC1 to OC2 migration', () => {
     expect(text).not.toMatch(/"permission"\s*:/);
     expect((text.match(/"permissions"\s*:/g) ?? [])).toHaveLength(3);
 
-    // Unsafe grants and the temporary exact-path grants are gone.
+    // Corrected scope: routine shell is allowed, publishing routes ask after
+    // the baseline, and force-push taboos stay last.
     const rules = migrated.flatMap(name => data.agents[name].permissions as PermissionRule[]);
-    expect(rules).not.toContainEqual({ action: 'shell', resource: '*', effect: 'allow' });
+    expect(rules).toContainEqual({ action: 'shell', resource: '*', effect: 'allow' });
     for (const name of migrated) {
       const shell = (data.agents[name].permissions as PermissionRule[])
         .filter(rule => rule.action === 'shell');
-      expect(shell[0]).toEqual({ action: 'shell', resource: '*', effect: 'ask' });
+      expect(shell[0]).toEqual({ action: 'shell', resource: '*', effect: 'allow' });
+      expect(shell).toContainEqual({ action: 'shell', resource: 'git push*', effect: 'ask' });
       expect(shell).toContainEqual({ action: 'shell', resource: 'git push --force*', effect: 'deny' });
     }
     expect(text).not.toContain('"bash"');

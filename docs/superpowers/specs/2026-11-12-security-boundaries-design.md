@@ -1,17 +1,18 @@
 # Security Boundaries for Kiki Agents — Design
 
 - **Date:** 2026-11-12
-- **Status (2026-11-13):** IMPLEMENTED, TESTED AND APPLIED LOCALLY after user approval. The live `opencode.jsonc` uses V2 permission arrays. The registry records final automated validation on OpenCode 2.2.7, including the route suite after external-directory narrowing. The user confirmed a root-visible implementer shell permission prompt; this manual observation does not verify the direct orchestrator gate, TUI Always/reject/auto-accept, real long waits, saved-grant inventory, reconnect state or blocked-operation stop behavior. These limits remain open, not waived. The conditional approval limitation in §5.5 remains accepted. Historical design-time evidence below is not current rollout status; later evidence is in `docs/research/2026-11-12-security-boundaries-probes.md` and the task registry. No commit or release authorization is granted by this status.
-- **Revision:** 2 (2026-11-12) — builder-review corrections: watchdog-while-waiting contingency, auto-accept as a native ask bypass, per-agent route verification incl. the orchestrator, reuse of `oc2-permissions.ts`/`oc2-migration.ts`, and "always"/auto-accept reframed as an **open acceptance decision**.
-- **Revision:** 3 (2026-11-12) — user-authorized removal of the exact OpenCode 2.2.6 runtime-test pin: probes accept any available OpenCode 2.x binary (2.2.7 was available when this amendment was written) and record the actual tested version; V1, malformed and future-major binaries remain rejected. Adds the bounded ruling on real long-wait probes. Historical migration evidence, `docs/migrations/*` and dependency/SDK pins are unchanged.
+- **Status (2026-11-13, corrected):** IMPLEMENTED, TESTED AND APPLIED LOCALLY after user approval, then **scope-corrected on 2026-11-13**. The live `opencode.jsonc` uses V2 permission arrays with `allow shell *` first, 18 publishing/remote-changing `ask` rules, and five force-push `deny` rules last; `kiki update` refreshed all eight active global prompts with the no-circumvention line. The earlier blanket ask-first draft (Revision 4) was rejected in practice as too broad and is historical. The registry records automated validation on OpenCode 2.2.7: focused permission/migration/install/doctor 62/62 and the full suite 659 passed, 2 skipped, 0 failed; the orchestrator re-verified the structural shell-rule check and focused tests after apply. A user-observed root-visible implementer shell prompt from the ask-first period remains historical evidence of the subagent ask path. Direct orchestrator gate verification, TUI Always/reject/auto-accept, real long waits, saved-grant inventory, reconnect state and blocked-operation stop behavior remain open, not waived. The conditional approval limitation in §5.5 remains accepted. Design-time evidence below is not current rollout status; later evidence is in `docs/research/2026-11-12-security-boundaries-probes.md` and the task registry. No commit or release authorization is granted by this status.
+- **Revision:** 5 (2026-11-13) — approved scope correction. Routine local shell is allowed for all eight roles; publishing, deployments, pushes, uploads and remote-changing operations ask via 18 ordered patterns; force-push taboos remain denies. The earlier ask-first/unknown-command design (§5.1–§5.4, §5.7) is superseded in practice and retained as historical design evidence. Read/file, edit, execute/MCP/web/skill/subagent/external-directory rules are unchanged. Command gates protect known publishing routes only and are not an adversarial sandbox.
 - **Revision:** 4 (2026-11-12) — status updated after implementation: source changes and focused tests are complete, while live rollout remains unapplied and separately gated. The user accepted the conditional `Always`/auto-accept limitation; design-time "not probed" and "open decision" wording is retained below as historical evidence.
+- **Revision:** 3 (2026-11-12) — user-authorized removal of the exact OpenCode 2.2.6 runtime-test pin: probes accept any available OpenCode 2.x binary (2.2.7 was available when this amendment was written) and record the actual tested version; V1, malformed and future-major binaries remain rejected. Adds the bounded ruling on real long-wait probes. Historical migration evidence, `docs/migrations/*` and dependency/SDK pins are unchanged.
+- **Revision:** 2 (2026-11-12) — builder-review corrections: watchdog-while-waiting contingency, auto-accept as a native ask bypass, per-agent route verification incl. the orchestrator, reuse of `oc2-permissions.ts`/`oc2-migration.ts`, and "always"/auto-accept reframed as an **open acceptance decision**.
 - **Scope:** agent shell/tool permissions and approval gating for remote-changing operations, in Kiki's generated defaults and in the Kiki repository's live config.
 - **Out of scope (user decisions):** Windows-side separation (assumed, not verified); separate publishing infrastructure; custom approval UI; transfer file-list previews.
 - **Inputs (design-time):** security-boundary brainstorm of 2026-11-12 (decisions in §2); `docs/research/2026-11-12-critical-review-kiki-improvement-research.md`; `docs/research/Kiki improvement brief for brainstorming.md`; OpenCode V2 permissions documentation (fetched 2026-11-12); read-only local inventory (§3). **At design time (2026-11-12) the OpenCode runtime had not been probed; runtime behaviors below were documentation claims pending the §7 verification and are retained as historical design evidence.** The runtime was later probed on OpenCode 2.2.7; measured results and remaining PENDING items are in the probe record. Verification accepts any available OpenCode 2.x binary and records the exact observed version.
 
 ## 1. Intent and why
 
-Kiki agents run on the user's development machine with the user's own account authority. The current permissions are accidental: generated defaults and the live project config give implementer and gui-designer unrestricted shell (`allow('shell','*')`, `src/cli/config.ts:203`; `"bash": "allow"`, `opencode.jsonc:128,158`), which voids every file-level restriction for those agents. The user (sole, non-programmer, one-person operation) wants:
+Kiki agents run on the user's development machine with the user's own account authority. At design time (2026-11-12; see §2.1 for the later correction), the permissions were accidental: generated defaults and the live project config gave implementer and gui-designer unrestricted shell (`allow('shell','*')`, `src/cli/config.ts:203`; `"bash": "allow"`, `opencode.jsonc:128,158`), which voided every file-level restriction for those agents. The user (sole, non-programmer, one-person operation) wants:
 
 - agents that cannot change the outside world — remotes, providers, the live website — without an explicit approval given inside Kiki (agent prepares, user approves, execution is automated; the user does not publish manually);
 - a simple, maintainable per-project command permission list — not a second publishing system;
@@ -23,14 +24,26 @@ Publishing happens via push-triggered deploys on Scalingo and Railway (user beli
 
 | # | Decision | Status |
 |---|---|---|
-| D1 | Broad shell for any agent was accidental; no agent needs it | User statement — remove unrestricted shell everywhere |
+| D1 | Broad shell for any agent was accidental; no agent needs it | User statement — remove unrestricted shell everywhere. **Superseded in practice (2026-11-13):** routine local shell is allowed; the user's concern is accidental publishing, not shell capability. |
 | D2 | Simple, maintainable command/tool permissions over isolated publishing infrastructure | User choice |
 | D3 | Publishing is approved inside Kiki (agent prepares, user approves, execution automated) | User choice |
-| D4 | Every remote-changing operation asks before running | Proposed conservative default; approved at general scope ("OK, sounds all good" to the summary containing it); the concrete command list returns for approval with the policy draft; per-project relaxation possible later |
+| D4 | Every remote-changing operation asks before running | Proposed conservative default; approved at general scope ("OK, sounds all good" to the summary containing it); the concrete command list returns for approval with the policy draft; per-project relaxation possible later. **Corrected (2026-11-13):** implemented as 18 publishing-route patterns; commands outside those patterns run under the routine-local allow, so "unknown asks" no longer applies. |
 | D5 | SSH, SFTP (over SSH), FTPS (FTP over TLS) covered; plain FTP discouraged (plaintext passwords) | User request + recommendation |
 | D6 | No file-list previews for transfers; no custom approval UI; no separate publish service | User scope reduction |
 | D7 | A separately named publisher agent with the same shell and credentials is **not** a boundary | User challenge, conceded and recorded — informs §8 |
 | D8 | Windows separation out of scope | Working assumption, not a verified fact |
+
+### 2.1 Approved scope correction (2026-11-13)
+
+The original design made `shell *` ask for every role and treated unknown commands as ask-gated. That proved impractical for routine local work, so the user approved a narrower publishing gate:
+
+| Class | Examples | Effect |
+|---|---|---|
+| Routine local | any shell command not matched below | allow (`allow shell *`) |
+| Publishing / remote-changing | `git push*`, `gh pr merge*`, `gh release*`, `gh workflow run*`, `scalingo *deploy*`, `railway up*`, `railway deploy*`, `ssh*`, `sftp*`, `scp*`, `rsync*`, `lftp*`, `ftp*`, `curl*`, `wget*`, `npm publish*`, `yarn publish*`, `pnpm publish*` | ask |
+| Hard taboos | `git push --force*`, `git push -f*`, `git push *--force*`, `git push * -f`, `git push * --force` | deny |
+
+Rules are ordered allow, 18 asks, five denies; last match wins. Obsolete legacy exact shell allows were removed as subsumed. Read/file, edit, execute/MCP/web/skill/subagent/external-directory rules are unchanged. The operation-class and unknown-command wording in §5.1–§5.4 and §5.7 is retained as historical design evidence, not current policy. The command gates protect known publishing routes only; they are not an adversarial sandbox, and an allowed local script can still perform network actions. Every generated prompt carries the no-circumvention/`PERMISSION_BLOCKED` instruction.
 
 ## 3. Inventory (read-only, 2026-11-12 — historical design-time snapshot)
 
@@ -84,6 +97,8 @@ All agents: read `*` allow with `.env*`, `*secret*`, `*credential*`, `*.pem`, `*
 4. Unknown operations stop (ask), never auto-run, and do not cause retry loops.
 5. Alternate routes (Code Mode, MCP tools, web tools) are covered by rules, not left to defaults.
 
+**Corrected 2026-11-13:** goal 1 is superseded — routine local shell is allowed, not denied. Goal 4 no longer applies: commands outside the 18 publishing patterns run under `allow shell *` rather than asking. Goal 3 remains the accepted intent, now implemented as a known-route gate rather than a general unknown-then-ask boundary.
+
 **Non-goals:** OS-level sandboxing, credential isolation, adversarial containment (§8); verifying Windows-side separation; any new UI.
 
 **Anti-goals:** custom approval UI, transfer previews, separate publish service (user-rejected); a blacklist approach — the official docs themselves recommend a narrow allowlist over patterns intended to recognize dangerous commands.
@@ -91,6 +106,8 @@ All agents: read `*` allow with `.env*`, `*secret*`, `*credential*`, `*.pem`, `*
 ## 5. Design
 
 ### 5.1 Operation classes
+
+> **Historical design (superseded 2026-11-13 by §2.1).** The class table and catch-all-ask reasoning below are the original design; current policy allows routine local shell and asks only on the 18 publishing routes, with force-push denies. Retained as design evidence.
 
 | Class | Examples | Effect |
 |---|---|---|
@@ -103,18 +120,20 @@ The publish class needs no explicit rules: a catch-all `ask` for shell, placed b
 
 ### 5.2 Rule shape and placement
 
-- Generated agents use V2-style ordered `permissions` arrays: `[ ask shell * ] → [ per-project allows ] → [ taboo denies ]`. The documented default base policy is allow-all; agent rules are appended last, so the catch-all ask overrides it.
+- **Historical (superseded 2026-11-13 by §2.1):** generated agents use V2-style ordered `permissions` arrays: `[ ask shell * ] → [ per-project allows ] → [ taboo denies ]`. The current generated order is `[ allow shell * ] → [ 18 publishing asks ] → [ five force-push denies ]`. The documented default base policy is allow-all; agent rules are appended last, so the later rules override it.
 - The live `opencode.jsonc` V1-style blocks stay untouched until §7.1 verifies shape semantics — no gratuitous migration. Target single source of truth: the generator; `opencode.jsonc` keeps models only.
 
 ### 5.3 Read-only is not automatically safe
 
-Provider "status" commands can print secrets (`env`-style output) or leak data into logs, and a bulk download can pull secrets off a server. Each read-only grant is chosen per command after reviewing what it actually prints. No blanket `gh *`, `scalingo *`, or `status`/`list` wildcards. Shell file-reading commands (`cat` etc.) are never allowlisted — file-read denies do not govern shell — so unknown→ask is the control.
+Provider "status" commands can print secrets (`env`-style output) or leak data into logs, and a bulk download can pull secrets off a server. Each read-only grant is chosen per command after reviewing what it actually prints. No blanket `gh *`, `scalingo *`, or `status`/`list` wildcards. Shell file-reading commands (`cat` etc.) are never allowlisted — file-read denies do not govern shell — so the original design relied on unknown→ask (superseded 2026-11-13: routine local shell is now allowed; only the 18 publishing routes ask).
 
 ### 5.4 Unknown operations and retries
 
+> **Superseded in part (2026-11-13):** unknown commands are no longer asked; they run under `allow shell *`. The 18 publishing routes still use native `ask`, and the no-retry/no-circumvention instruction remains current. The reasoning below is historical.
+
 - Native `ask` = wait for a decision. In the TUI, subagent asks surface in the root session (brief §5 [Run] probes); in headless `opencode run` they are auto-rejected (brief §5 [Run]).
-- Prompt change for all agents: *"If a command is blocked or its approval is rejected, do not retry and do not work around it; report `PERMISSION_BLOCKED: <command>` and stop."* Aligns with brief WP1; without it, rejected asks risk retry loops (documented agent weakness).
-- Native `deny` blocks without asking the user (brief §5 [Run]) — used only for taboos, where silence is intended. The catch-all is `ask`, not `deny`, precisely so unknowns reach the user.
+- Prompt change for all agents: *"Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report `PERMISSION_BLOCKED: <command>` and stop."* Aligns with brief WP1; without it, rejected asks risk retry loops (documented agent weakness).
+- Native `deny` blocks without asking the user (brief §5 [Run]) — used only for taboos, where silence is intended. The publish class uses `ask`, not `deny`, so those routes reach the user.
 
 ### 5.5 Approvals: "always" and auto-accept are native bypass routes — accepted conditional limitation
 
@@ -147,6 +166,8 @@ Proposed warnings — reminders, **not** enforcement:
 The orchestrator currently has **no permissions block at all** (§3.1) and inherits defaults — it must be included in the per-agent rule tables like every other agent. Final per-agent tables are builder work, verified route by route via §7.4.
 
 ### 5.7 Per-project derivation and maintenance
+
+> **Historical (superseded 2026-11-13 by §2.1):** routine local shell is now allowed broadly, so the per-command allowlist derivation below is no longer the active policy. Publishing routes remain the maintained list.
 
 - Allowlist = fixed safe set (git read + rollback commands, `mkdir`, /tmp writes) ∪ `config.commands` values ∪ individually reviewed read-only provider commands.
 - Future CLIs (gh, scalingo, railway, others): nothing automatic. When a project uses one, its safe read-only subcommands are added by name after review; writes always stay ask.
@@ -185,11 +206,11 @@ The implementer prompt's rollback uses `git diff >`, `git ls-files --others`, `g
 
 ## 8. Open issues and residual risks
 
-**Status note (2026-11-13):** the live V2 configuration has been applied with user approval. The subagent ask path has user-observed TUI evidence; remaining live checks listed in the status above remain unverified. Historical design-time gates below do not mean the migration is still unapplied.
+**Status note (2026-11-13):** the live V2 configuration has been applied with user approval, then scope-corrected to routine-local allow plus publishing-route asks (§2.1). `kiki update` refreshed the active global prompts. The subagent ask path has user-observed TUI evidence from the earlier ask-first period; remaining live checks listed in the status above remain unverified. Historical design-time gates below do not mean the migration is still unapplied.
 
 **Open issues (precise, not promises):**
 
-1. **Applied locally:** probes on OpenCode 2.2.7 measured V2 `permissions` enforced and V1 `permission.bash` ignored. The user-authorized transition to V2 is now applied; live subagent asking was manually observed.
+1. **Applied locally with corrected scope:** probes on OpenCode 2.2.7 measured V2 `permissions` enforced and V1 `permission.bash` ignored. The user-authorized transition to V2 is applied: `allow shell *`, 18 publishing asks and five force-push denies, with alternate-route and file rules unchanged. The earlier ask-first policy is historical.
 2. **Resolved acceptance decision (§5.5):** "always" grants and auto-accept mode are native bypass routes around ask; the docs describe no per-rule way to disable them. On 2026-11-12 the user accepted the conditional guarantee (ask holds only in approval-required mode and while no saved bypass or auto-accept exists); no hard-enforcement scope was added. Prompt/doctor warnings remind; they do not enforce.
 3. **Source logic implemented; real waits pending:** the watchdog pause contingency (§7.3) is implemented and fake-clock tested. Real pending-wait probes at 300,000 ms and 3,600,000 ms remain blocked pending separate authorization, so related live rollout remains gated until real TUI long-wait behavior is verified.
 4. Headless ask auto-rejection + retry hazard → the §5.4 prompt rule mitigates; the full fix is WP1's `needs_human` classification (not built).
@@ -205,6 +226,8 @@ The implementer prompt's rollback uses `git diff >`, `git ls-files --others`, `g
 - D7 stands: nothing in this design is a wall against a determined adversary.
 
 ## 9. What is left to the builder
+
+> **Historical handoff (superseded 2026-11-13 by §2.1).** The tasks below describe the original ask-first design. Current generated permissions, prompts, doctor advisories and live configuration are already applied; remaining verification limits are listed in the status line and §8.
 
 - Exact per-agent rule tables (V2 shape), including the §5.6 route defaults **and the orchestrator**.
 - The no-retry prompt line for all agent templates.

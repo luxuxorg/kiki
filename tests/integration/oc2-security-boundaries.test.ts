@@ -730,16 +730,24 @@ describe('OpenCode 2.x security boundaries', () => {
       }
     }
 
-    // Proposed generated policy. These are soft so every measured runtime
-    // assertion above still runs; the current generator is expected to fail
-    // here until Task 2 (implementer/gui allow shell *, orchestrator missing).
+    // Applied generated policy: routine local work runs without a prompt,
+    // publishing routes ask after the allow baseline, and force-push denies
+    // stay last.
     for (const role of ROLES) {
       const shell = generatedPermissions(role).filter(rule => rule.action === 'shell');
-      expect.soft(shell[0], `${role}: first shell rule must be the ask fallback`).toEqual(ask);
+      expect.soft(shell[0], `${role}: routine local work is allowed`).toEqual(allowAll);
       expect.soft(
-        shell.some(rule => rule.resource === '*' && rule.effect === 'allow'),
-        `${role}: wildcard shell allow must be absent`,
+        shell.some(rule => rule.resource === '*' && rule.effect === 'ask'),
+        `${role}: no blanket shell ask`,
       ).toBe(false);
+      expect.soft(
+        shell.some(rule => rule.resource === 'git push*' && rule.effect === 'ask'),
+        `${role}: publishing routes ask`,
+      ).toBe(true);
+      expect.soft(
+        shell[shell.length - 1],
+        `${role}: force-push deny stays last`,
+      ).toEqual({ action: 'shell', resource: 'git push * --force', effect: 'deny' });
       const settings = baselineAgents(DEFAULT_CONFIG)[role].settings as Record<string, unknown>;
       expect.soft(settings.permission, `${role}: generated V1 permission block`).toBeUndefined();
     }

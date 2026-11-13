@@ -67,6 +67,96 @@
         {
           "action": "shell",
           "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh pr merge*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh release*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "gh workflow run*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scalingo *deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway up*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ssh*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "sftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "rsync*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "lftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "curl*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "wget*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "npm publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "yarn publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm publish*",
           "effect": "ask"
         },
         {
@@ -261,22 +351,97 @@
         {
           "action": "shell",
           "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push*",
           "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git status --short",
-          "effect": "allow"
+          "resource": "gh pr merge*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git diff --stat",
-          "effect": "allow"
+          "resource": "gh release*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git log --oneline -20",
-          "effect": "allow"
+          "resource": "gh workflow run*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scalingo *deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway up*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ssh*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "sftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "rsync*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "lftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "curl*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "wget*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "npm publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "yarn publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm publish*",
+          "effect": "ask"
         },
         {
           "action": "shell",
@@ -435,22 +600,97 @@
         {
           "action": "shell",
           "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push*",
           "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git status --short",
-          "effect": "allow"
+          "resource": "gh pr merge*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git diff --stat",
-          "effect": "allow"
+          "resource": "gh release*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git log --oneline -20",
-          "effect": "allow"
+          "resource": "gh workflow run*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scalingo *deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway up*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ssh*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "sftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "rsync*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "lftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "curl*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "wget*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "npm publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "yarn publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm publish*",
+          "effect": "ask"
         },
         {
           "action": "shell",
@@ -609,47 +849,97 @@
         {
           "action": "shell",
           "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push*",
           "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git status --short",
-          "effect": "allow"
+          "resource": "gh pr merge*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git diff --stat",
-          "effect": "allow"
+          "resource": "gh release*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git log --oneline -20",
-          "effect": "allow"
+          "resource": "gh workflow run*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git ls-files --others --exclude-standard",
-          "effect": "allow"
+          "resource": "scalingo *deploy*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm run build",
-          "effect": "allow"
+          "resource": "railway up*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm test",
-          "effect": "allow"
+          "resource": "railway deploy*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm run lint",
-          "effect": "allow"
+          "resource": "ssh*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm audit",
-          "effect": "allow"
+          "resource": "sftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "rsync*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "lftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "curl*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "wget*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "npm publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "yarn publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm publish*",
+          "effect": "ask"
         },
         {
           "action": "shell",
@@ -818,47 +1108,97 @@
         {
           "action": "shell",
           "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push*",
           "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git status --short",
-          "effect": "allow"
+          "resource": "gh pr merge*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git diff --stat",
-          "effect": "allow"
+          "resource": "gh release*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git log --oneline -20",
-          "effect": "allow"
+          "resource": "gh workflow run*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git ls-files --others --exclude-standard",
-          "effect": "allow"
+          "resource": "scalingo *deploy*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm run build",
-          "effect": "allow"
+          "resource": "railway up*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm test",
-          "effect": "allow"
+          "resource": "railway deploy*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm run lint",
-          "effect": "allow"
+          "resource": "ssh*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm audit",
-          "effect": "allow"
+          "resource": "sftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "rsync*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "lftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "curl*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "wget*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "npm publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "yarn publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm publish*",
+          "effect": "ask"
         },
         {
           "action": "shell",
@@ -1026,42 +1366,97 @@
         {
           "action": "shell",
           "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push*",
           "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git status --short",
-          "effect": "allow"
+          "resource": "gh pr merge*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git diff --stat",
-          "effect": "allow"
+          "resource": "gh release*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git log --oneline -20",
-          "effect": "allow"
+          "resource": "gh workflow run*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm run build",
-          "effect": "allow"
+          "resource": "scalingo *deploy*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm test",
-          "effect": "allow"
+          "resource": "railway up*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm run lint",
-          "effect": "allow"
+          "resource": "railway deploy*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "npm audit",
-          "effect": "allow"
+          "resource": "ssh*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "sftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "rsync*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "lftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "curl*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "wget*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "npm publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "yarn publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm publish*",
+          "effect": "ask"
         },
         {
           "action": "shell",
@@ -1214,22 +1609,97 @@
         {
           "action": "shell",
           "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push*",
           "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git status --short",
-          "effect": "allow"
+          "resource": "gh pr merge*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git diff --stat",
-          "effect": "allow"
+          "resource": "gh release*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git log --oneline -20",
-          "effect": "allow"
+          "resource": "gh workflow run*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scalingo *deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway up*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ssh*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "sftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "rsync*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "lftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "curl*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "wget*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "npm publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "yarn publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm publish*",
+          "effect": "ask"
         },
         {
           "action": "shell",
@@ -1428,22 +1898,97 @@
         {
           "action": "shell",
           "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push*",
           "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git status --short",
-          "effect": "allow"
+          "resource": "gh pr merge*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git diff --stat",
-          "effect": "allow"
+          "resource": "gh release*",
+          "effect": "ask"
         },
         {
           "action": "shell",
-          "resource": "git log --oneline -20",
-          "effect": "allow"
+          "resource": "gh workflow run*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scalingo *deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway up*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "railway deploy*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ssh*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "sftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "scp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "rsync*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "lftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "ftp*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "curl*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "wget*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "npm publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "yarn publish*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "pnpm publish*",
+          "effect": "ask"
         },
         {
           "action": "shell",

@@ -8,21 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **Ask-first generated agent permissions:** all eight roles, including the
-  orchestrator, get a `shell *` ask fallback. Seven roles — every agent except
-  the orchestrator — additionally get exact literal common git read grants; the
-  orchestrator has no shell grants. The implementer and the gui-designer (which
-  reuses the implementer builder) also get `git ls-files --others
-  --exclude-standard`, and the implementer, gui-designer and reviewer get the
-  project's configured build/test/lint/security commands when they are plain
-  literals. Configured values with a network-client head (including plain `ftp`)
-  or an interpreter head, values containing shell metacharacters, and
-  wildcard/compound shapes never become grants. No role has an unrestricted
-  shell allow. Remote-changing and unknown commands ask; the generated
-  force-push patterns deny without asking (unit-tested; runtime matching is not
-  yet probed by that unit coverage). The user-authorized local migration has
-  applied V2 permissions to `opencode.jsonc` and removed temporary exact-path
-  edit grants while preserving the permanent SDD workspace grants.
+- **Publishing-gated generated agent permissions:** all eight roles, including
+  the orchestrator, get `allow shell *` first so routine local work runs without
+  prompts. After it come 18 `ask` rules for publishing and remote-changing
+  commands — `git push*`, `gh pr merge*`, `gh release*`, `gh workflow run*`,
+  `scalingo *deploy*`, `railway up*`, `railway deploy*`, `ssh*`, `sftp*`, `scp*`,
+  `rsync*`, `lftp*`, `ftp*`, `curl*`, `wget*`, `npm publish*`, `yarn publish*`
+  and `pnpm publish*` — and five force-push `deny` rules last. Obsolete legacy
+  exact shell allows were removed as subsumed by the wildcard; configured
+  build/test/lint/security values are no longer separate grants. Force-push
+  matching is unit-tested only; runtime matching is not probed by that coverage.
+  The corrected scope was approved and applied on 2026-11-13, replacing an
+  earlier blanket ask-first draft that made routine local work impractical. The
+  user-authorized local migration applied V2 permissions to `opencode.jsonc` and
+  removed temporary exact-path edit grants while preserving the permanent SDD
+  workspace grants; `kiki update` refreshed the active global prompts.
 - **Alternate-route rules for all eight roles:** Code Mode `execute` denied for
   every role including the orchestrator, `webfetch`/`websearch` allowed only for
   the brainstormer and planner, `skill` allowed, delegation denied except the
@@ -32,32 +32,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `tmp/**` grants keep them after that deny, and the other four stay denied.
   Applied to the live project configuration with the V2 permission migration.
 - **Blocked-operation and watchdog behavior:** every generated prompt instructs
-  agents to report `PERMISSION_BLOCKED: <command>` and stop instead of retrying
-  or working around a blocked/rejected operation; the watchdog tracks pending
-  permission requests per child and pauses stuck evaluation while an approval is
-  pending. Covered by fake-clock tests. Real TUI long waits (300,000 ms /
-  3,600,000 ms), reconnect/reload pending state and model obedience remain
-  PENDING.
+  agents not to circumvent publishing-route approval via scripts, wrappers,
+  alternate tools, APIs or delegation, to request approval for the intended
+  publishing operation, and — if approval is rejected — to report
+  `PERMISSION_BLOCKED: <command>` and stop instead of retrying or working around
+  it; the watchdog tracks pending permission requests per child and pauses stuck
+  evaluation while an approval is pending. Covered by fake-clock tests. Real TUI
+  long waits (300,000 ms / 3,600,000 ms), reconnect/reload pending state and
+  model obedience remain PENDING.
 - **Doctor advisories and approval reminders:** `kiki doctor` now warns
   (advisory, non-failing) about wildcard or compound configured command shapes
   and about npm default commands in a non-Node project, and prints informational
   approval reminders: answer `once` for remote-changing operations, `Always`
   saves a grant that later runs without asking, auto-accept answers every
-  pending request, and these notices are not a sandbox. Within the
-  doctor-warned configured-command shapes, wildcard/compound values are
-  categorically excluded from grants; values with a network-client or
-  interpreter head and values containing shell metacharacters are excluded too,
-  while a plain literal npm default remains eligible as an exact grant. Doctor
-  never executes a configured command or scans the approval database.
+  pending request, and these notices are not a sandbox. Wildcard/compound
+  configured values, network-client or interpreter heads, and values containing
+  shell metacharacters remain doctor warning targets, but they no longer control
+  execution: `allow shell *` covers routine local commands, and only the 18
+  publishing patterns ask. Doctor never executes a configured command or scans
+  the approval database.
+
+### Changed
+
+- **Corrected shell scope (2026-11-13):** the earlier blanket `shell *` → `ask`
+  generated policy was too broad and made routine local work impractical. It was
+  replaced by `allow shell *` plus 18 publishing/remote-changing asks and five
+  force-push denies, together with the no-circumvention prompt line. Read/file
+  denies, edit scopes and execute/MCP/webfetch/websearch/skill/subagent/
+  external-directory rules are unchanged. The live `opencode.jsonc` was updated
+  to the corrected scope and `kiki update` refreshed all eight active global
+  prompts. The command gates protect known publishing routes only; they are not
+  an adversarial sandbox, and allowed local scripts can still perform network
+  actions.
 
 ### Security
 
-- **Local V2 policy applied:** following user approval, the live project
-  `opencode.jsonc` now uses native V2 permission arrays. On 2026-11-13 the user
-  confirmed a root-visible permission prompt for an implementer's harmless
-  `printf` command. This is manual evidence of the subagent ask path, not a
-  complete live-policy certification. Direct orchestrator gate verification,
-  TUI rejection/Always/auto-accept and remaining wait/reconnect checks are pending.
+- **Local V2 policy applied and corrected:** following user approval, the live
+  project `opencode.jsonc` uses native V2 permission arrays with the corrected
+  shell scope (routine local allow, 18 publishing asks, five force-push denies).
+  Earlier, under the ask-first draft, the user confirmed a root-visible
+  permission prompt for an orchestrator-dispatched implementer's harmless
+  `printf` command; it returned the expected output and the selected approval
+  option was not recorded. That historical observation is manual evidence of the
+  subagent ask path, not a complete live-policy certification. Direct
+  orchestrator gate verification, TUI rejection/Always/auto-accept and remaining
+  wait/reconnect checks are pending. Focused permission/migration/install/doctor
+  tests passed 62/62 and the full suite with real OpenCode 2.2.7 passed 659,
+  skipped 2, failed 0; build/tsc/lint were clean.
 - **Approval is conditional, not a boundary:** saved `Always` grants
   (project-scoped command prefixes) and auto-accept bypass later asks. Kiki does
   not detect or enforce around them; this is mistake protection, not a sandbox,
