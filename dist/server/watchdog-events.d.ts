@@ -23,6 +23,14 @@ export interface TokenCounters {
  * `running.status` is optional and defaults to `busy`. It exists only so the
  * V2 explicit retry status keeps the original "retrying is active but not
  * abortable" outcome without adding another top-level variant.
+ *
+ * Permission variants carry the OpenCode 2.x payload identities. The
+ * `permission.asked.data.{sessionID,id}` shape was live-captured; the
+ * `permission.replied.data.{sessionID,requestID,reply}` shape is verified
+ * against the published schema rather than live-captured. Pending state is
+ * observable only from the live event stream; session discovery exposes no
+ * permission state, so a reconnect/reload cannot be reconstructed here and
+ * is documented as a rollout limitation rather than guessed.
  */
 export type WatchdogEvent = {
     type: 'child';
@@ -52,6 +60,15 @@ export type WatchdogEvent = {
     type: 'tokens';
     id: string;
     counters: TokenCounters;
+} | {
+    type: 'permission-asked';
+    id: string;
+    requestID: string;
+} | {
+    type: 'permission-replied';
+    id: string;
+    requestID: string;
+    reply: 'once' | 'always' | 'reject';
 };
 /**
  * Stateless OC2 event decoder. No state, no V1 payload shapes, no casts: every

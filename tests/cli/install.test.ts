@@ -43,8 +43,7 @@ describe('global installation CLI', () => {
       expect(existsSync(file), name).toBe(true);
       const { settings } = parseAgent(readFileSync(file, 'utf8'), file);
       expect(settings, name).not.toHaveProperty('model');
-      if (name === 'kiki-orchestrator') expect(settings.permissions).toBeUndefined();
-      else expect(Array.isArray(settings.permissions), name).toBe(true);
+      expect(Array.isArray(settings.permissions), name).toBe(true);
       expect(settings.mode, name).toBe(name === 'kiki-orchestrator' ? 'primary' : 'subagent');
     }
     expect(readOpenCodeSettings(global, true).agents).toBeUndefined();

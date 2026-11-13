@@ -27,6 +27,14 @@ export interface TokenCounters {
  * `running.status` is optional and defaults to `busy`. It exists only so the
  * V2 explicit retry status keeps the original "retrying is active but not
  * abortable" outcome without adding another top-level variant.
+ *
+ * Permission variants carry the OpenCode 2.x payload identities. The
+ * `permission.asked.data.{sessionID,id}` shape was live-captured; the
+ * `permission.replied.data.{sessionID,requestID,reply}` shape is verified
+ * against the published schema rather than live-captured. Pending state is
+ * observable only from the live event stream; session discovery exposes no
+ * permission state, so a reconnect/reload cannot be reconstructed here and
+ * is documented as a rollout limitation rather than guessed.
  */
 export type WatchdogEvent =
   | { type: 'child'; id: string; parentID?: string; agent?: string }
@@ -34,7 +42,9 @@ export type WatchdogEvent =
   | { type: 'finished'; id: string }
   | { type: 'text'; id: string; key: string; text: string; mode: 'append' | 'replace' }
   | { type: 'tool'; id: string; key: string; name: string; input: unknown }
-  | { type: 'tokens'; id: string; counters: TokenCounters };
+  | { type: 'tokens'; id: string; counters: TokenCounters }
+  | { type: 'permission-asked'; id: string; requestID: string }
+  | { type: 'permission-replied'; id: string; requestID: string; reply: 'once' | 'always' | 'reject' };
 
 function textEvent(
   kind: 'text' | 'reasoning',
@@ -151,6 +161,19 @@ export function decodeWatchdogEvent(event: OpenCodeEvent): WatchdogEvent[] {
       return [{ type: 'running', id: event.data.sessionID }];
     case 'session.retry.scheduled':
       return [{ type: 'running', id: event.data.sessionID, status: 'retry' }];
+    case 'permission.asked':
+      return [
+        { type: 'permission-asked', id: event.data.sessionID, requestID: event.data.id },
+      ];
+    case 'permission.replied':
+      return [
+        {
+          type: 'permission-replied',
+          id: event.data.sessionID,
+          requestID: event.data.requestID,
+          reply: event.data.reply,
+        },
+      ];
     case 'session.step.ended':
       return [tokenEvent(event.data.sessionID, event.data.tokens)];
     case 'session.step.failed':

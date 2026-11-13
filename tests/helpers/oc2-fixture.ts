@@ -9,8 +9,12 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseJsonc } from 'jsonc-parser';
 
-/** The only OpenCode 2 binary generation Kiki 3.0.0 accepts. */
-export const OC2_VERSION = '2.2.6';
+/**
+ * OpenCode 2 is the supported runtime generation for Kiki 3.x. The harness
+ * accepts any available 2.x binary and records the exact patch version it
+ * observed instead of requiring one patch release.
+ */
+export const OC2_MAJOR_VERSION = 2;
 
 export interface OC2Fixture {
   root: string;
@@ -74,38 +78,56 @@ export function fixtureEnv(root: string): NodeJS.ProcessEnv {
 
 const versionCache = new Map<string, string>();
 
+/** Parse the first `--version` line; returns strict `major.minor.patch` or undefined. */
+export function parseOC2Version(output: string): string | undefined {
+  const firstLine = output.trim().split(/\r?\n/)[0]?.trim() ?? '';
+  const match = firstLine.match(/^(?:opencode\s+v)?(\d+)\.(\d+)\.(\d+)$/i);
+  return match ? `${match[1]}.${match[2]}.${match[3]}` : undefined;
+}
+
 /**
- * Resolve the explicitly supplied `OPENCODE_TEST_BINARY` and refuse any version
- * other than exactly 2.2.6. The probe runs in a disposable HOME and XDG roots so
- * a user's live config, credentials and state are never opened.
+ * Resolve the explicitly supplied `OPENCODE_TEST_BINARY` and accept any
+ * OpenCode 2.x release, recording the observed version for the test evidence.
+ * V1, malformed and future-major binaries are refused. The probe runs in a
+ * disposable HOME and XDG roots so a user's live config, credentials and state
+ * are never opened.
  */
 export function requireOC2Binary(): string {
   const binary = process.env.OPENCODE_TEST_BINARY;
   if (!binary || !binary.trim()) {
-    throw new Error('OPENCODE_TEST_BINARY must point at an absolute OpenCode 2.2.6 binary.');
+    throw new Error(`OPENCODE_TEST_BINARY must point at an absolute OpenCode ${OC2_MAJOR_VERSION}.x binary.`);
   }
   if (!isAbsolute(binary)) throw new Error('OPENCODE_TEST_BINARY must be an absolute path.');
   const cached = versionCache.get(binary);
-  if (cached) return cached;
+  if (cached) return binary;
 
   const probe = mkdtempSync(join(tmpdir(), 'kiki-oc2-version-'));
+  let output = '';
   try {
     const env = fixtureEnv(probe);
-    const output = execFileSync(binary, ['--version'], {
+    output = execFileSync(binary, ['--version'], {
       env,
       encoding: 'utf8',
       timeout: 15_000,
       stdio: ['ignore', 'pipe', 'pipe'],
     }).trim().split(/\r?\n/)[0]?.trim() ?? '';
-    const match = output.match(/^(?:opencode\s+v)?(\d+\.\d+\.\d+)$/i);
-    if (!match || match[1] !== OC2_VERSION) {
-      throw new Error(`Refusing OpenCode binary ${binary}: expected exactly ${OC2_VERSION}, observed ${JSON.stringify(output)}.`);
-    }
   } finally {
     rmSync(probe, { recursive: true, force: true });
   }
-  versionCache.set(binary, binary);
+  const version = parseOC2Version(output);
+  if (!version) {
+    throw new Error(`Refusing OpenCode binary ${binary}: malformed version output ${JSON.stringify(output)}; expected OpenCode ${OC2_MAJOR_VERSION}.x.`);
+  }
+  if (Number(version.split('.')[0]) !== OC2_MAJOR_VERSION) {
+    throw new Error(`Refusing OpenCode binary ${binary}: expected OpenCode ${OC2_MAJOR_VERSION}.x, observed ${JSON.stringify(output)}.`);
+  }
+  versionCache.set(binary, version);
   return binary;
+}
+
+/** The exact version observed for a binary that passed `requireOC2Binary`. */
+export function observedOC2Version(binary = process.env.OPENCODE_TEST_BINARY): string | undefined {
+  return binary ? versionCache.get(binary) : undefined;
 }
 
 export function hasOC2Binary(): boolean {
@@ -178,7 +200,7 @@ function runAsync(
 
 /**
  * Disposable HOME, all four XDG roots and an explicit OPENCODE_CONFIG_DIR for a
- * real 2.2.6 binary. Callers own every file; cleanup removes only this root.
+ * real OpenCode 2.x binary. Callers own every file; cleanup removes only this root.
  */
 export function createOC2Fixture(binary?: string): OC2Fixture {
   const resolvedBinary = binary ?? (hasOC2Binary() ? requireOC2Binary() : '');

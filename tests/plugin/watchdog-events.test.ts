@@ -184,6 +184,39 @@ describe('decodeWatchdogEvent session lifecycle', () => {
   });
 });
 
+describe('decodeWatchdogEvent permission waits', () => {
+  it('maps permission.asked to the session and request id from measured data fields', () => {
+    const event: EventOf<'permission.asked'> = {
+      ...meta,
+      type: 'permission.asked',
+      data: {
+        sessionID: 'child-1',
+        action: 'shell',
+        resources: ['stub-safe'],
+        save: ['stub-safe *'],
+        source: { type: 'tool', messageID: 'msg-1', id: 'call_0' },
+        id: 'per_1',
+      },
+    };
+
+    expect(decodeWatchdogEvent(event)).toEqual([
+      { type: 'permission-asked', id: 'child-1', requestID: 'per_1' },
+    ]);
+  });
+
+  it('maps permission.replied requestID and reply from measured data fields', () => {
+    const event: EventOf<'permission.replied'> = {
+      ...meta,
+      type: 'permission.replied',
+      data: { sessionID: 'child-1', requestID: 'per_1', reply: 'once' },
+    };
+
+    expect(decodeWatchdogEvent(event)).toEqual([
+      { type: 'permission-replied', id: 'child-1', requestID: 'per_1', reply: 'once' },
+    ]);
+  });
+});
+
 describe('decodeWatchdogEvent text and reasoning', () => {
   it('maps text started/delta/ended keyed by assistantMessageID and ordinal', () => {
     const started: EventOf<'session.text.started'> = {

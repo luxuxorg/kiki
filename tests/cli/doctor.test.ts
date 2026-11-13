@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync,
+  existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync,
 } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -217,6 +217,40 @@ it('reports missing project commands as failures while missing skills remain war
   expect(output()).toContain('config.commands.security');
   expect(output()).toContain('! skill brainstorming — not found on disk');
   expect(output()).toMatch(/\d+ passed, \d+ warnings, 1 failed/);
+});
+
+it('security_doctor_advisory_only', async () => {
+  const file = join(project, '.agentic/kiki/config.json');
+  const config = JSON.parse(readFileSync(file, 'utf8'));
+  config.language = 'python';
+  config.commands = {
+    build: 'npm run build',
+    test: 'pytest && touch marker',
+    lint: 'npm run lint',
+    security: 'npm audit*',
+  };
+  writeFileSync(file, JSON.stringify(config));
+
+  await runDoctor();
+
+  expect(output()).toContain('! config.commands.build — npm default in a python project');
+  expect(output()).toContain('! config.commands.lint — npm default in a python project');
+  expect(output()).toContain('! config.commands.test — compound command shape');
+  expect(output()).toContain('! config.commands.security — wildcard command shape');
+  expect(output()).toContain('0 failed');
+  expect(existsSync(join(project, 'marker'))).toBe(false);
+});
+
+it('security_approval_reminders', async () => {
+  await runDoctor();
+  const text = output();
+
+  expect(text).toContain('once');
+  expect(text).toContain('Always');
+  expect(text).toContain('saved grants');
+  expect(text).toContain('auto-accept');
+  expect(text).toContain('not a sandbox');
+  expect(text).not.toMatch(/detects? bypass|bypass detection|enforces? the ask/i);
 });
 
 it('prints the disk-only registration caveat exactly once', async () => {

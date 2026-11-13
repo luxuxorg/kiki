@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import { loadConfig } from '../config.js';
+import { DEFAULT_CONFIG, loadConfig } from '../config.js';
 import { discoverSkills, observeSkills } from '../doctor-skills.js';
 import {
   AGENT_NAMES, formatModelID, globalDirectory, mergeSettings, parseAgent,
@@ -9,6 +9,35 @@ import {
 } from '../opencode-config.js';
 import { assertOC2Target, canonicalPath, resolveOC2Roots } from '../oc2-paths.js';
 import { autoDiscoveredKikiPlugins, kikiCliSources, kikiServerSources } from '../oc2-registration.js';
+
+const NODE_LANGUAGES = new Set(['typescript', 'javascript', 'ts', 'js']);
+const WILDCARD_COMMAND_SHAPE = /[*?[\]]/;
+const COMPOUND_COMMAND_SHAPE = /(&&|\|\||[;|]|\$\(|`|>|<|\r|\n)/;
+
+/**
+ * Advisory-only reporting for configured commands. Nothing here executes a
+ * configured command or widens a permission: wildcard/compound shapes are
+ * reported so they stay visible, and defaults from another ecosystem are
+ * flagged as likely leftovers.
+ */
+function commandShapeWarnings(
+  name: keyof typeof DEFAULT_CONFIG.commands,
+  command: string,
+  language: string,
+): string[] {
+  const warnings: string[] = [];
+  if (WILDCARD_COMMAND_SHAPE.test(command)) {
+    warnings.push('wildcard command shape; advisory only, not added as an exact allow');
+  }
+  if (COMPOUND_COMMAND_SHAPE.test(command)) {
+    warnings.push('compound command shape; advisory only, not added as an exact allow');
+  }
+  if (!NODE_LANGUAGES.has(language.toLowerCase())
+    && command.trim() === DEFAULT_CONFIG.commands[name]) {
+    warnings.push(`npm default in a ${language} project; set the project's actual command`);
+  }
+  return warnings;
+}
 
 function modelString(value: unknown): string | undefined {
   if (typeof value === 'string') return value;
@@ -129,6 +158,16 @@ export async function doctor(targetPath = '.'): Promise<void> {
     for (const [name, command] of Object.entries(config.commands)) {
       check(`config.commands.${name}`, outcome(typeof command === 'string' && !!command.trim()));
     }
+    for (const [name, command] of Object.entries(config.commands)) {
+      if (typeof command !== 'string' || !command.trim()) continue;
+      for (const warning of commandShapeWarnings(
+        name as keyof typeof DEFAULT_CONFIG.commands,
+        command,
+        config.language,
+      )) {
+        check(`config.commands.${name}`, 'warn', warning);
+      }
+    }
     for (const name of ['source', 'tests', 'docs', 'superpowers', 'specs', 'plans', 'readme', 'changelog', 'decisions', 'knowledge'] as const) {
       const value = config.paths[name];
       if (value) check(`paths.${name}`, outcome(existsSync(join(targetPath, value))), value);
@@ -137,6 +176,8 @@ export async function doctor(targetPath = '.'): Promise<void> {
     console.log('No project metadata; using global defaults.');
   }
 
+  info('approval reminders', 'choose "once" for remote-changing operations; "Always" saves a grant that later runs without asking; auto-accept answers every pending request without asking');
+  info('approval reminders', 'review saved grants periodically; this is mistake protection, not a sandbox — Kiki does not detect or enforce around saved grants or auto-accept');
   console.log('Skill checks verify files on disk; they cannot confirm OpenCode plugin registration or live availability in a running session.');
   for (const observation of observeSkills(discoverSkills(targetPath))) {
     if (observation.level === 'info') info(observation.label, observation.detail);

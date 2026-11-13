@@ -6,6 +6,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Ask-first generated agent permissions:** all eight roles, including the
+  orchestrator, get a `shell *` ask fallback. Seven roles — every agent except
+  the orchestrator — additionally get exact literal common git read grants; the
+  orchestrator has no shell grants. The implementer and the gui-designer (which
+  reuses the implementer builder) also get `git ls-files --others
+  --exclude-standard`, and the implementer, gui-designer and reviewer get the
+  project's configured build/test/lint/security commands when they are plain
+  literals. Configured values with a network-client head (including plain `ftp`)
+  or an interpreter head, values containing shell metacharacters, and
+  wildcard/compound shapes never become grants. No role has an unrestricted
+  shell allow. Remote-changing and unknown commands ask; the generated
+  force-push patterns deny without asking (unit-tested; runtime matching is not
+  yet probed by that unit coverage). The user-authorized local migration has
+  applied V2 permissions to `opencode.jsonc` and removed temporary exact-path
+  edit grants while preserving the permanent SDD workspace grants.
+- **Alternate-route rules for all eight roles:** Code Mode `execute` denied for
+  every role including the orchestrator, `webfetch`/`websearch` allowed only for
+  the brainstormer and planner, `skill` allowed, delegation denied except the
+  orchestrator's seven named Kiki subagents, and arbitrary MCP server tools
+  closed with a generic `*_*` action deny. No blanket external-directory
+  re-allow is added: only the four roles with pre-existing narrow `/tmp/**` and
+  `tmp/**` grants keep them after that deny, and the other four stay denied.
+  Applied to the live project configuration with the V2 permission migration.
+- **Blocked-operation and watchdog behavior:** every generated prompt instructs
+  agents to report `PERMISSION_BLOCKED: <command>` and stop instead of retrying
+  or working around a blocked/rejected operation; the watchdog tracks pending
+  permission requests per child and pauses stuck evaluation while an approval is
+  pending. Covered by fake-clock tests. Real TUI long waits (300,000 ms /
+  3,600,000 ms), reconnect/reload pending state and model obedience remain
+  PENDING.
+- **Doctor advisories and approval reminders:** `kiki doctor` now warns
+  (advisory, non-failing) about wildcard or compound configured command shapes
+  and about npm default commands in a non-Node project, and prints informational
+  approval reminders: answer `once` for remote-changing operations, `Always`
+  saves a grant that later runs without asking, auto-accept answers every
+  pending request, and these notices are not a sandbox. Within the
+  doctor-warned configured-command shapes, wildcard/compound values are
+  categorically excluded from grants; values with a network-client or
+  interpreter head and values containing shell metacharacters are excluded too,
+  while a plain literal npm default remains eligible as an exact grant. Doctor
+  never executes a configured command or scans the approval database.
+
+### Security
+
+- **Local V2 policy applied:** following user approval, the live project
+  `opencode.jsonc` now uses native V2 permission arrays. On 2026-11-13 the user
+  confirmed a root-visible permission prompt for an implementer's harmless
+  `printf` command. This is manual evidence of the subagent ask path, not a
+  complete live-policy certification. Direct orchestrator gate verification,
+  TUI rejection/Always/auto-accept and remaining wait/reconnect checks are pending.
+- **Approval is conditional, not a boundary:** saved `Always` grants
+  (project-scoped command prefixes) and auto-accept bypass later asks. Kiki does
+  not detect or enforce around them; this is mistake protection, not a sandbox,
+  and approving a publish means "make it live", not that the code is safe.
+  Automated evidence is on OpenCode 2.2.7 only. TUI `Always`/auto-accept, real
+  long waits (300,000 ms / 3,600,000 ms) and saved-grant inventory remain
+  PENDING. Alternate-route enforcement was measured in Task 3; the task registry
+  subsequently records a passing route suite after final `external_directory`
+  narrowing on OpenCode 2.2.7.
+
 ## [3.0.1] — 2026-11-11
 
 ### Fixed

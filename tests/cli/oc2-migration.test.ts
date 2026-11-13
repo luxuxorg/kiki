@@ -5,11 +5,13 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { parse as parseJsonc } from 'jsonc-parser';
+import { applyEdits, modify, parse as parseJsonc } from 'jsonc-parser';
 import { parse as parseYaml } from 'yaml';
 import { migrateOC1 } from '../../src/cli/oc2-migration';
 import { translatePermissions } from '../../src/cli/oc2-permissions';
-import { migrateProject, mergeSettings } from '../../src/cli/opencode-config';
+import {
+  baselineAgents, migrateProject, mergeSettings, type PermissionRule,
+} from '../../src/cli/opencode-config';
 import { migrate } from '../../src/cli/commands/migrate';
 import { parseMigrationArgs } from '../../src/cli/args';
 import { KIKI_VERSION } from '../../src/cli/config';
@@ -47,6 +49,33 @@ function backupDirs(root: string): string[] {
 }
 function permissionMap(builder: string): Record<string, unknown> {
   return (parseYaml(builder, { uniqueKeys: false }) as { permission: Record<string, unknown> }).permission;
+}
+
+const JSONC_EDIT = { formattingOptions: { insertSpaces: true, tabSize: 2 } };
+
+/**
+ * Preview transition procedure: run the existing project migration to convert
+ * models and remove V1 blocks, then make the generated baseline the only owner
+ * of each migrated Kiki agent's permissions. Broad V1 translations are never
+ * kept.
+ */
+function transitionProjectConfig(project: string, source: string, force = false): ReturnType<typeof migrateOC1> {
+  const report = migrateOC1({ from: source, project, destination: project, force });
+  if (report.exitCode !== 0) return report;
+  const target = join(project, 'opencode.jsonc');
+  let text = readFileSync(target, 'utf8');
+  const baseline = baselineAgents();
+  const parsed = parseJsonc(text);
+  for (const name of Object.keys(parsed?.agents ?? {})) {
+    const agent = baseline[name];
+    if (!agent) continue;
+    const rules = agent.settings.permissions as PermissionRule[];
+    const current = parseJsonc(text)?.agents?.[name]?.permissions;
+    if (JSON.stringify(current) === JSON.stringify(rules)) continue;
+    text = applyEdits(text, modify(text, ['agents', name, 'permissions'], rules, JSONC_EDIT));
+  }
+  writeFileSync(target, text);
+  return report;
 }
 
 describe('one-time OC1 to OC2 migration', () => {
@@ -285,6 +314,149 @@ describe('one-time OC1 to OC2 migration', () => {
 
     expect(() => migrateOC1({ from: source, destination, force: false })).toThrow(/already|force/i);
     expect(readFileSync(join(destination, 'opencode.jsonc'), 'utf8')).toBe(before);
+  });
+
+  it('security_transition_preserves_unrelated_jsonc', () => {
+    const projectConfig = join(project, 'opencode.jsonc');
+    writeFileSync(projectConfig, `{
+  "$schema": "https://opencode.ai/config.json",
+  // preserve top-level comment
+  "theme": "keep",
+  "agent": {
+    "kiki-planner": {
+      "model": "deepseek/deepseek-flash", // planner model note
+      "permission": {
+        "bash": { "*": "deny", "git status*": "allow" }
+      }
+    },
+    "kiki-implementer": {
+      "model": "deepseek/deepseek-flash",
+      "variant": "high",
+      "permission": {
+        "edit": {
+          "*": "deny",
+          "src/**": "allow",
+          "tests/**": "allow",
+          ".superpowers/sdd/**": "allow",
+          "docs/research/2026-11-12-security-boundaries-probes.md": "allow"
+        },
+        "bash": "allow"
+      }
+    },
+    "scientist": {
+      "model": "provider/scientist",
+      "variant": "high"
+    }
+  },
+  "agents": {
+    "other": {
+      "model": { "providerID": "keep", "model": "other" },
+      "permissions": [{ "action": "shell", "resource": "*", "effect": "allow" }]
+    }
+  },
+  // unrelated comment
+  "unrelated": { "flag": true }
+}\n`);
+
+    const report = transitionProjectConfig(project, source);
+
+    expect(report.exitCode).toBe(0);
+    expect(report.rejected).toEqual([]);
+    const text = readFileSync(projectConfig, 'utf8');
+    const data = parseJsonc(text);
+
+    // Comments, unrelated settings, and non-Kiki agents/models/variants survive.
+    expect(text).toContain('// preserve top-level comment');
+    expect(text).toContain('// unrelated comment');
+    expect(data.theme).toBe('keep');
+    expect(data.unrelated).toEqual({ flag: true });
+    expect(data.agent.scientist).toEqual({ model: 'provider/scientist', variant: 'high' });
+    expect(data.agents.other).toEqual({
+      model: { providerID: 'keep', model: 'other' },
+      permissions: [{ action: 'shell', resource: '*', effect: 'allow' }],
+    });
+
+    // Kiki V1 models convert without losing variants, and the legacy singular
+    // definitions disappear.
+    expect(data.agent['kiki-planner']).toBeUndefined();
+    expect(data.agent['kiki-implementer']).toBeUndefined();
+    expect(data.agents['kiki-planner'].model)
+      .toEqual({ providerID: 'deepseek', model: 'deepseek-flash' });
+    expect(data.agents['kiki-implementer'].model)
+      .toEqual({ providerID: 'deepseek', model: 'deepseek-flash', variant: 'high' });
+
+    // Exactly one generated owner for Kiki permissions: the native array.
+    const baseline = baselineAgents();
+    const migrated = ['kiki-planner', 'kiki-implementer'];
+    for (const name of migrated) {
+      expect(data.agents[name].permission).toBeUndefined();
+      expect(data.agents[name].permissions).toEqual(baseline[name].settings.permissions);
+      expect(JSON.stringify(data).match(new RegExp(`"${name}"`, 'g'))).toHaveLength(1);
+    }
+    expect(text).not.toMatch(/"permission"\s*:/);
+    expect((text.match(/"permissions"\s*:/g) ?? [])).toHaveLength(3);
+
+    // Unsafe grants and the temporary exact-path grants are gone.
+    const rules = migrated.flatMap(name => data.agents[name].permissions as PermissionRule[]);
+    expect(rules).not.toContainEqual({ action: 'shell', resource: '*', effect: 'allow' });
+    for (const name of migrated) {
+      const shell = (data.agents[name].permissions as PermissionRule[])
+        .filter(rule => rule.action === 'shell');
+      expect(shell[0]).toEqual({ action: 'shell', resource: '*', effect: 'ask' });
+      expect(shell).toContainEqual({ action: 'shell', resource: 'git push --force*', effect: 'deny' });
+    }
+    expect(text).not.toContain('"bash"');
+    // `.superpowers/sdd/**` is the permanent narrow SDD workspace grant: the
+    // implementer keeps it, the planner (or any other role) does not.
+    const sddGrant: PermissionRule = { action: 'edit', resource: '.superpowers/sdd/**', effect: 'allow' };
+    expect(data.agents['kiki-implementer'].permissions as PermissionRule[]).toContainEqual(sddGrant);
+    expect(data.agents['kiki-planner'].permissions as PermissionRule[]).not.toContainEqual(sddGrant);
+    expect(text).not.toContain('docs/research/2026-11-12-security-boundaries-probes.md');
+
+    // A forced rerun recognises the generated state and leaves bytes unchanged.
+    const once = readFileSync(projectConfig);
+    const again = transitionProjectConfig(project, source, true);
+    expect(again.exitCode).toBe(0);
+    expect(readFileSync(projectConfig)).toEqual(once);
+    expect(existsSync(join(project, '.agentic/kiki/migration.json'))).toBe(true);
+
+    // A rejected/conflicting migration leaves both inputs byte-identical.
+    const conflictSource = join(root, 'oc1-conflict');
+    const conflictDestination = join(root, 'oc2-conflict');
+    mkdirSync(conflictSource);
+    mkdirSync(conflictDestination);
+    const sourceFile = join(conflictSource, 'opencode.jsonc');
+    const destinationFile = join(conflictDestination, 'opencode.jsonc');
+    writeFileSync(sourceFile, `{
+  // source comment
+  "agent": {
+    "kiki-planner": {
+      "model": "source/choice",
+      "permission": { "bash": { "*": "ask" } }
+    },
+    "scientist": { "model": "provider/scientist" }
+  }
+}\n`);
+    writeFileSync(destinationFile, `{
+  // destination comment
+  "agents": {
+    "kiki-planner": {
+      "model": { "providerID": "destination", "model": "choice" },
+      "prompt": "keep"
+    }
+  },
+  "unrelated": true
+}\n`);
+    const sourceBefore = readFileSync(sourceFile);
+    const destinationBefore = readFileSync(destinationFile);
+
+    const conflict = migrateOC1({ from: conflictSource, destination: conflictDestination, force: false });
+
+    expect(conflict.exitCode).toBe(1);
+    expect(conflict.rejected.map(entry => entry.agent)).toEqual(['kiki-planner']);
+    expect(readFileSync(sourceFile)).toEqual(sourceBefore);
+    expect(readFileSync(destinationFile)).toEqual(destinationBefore);
+    expect(existsSync(join(conflictDestination, '.agentic/kiki/migration.json'))).toBe(false);
   });
 
   it('forces a fresh backup run without changing source bytes', () => {

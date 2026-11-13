@@ -15,6 +15,16 @@ findings and no exception. Live model migration, provider login and the optional
 rollback drill are user-owned; unreported checks are not claimed. See
 [`docs/migrations/kiki-3-oc2-acceptance.md`](docs/migrations/kiki-3-oc2-acceptance.md).
 
+**Security boundaries (applied locally):** Kiki's generated agent defaults
+now contain an ask-first shell policy, exact command grants, force-push denies and
+alternate-route restrictions (see
+[Security boundaries and approvals](#security-boundaries-and-approvals)). This is
+applied to this repository's live `opencode.jsonc` as V2 `permissions` arrays,
+following the user's approval. On 2026-11-13 the user confirmed that an
+implementer's harmless `printf` command raised a permission prompt in the root
+UI. This manual observation verifies that subagent ask path, not every rule or
+remaining approval/wait scenario.
+
 ## Requirements
 
 - Runtime Node `>=18.0.0`.
@@ -183,6 +193,90 @@ replaces the global prompt for this project and does not automatically receive l
 global instruction updates. OpenCode merges fields; settings explicitly present in the
 local Markdown frontmatter take precedence.
 
+### Security boundaries and approvals
+
+Kiki's generated agent defaults (rendered from `src/cli/config.ts`) use an
+**ask-first shell policy** for all eight roles, the orchestrator included. No role
+has an unrestricted shell grant.
+
+- **Exact grants only.** The first shell rule asks for everything; the following
+  allows are literal commands with no wildcard suffix, so extra arguments fall
+  through to the ask rule. The common grants are `git status --short`,
+  `git diff --stat` and `git log --oneline -20`; the implementer and the
+  gui-designer (which reuses the implementer builder) additionally get
+  `git ls-files --others --exclude-standard` and the project's configured
+  build/test/lint/security commands when those are plain literals. The reviewer
+  gets the common git commands and those configured commands. Wildcard/compound
+  shapes, shell metacharacters, network-client heads (including plain `ftp`) and
+  interpreters are never widened into grants; they stay behind the ask rule. The
+  orchestrator has no shell grants.
+- **Remote changes and unknown commands ask.** Push, deploy, upload,
+  `ssh`/`sftp`/`ftps`/`ftp`/`scp`/`rsync`/`lftp`/`curl`/`wget` and anything else
+  without a grant reach the ask rule. Plain FTP is explicitly not granted and is
+  discouraged because it sends credentials in cleartext; even a configured
+  `ftp`-headed build/test/lint/security command stays `ask` and never becomes an
+  exact allow.
+- **Force-push patterns are generated as denies.** The current patterns are
+  `git push -f*`, `git push --force*`, `git push *--force*`, `git push * -f`
+  and `git push * --force`. They are unit-tested only; runtime matching on
+  OpenCode 2.2.7 is **PENDING**. Branch names that merely contain `-f`, such as
+  `my-feature` or `hot-fix`, are not denied, and some other flag placements can
+  fall through to the ask rule, so this is not a claim that every force form is
+  denied. Aliases and wrapper commands remain a known limitation, and how a
+  saved `Always` grant interacts with these deny rules was not probed.
+- **Alternate routes.** Code Mode (`execute`) is denied for every role, the
+  orchestrator included. `webfetch`/`websearch` are allowed only for the
+  brainstormer and planner, `skill` stays allowed, and `subagent` is denied for
+  every role except the orchestrator, which may dispatch only the seven named Kiki
+  subagents. Arbitrary MCP server tools are closed with a generic `*_*` action
+  deny. No blanket external-directory re-allow is added: after that deny, only
+  the narrow `/tmp/**` and `tmp/**` grants are preserved for the four roles that
+  already had them (implementer, gui-designer, reviewer and escalation); the
+  other four (orchestrator, brainstormer, planner and historian) stay denied.
+   Route enforcement was measured on OpenCode 2.2.7 in the Task 3 runtime probe;
+   the registry records a later passing route suite after external-directory narrowing,
+  and none of these rules is a containment claim.
+
+Behavior when a decision is needed:
+
+- Generated prompts tell every agent to stop on a blocked or rejected operation
+  and report `PERMISSION_BLOCKED: <command>`; the orchestrator does not retry it.
+- The watchdog source tracks pending permission requests per child, pauses stuck
+  evaluation while an approval is pending, excludes the waiting time from active
+  age and resets silence on the final reply. Fake-clock tests cover this logic.
+  Real TUI long waits (300,000 ms / 3,600,000 ms), reconnect/reload pending state
+  and model obedience of `PERMISSION_BLOCKED` remain **PENDING**, so no live
+  wait-safety claim is made.
+
+**Approval discipline.** Answer `once` for any remote-changing operation. `Always`
+saves the proposed command prefix as a project-scoped grant, and later matching
+commands run without asking; auto-accept answers every pending request, including
+publish-class asks. Review saved grants periodically. **Saved-grant inventory is
+PENDING:** Kiki cannot yet inventory or remove saved grants, so this review is
+manual and the UI steps for reviewing or removing a grant are unverified. These
+notices are mistake protection, not a sandbox: Kiki does not detect or enforce
+around saved grants or auto-accept, and approving a publish means "make it live",
+not "this code is safe". SSH and transfer clients get no blanket grant anywhere.
+
+Permission prompts are presented by OpenCode's UI. A subagent reporting that it
+saw no prompt is not evidence that approval was bypassed; use the user's UI
+observation or permission events to establish whether a request occurred.
+
+**Rollout status (2026-11-13).** The user-authorized migration has applied V2
+permissions to the live project `opencode.jsonc`. The user confirmed a root-visible
+implementer shell approval prompt. The orchestrator's refusal to run the command
+directly demonstrates role-instruction compliance, not native shell denial.
+Direct orchestrator gate verification in a fresh primary session, TUI
+Always/reject/auto-accept, real long waits, saved-grant inventory, reconnect state
+and blocked-operation stop behavior remain unverified. This observation does not
+waive those verification limits. Removing Kiki does not remove native saved grants
+or undo a publish. Automated
+evidence is on OpenCode 2.2.7 only; a different 2.x patch must be re-probed before
+relying on it. See the
+[design](docs/superpowers/specs/2026-11-12-security-boundaries-design.md),
+[plan](docs/superpowers/plans/2026-11-12-security-boundaries-plan.md) and
+[probe record](docs/research/2026-11-12-security-boundaries-probes.md).
+
 ## Migrate from OC1 once
 
 Migration reads a **secret-free OC1 export**, never a live credential-bearing
@@ -242,6 +336,14 @@ It does not repair an already running or stuck OpenCode session.
 - `kiki doctor [path]`: checks the OC2 root layout, native agent files and
   modes, prompt files, one server plugin registration, one `cli.json` TUI
   registration, project commands/paths and skills.
+  Configured command shapes are advisory. Wildcard or compound values produce
+  warnings that never change the exit code and are never granted. An npm default
+  in a non-Node project also warns as a likely leftover, but that warning alone
+  does not affect grants: a plain literal npm default (for example `npm test` or
+  `npm audit`) is still an exact grant for the implementer, gui-designer and
+  reviewer, while a wildcard/compound npm value is not. Doctor never executes a
+  configured command or scans the approval database. It also prints informational approval reminders (`once`,
+  saved `Always` grants, auto-accept and the no-sandbox limit).
   Agent model presence is informational: it shows the resolved model or inherited
   OpenCode default and never fails a fresh install. Credential status is
   presence/metadata only. Required skills are checked as files on disk; missing skills,

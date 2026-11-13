@@ -1,300 +1,1516 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "agent": {
+  },
+  "agents": {
     "kiki-orchestrator": {
-      "model": "deepseek/deepseek-flash"
-      //"model": "mistral/mistral-large-4"
+      "model": {
+        "providerID": "deepseek",
+        "model": "deepseek-flash"
+      },
+      "permissions": [
+        {
+          "action": "read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*secret*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*credential*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/id_rsa*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": ".agentic/kiki/TASK_REGISTRY.json",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".superpowers/sdd/**",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "git push --force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * -f",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * --force",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_list_mcp_resources",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_read_mcp_resource",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "webfetch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "websearch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "skill",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "subagent",
+          "resource": "kiki-brainstormer",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "kiki-planner",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "kiki-implementer",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "kiki-gui-designer",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "kiki-reviewer",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "kiki-escalation",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "kiki-historian",
+          "effect": "allow"
+        },
+        {
+          "action": "*_*",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ]
     },
     "kiki-brainstormer": {
-      "permission": {
-        "read": {
-          "*": "allow",
-          ".env*": "deny",
-          "**/.env*": "deny",
-          "**/*secret*": "deny",
-          "**/*credential*": "deny",
-          "**/*.pem": "deny",
-          "**/*.key": "deny",
-          "**/id_rsa*": "deny"
+      "permissions": [
+        {
+          "action": "read",
+          "resource": "*",
+          "effect": "allow"
         },
-        "edit": {
-          "*": "deny",
-          "src/**": "deny",
-          "tests/**": "deny",
-          "docs/superpowers/**": "allow",
-          "docs/superpowers/plans/**": "allow",
-          "docs/superpowers/specs/**": "allow",
-          ".worktree/**/docs/superpowers/**": "allow",
-          ".worktree/**/docs/superpowers/plans/**": "allow",
-          ".worktree/**/docs/superpowers/specs/**": "allow"
+        {
+          "action": "read",
+          "resource": ".env*",
+          "effect": "deny"
         },
-        "bash": {
-          "*": "deny",
-          "git diff*": "allow",
-          "git log*": "allow",
-          "git status*": "allow",
-          "git show*": "allow",
-          "git ls-files*": "allow",
-          "git rev-parse*": "allow",
-          "git ls-tree*": "allow",
-          "git rev-list*": "allow",
-          "mkdir*": "allow"
+        {
+          "action": "read",
+          "resource": "**/.env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*secret*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*credential*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/id_rsa*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "src/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "tests/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/superpowers/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/superpowers/plans/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/superpowers/specs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/docs/superpowers/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/docs/superpowers/plans/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/docs/superpowers/specs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "git status --short",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff --stat",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git log --oneline -20",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push --force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * -f",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * --force",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_list_mcp_resources",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_read_mcp_resource",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "webfetch",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "websearch",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "skill",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "*_*",
+          "resource": "*",
+          "effect": "deny"
         }
-      }//,
-      //"model": "mistral/mistral-large-4"
+      ]
     },
     "kiki-planner": {
-      "permission": {
-        "read": {
-          "*": "allow",
-          ".env*": "deny",
-          "**/.env*": "deny",
-          "**/*secret*": "deny",
-          "**/*credential*": "deny",
-          "**/*.pem": "deny",
-          "**/*.key": "deny",
-          "**/id_rsa*": "deny"
+      "permissions": [
+        {
+          "action": "read",
+          "resource": "*",
+          "effect": "allow"
         },
-        "edit": {
-          "*": "deny",
-          "src/**": "deny",
-          "tests/**": "deny",
-          "docs/superpowers/**": "allow",
-          "docs/superpowers/plans/**": "allow",
-          "docs/superpowers/specs/**": "allow",
-          ".worktree/**/docs/superpowers/**": "allow",
-          ".worktree/**/docs/superpowers/plans/**": "allow",
-          ".worktree/**/docs/superpowers/specs/**": "allow"
+        {
+          "action": "read",
+          "resource": ".env*",
+          "effect": "deny"
         },
-        "bash": {
-          "*": "deny",
-          "git diff*": "allow",
-          "git log*": "allow",
-          "git status*": "allow",
-          "git show*": "allow",
-          "git ls-files*": "allow",
-          "git rev-parse*": "allow",
-          "git ls-tree*": "allow",
-          "git rev-list*": "allow",
-          "mkdir*": "allow"
+        {
+          "action": "read",
+          "resource": "**/.env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*secret*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*credential*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/id_rsa*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "src/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "tests/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/superpowers/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/superpowers/plans/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/superpowers/specs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/docs/superpowers/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/docs/superpowers/plans/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/docs/superpowers/specs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "git status --short",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff --stat",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git log --oneline -20",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push --force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * -f",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * --force",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_list_mcp_resources",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_read_mcp_resource",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "webfetch",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "websearch",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "skill",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "*_*",
+          "resource": "*",
+          "effect": "deny"
         }
-      }//,
-      //"model": "openai/gpt-6.1-sol"
+      ]
     },
     "kiki-implementer": {
-      "permission": {
-        "read": {
-          "*": "allow",
-          ".env*": "deny",
-          "**/.env*": "deny",
-          "**/*secret*": "deny",
-          "**/*credential*": "deny",
-          "**/*.pem": "deny",
-          "**/*.key": "deny",
-          "**/id_rsa*": "deny"
+      "permissions": [
+        {
+          "action": "read",
+          "resource": "*",
+          "effect": "allow"
         },
-        "edit": {
-          "*": "deny",
-          "docs/superpowers/**": "deny",
-          "src/**": "allow",
-          "tests/**": "allow",
-          // Migration tooling and evidence owned by the backend implementer.
-          "package.json": "allow",
-          "package-lock.json": "allow",
-          "tsconfig.json": "allow",
-          "eslint.config.mjs": "allow",
-          ".gitignore": "allow",
-          ".npmignore": "allow",
-          // Authorized cleanup of retired V1 generated plugin artifacts only.
-          "dist/plugin/dedup-source.js": "allow",
-          "dist/plugin/dedup-source.js.map": "allow",
-          "dist/plugin/dedup-source.d.ts": "allow",
-          "dist/plugin/dedup-source.d.ts.map": "allow",
-          "dist/plugin/watchdog-source.js": "allow",
-          "dist/plugin/watchdog-source.js.map": "allow",
-          "dist/plugin/watchdog-source.d.ts": "allow",
-          "dist/plugin/watchdog-source.d.ts.map": "allow",
-          "docs/migrations/kiki-3-oc2-api-contract.md": "allow",
-          "docs/migrations/kiki-3-oc2-acceptance.md": "allow",
-          ".worktree/**/src/**": "allow",
-          ".worktree/**/tests/**": "allow",
-          "/tmp/**": "allow",
-          "tmp/**": "allow"
+        {
+          "action": "read",
+          "resource": ".env*",
+          "effect": "deny"
         },
-        "external_directory": {
-          "/tmp/**": "allow",
-          "tmp/**": "allow"
+        {
+          "action": "read",
+          "resource": "**/.env*",
+          "effect": "deny"
         },
-        "bash": "allow"
-      }//,
-      //"model": "deepseek/DeepSeek-V4.1-Flash-1017"
+        {
+          "action": "read",
+          "resource": "**/*secret*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*credential*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/id_rsa*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/superpowers/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "tests/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/tests/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "/tmp/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "tmp/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".superpowers/sdd/**",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "git status --short",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff --stat",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git log --oneline -20",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git ls-files --others --exclude-standard",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm run build",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm test",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm run lint",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm audit",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push --force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * -f",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * --force",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_list_mcp_resources",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_read_mcp_resource",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "webfetch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "websearch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "skill",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "*_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/tmp/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "tmp/**",
+          "effect": "allow"
+        }
+      ]
     },
     "kiki-gui-designer": {
-      "permission": {
-        "read": {
-          "*": "allow",
-          ".env*": "deny",
-          "**/.env*": "deny",
-          "**/*secret*": "deny",
-          "**/*credential*": "deny",
-          "**/*.pem": "deny",
-          "**/*.key": "deny",
-          "**/id_rsa*": "deny"
+      "permissions": [
+        {
+          "action": "read",
+          "resource": "*",
+          "effect": "allow"
         },
-        "edit": {
-          "*": "deny",
-          "docs/superpowers/**": "deny",
-          "src/**": "allow",
-          "tests/**": "allow",
-          ".worktree/**/src/**": "allow",
-          ".worktree/**/tests/**": "allow",
-          "/tmp/**": "allow",
-          "tmp/**": "allow"
+        {
+          "action": "read",
+          "resource": ".env*",
+          "effect": "deny"
         },
-        "external_directory": {
-          "/tmp/**": "allow",
-          "tmp/**": "allow"
+        {
+          "action": "read",
+          "resource": "**/.env*",
+          "effect": "deny"
         },
-        "bash": "allow"
-      }//,
-      //"model": "openrouter/z-ai/glm-5.3"
+        {
+          "action": "read",
+          "resource": "**/*secret*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*credential*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/id_rsa*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/superpowers/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "tests/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/tests/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "/tmp/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "tmp/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".superpowers/sdd/**",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "git status --short",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff --stat",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git log --oneline -20",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git ls-files --others --exclude-standard",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm run build",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm test",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm run lint",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm audit",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push --force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * -f",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * --force",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_list_mcp_resources",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_read_mcp_resource",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "webfetch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "websearch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "skill",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "*_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/tmp/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "tmp/**",
+          "effect": "allow"
+        }
+      ]
     },
     "kiki-reviewer": {
-      "permission": {
-        "read": {
-          "*": "allow",
-          ".env*": "deny",
-          "**/.env*": "deny",
-          "**/*secret*": "deny",
-          "**/*credential*": "deny",
-          "**/*.pem": "deny",
-          "**/*.key": "deny",
-          "**/id_rsa*": "deny"
-        },
-        "edit": {
-          "*": "deny",
-          "src/**": "deny",
-          "tests/**": "deny",
-          "docs/**": "deny",
-          ".agentic/reviews/*": "allow",
-          ".opencode/docs/reviews/*": "allow",
-          ".worktree/**/.agentic/reviews/*": "allow",
-          ".worktree/**/.opencode/docs/reviews/*": "allow"
-        },
-        "external_directory": {
-          "/tmp/**": "allow",
-          "tmp/**": "allow"
-        },
-        "bash": {
-          "*": "deny",
-          "git diff*": "allow",
-          "git log*": "allow",
-          "git status*": "allow",
-          "git show*": "allow",
-          "git ls-files*": "allow",
-          "git rev-parse*": "allow",
-          "git ls-tree*": "allow",
-          "git rev-list*": "allow",
-          // Execute project verification; source edits remain role-restricted.
-          "npm test*": "allow",
-          "npm run build*": "allow",
-          "npm run lint*": "allow",
-          "npm audit*": "allow",
-          "npm pack*": "allow",
-          "npm ci --ignore-scripts*": "allow",
-          "npm install --ignore-scripts --omit=dev*": "allow",
-          "npx --no-install vitest*": "allow",
-          "OPENCODE_TEST_BINARY=* npx --no-install vitest*": "allow",
-          "KIKI_RELEASE_TEST_OC2_REHEARSAL=1 npx --no-install vitest*": "allow",
-          "npx --no-install tsc*": "allow",
-          "node dist/cli/index.js verify*": "allow",
-          "node dist/cli/index.js release": "allow",
-          "node dist/cli/index.js release --bump major --since *": "allow",
-          "node dist/cli/index.js release*--apply*": "deny"
-        }
+      "model": {
+        "providerID": "openrouter",
+        "model": "z-ai/glm-5.3"
       },
-      "model": "openrouter/z-ai/glm-5.3" //,
-      //"model": "openrouter/z-ai/glm-5.3"
+      "permissions": [
+        {
+          "action": "read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*secret*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*credential*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/id_rsa*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "src/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "tests/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": ".agentic/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".opencode/docs/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/.agentic/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/.opencode/docs/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "git status --short",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff --stat",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git log --oneline -20",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm run build",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm test",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm run lint",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "npm audit",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push --force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * -f",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * --force",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_list_mcp_resources",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_read_mcp_resource",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "webfetch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "websearch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "skill",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "*_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/tmp/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "tmp/**",
+          "effect": "allow"
+        }
+      ]
     },
     "kiki-escalation": {
-      "permission": {
-        "read": {
-          "*": "allow",
-          ".env*": "deny",
-          "**/.env*": "deny",
-          "**/*secret*": "deny",
-          "**/*credential*": "deny",
-          "**/*.pem": "deny",
-          "**/*.key": "deny",
-          "**/id_rsa*": "deny"
-        },
-        "edit": {
-          "*": "deny",
-          ".agentic/reviews/*": "allow",
-          ".opencode/docs/reviews/*": "allow",
-          ".worktree/**/.agentic/reviews/*": "allow",
-          ".worktree/**/.opencode/docs/reviews/*": "allow"
-        },
-        "external_directory": {
-          "/tmp/**": "allow",
-          "tmp/**": "allow"
-        },
-        "bash": {
-          "*": "deny",
-          "git diff*": "allow",
-          "git log*": "allow",
-          "git status*": "allow",
-          "git show*": "allow",
-          "git ls-files*": "allow",
-          "git rev-parse*": "allow",
-          "git ls-tree*": "allow",
-          "git rev-list*": "allow"
-        }
+      "model": {
+        "providerID": "openrouter",
+        "model": "z-ai/glm-5.3"
       },
-      "model": "openrouter/z-ai/glm-5.3" //,
-      //"model": "openai/gpt-6.1-sol"
+      "permissions": [
+        {
+          "action": "read",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "read",
+          "resource": ".env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/.env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*secret*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*credential*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/id_rsa*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": ".agentic/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".opencode/docs/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/.agentic/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/.opencode/docs/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "git status --short",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff --stat",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git log --oneline -20",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push --force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * -f",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * --force",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_list_mcp_resources",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_read_mcp_resource",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "webfetch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "websearch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "skill",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "*_*",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "external_directory",
+          "resource": "/tmp/**",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "tmp/**",
+          "effect": "allow"
+        }
+      ]
     },
     "kiki-historian": {
-      "permission": {
-        "read": {
-          "*": "allow",
-          ".env*": "deny",
-          "**/.env*": "deny",
-          "**/*secret*": "deny",
-          "**/*credential*": "deny",
-          "**/*.pem": "deny",
-          "**/*.key": "deny",
-          "**/id_rsa*": "deny"
+      "permissions": [
+        {
+          "action": "read",
+          "resource": "*",
+          "effect": "allow"
         },
-        "edit": {
-          "*": "deny",
-          "README*": "allow",
-          "CHANGELOG*": "allow",
-          "docs/**": "allow",
-          ".agentic/**": "allow",
-          ".worktree/**/README*": "allow",
-          ".worktree/**/CHANGELOG*": "allow",
-          ".worktree/**/docs/**": "allow",
-          ".worktree/**/.agentic/**": "allow",
-          "src/**": "deny",
-          "tests/**": "deny",
-          ".worktree/**/src/**": "deny",
-          ".worktree/**/tests/**": "deny"
+        {
+          "action": "read",
+          "resource": ".env*",
+          "effect": "deny"
         },
-        "bash": {
-          "*": "deny",
-          "git log*": "allow",
-          "git diff*": "allow",
-          "git status*": "allow",
-          "git show*": "allow",
-          "git ls-files*": "allow",
-          "git rev-parse*": "allow",
-          "git ls-tree*": "allow",
-          "git rev-list*": "allow",
-          "node dist/cli/index.js verify*": "allow"
+        {
+          "action": "read",
+          "resource": "**/.env*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*secret*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*credential*",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.pem",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/*.key",
+          "effect": "deny"
+        },
+        {
+          "action": "read",
+          "resource": "**/id_rsa*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "README*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "CHANGELOG*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "docs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/docs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".agentic/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/README*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/CHANGELOG*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/docs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/.agentic/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": "src/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": "tests/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/src/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/tests/**",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "ask"
+        },
+        {
+          "action": "shell",
+          "resource": "git status --short",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git diff --stat",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git log --oneline -20",
+          "effect": "allow"
+        },
+        {
+          "action": "shell",
+          "resource": "git push --force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push -f*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push *--force*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * -f",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "git push * --force",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_list_mcp_resources",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "opencode_read_mcp_resource",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "webfetch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "websearch",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "skill",
+          "resource": "*",
+          "effect": "allow"
+        },
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "*_*",
+          "resource": "*",
+          "effect": "deny"
         }
-      }//,
-      //"model": "deepseek/DeepSeek-V4.1-Flash-1017"
+      ]
     }
   }
 }

@@ -98,6 +98,74 @@ function allow(action, resource) {
 function deny(action, resource) {
     return { action, resource, effect: 'deny' };
 }
+// Task 2 operation table. Exact grants only: no suffix wildcard, so extra
+// arguments fall through to the ask fallback.
+const RESEARCH_SHELL_ALLOWS = [
+    'git status --short',
+    'git diff --stat',
+    'git log --oneline -20',
+];
+// Force-push taboos. They follow the ask fallback so the last matching rule
+// wins and denies; aliases and wrappers remain a known limitation. The trailing
+// forms require the flag to be its own final argument, so branch names that
+// merely contain `-f` (e.g. `my-feature`, `hot-fix`) stay on the ask fallback.
+const FORCE_PUSH_DENIES = [
+    'git push --force*',
+    'git push -f*',
+    'git push *--force*',
+    'git push * -f',
+    'git push * --force',
+];
+const NETWORK_SHELL_COMMANDS = new Set([
+    'ssh', 'sftp', 'ftps', 'ftp', 'scp', 'rsync', 'lftp', 'curl', 'wget',
+]);
+const INTERPRETER_SHELL_COMMANDS = new Set([
+    'sh', 'bash', 'zsh', 'fish', 'dash', 'ksh',
+    'node', 'deno', 'python', 'python3', 'perl', 'ruby', 'php',
+    'eval', 'exec', 'source',
+]);
+const UNSAFE_SHELL_CHARS = [
+    '*', '?', '(', ')', '[', ']', '{', '}', '|', '&', ';', '<', '>',
+    '$', '`', "'", '"', '\\', '\n', '\r',
+];
+/**
+ * Only reviewed literal command strings may become exact grants. Wildcards,
+ * shell metacharacters, quotes/escapes, network clients and interpreters stay
+ * behind the ask fallback and are never widened into prefixes.
+ */
+function isSafeConfiguredCommand(command) {
+    if (typeof command !== 'string')
+        return false;
+    const value = command.trim();
+    if (!value)
+        return false;
+    if (UNSAFE_SHELL_CHARS.some(char => value.includes(char)))
+        return false;
+    const head = value.split(/\s+/)[0];
+    return !NETWORK_SHELL_COMMANDS.has(head) && !INTERPRETER_SHELL_COMMANDS.has(head);
+}
+function shellRules(allows, configured = []) {
+    const grants = [];
+    for (const command of allows) {
+        if (!grants.includes(command))
+            grants.push(command);
+    }
+    for (const command of configured) {
+        if (!isSafeConfiguredCommand(command))
+            continue;
+        const value = command.trim();
+        if (!grants.includes(value))
+            grants.push(value);
+    }
+    return [
+        { action: 'shell', resource: '*', effect: 'ask' },
+        ...grants.map(resource => allow('shell', resource)),
+        ...FORCE_PUSH_DENIES.map(resource => deny('shell', resource)),
+    ];
+}
+function evaluationCommands(config) {
+    return [config.commands.build, config.commands.test, config.commands.lint, config.commands.security];
+}
 function buildBroadReadPermissions() {
     return [
         allow('read', '*'),
@@ -109,6 +177,58 @@ function buildBroadReadPermissions() {
         deny('read', '**/*.key'),
         deny('read', '**/id_rsa*'),
     ];
+}
+// The superpowers SDD workspace is git-ignored scratch shared by the
+// implementer (task reports), the gui-designer that reuses its builder, and the
+// orchestrator (ledger and briefs). This is a permanent narrow grant, not a
+// temporary migration grant; every other role keeps the broad edit deny.
+const SDD_WORKSPACE_GLOB = '.superpowers/sdd/**';
+const KIKI_SUBAGENTS = [
+    'kiki-brainstormer',
+    'kiki-planner',
+    'kiki-implementer',
+    'kiki-gui-designer',
+    'kiki-reviewer',
+    'kiki-escalation',
+    'kiki-historian',
+];
+/**
+ * Alternate-route restrictions, appended after the file/shell scopes.
+ *
+ * Measured on OpenCode 2.2.7: `execute` denial removes Code Mode, `webfetch`
+ * and `subagent` denials remove those tools, and `skill` allow loads skills.
+ * MCP server tools use the action `<server>_<tool>`. OpenCode 2 matches action
+ * names as whole-value wildcards, so a generic `*_*` action deny closes every
+ * arbitrary server without a blanket `*` rule or a server list.
+ */
+function routeRules(options) {
+    const rules = [
+        deny('execute', '*'),
+        deny('opencode_list_mcp_resources', '*'),
+        deny('opencode_read_mcp_resource', '*'),
+        options.research ? allow('webfetch', '*') : deny('webfetch', '*'),
+        options.research ? allow('websearch', '*') : deny('websearch', '*'),
+        allow('skill', '*'),
+        // Deny every delegation first, then allow only the orchestrator's seven
+        // named Kiki subagents (last matching rule wins).
+        deny('subagent', '*'),
+    ];
+    if (options.orchestrator) {
+        for (const agent of KIKI_SUBAGENTS)
+            rules.push(allow('subagent', agent));
+    }
+    // Generic MCP server-tool closure: every MCP tool action is
+    // `<server>_<tool>`, so `*_*` covers arbitrary server names. Appended after
+    // the base allows so the last matching rule wins.
+    rules.push(deny('*_*', '*'));
+    // `external_directory` also contains an underscore, so the generic deny
+    // closes it. Only the roles that pass their pre-existing narrow grants replay
+    // those allows after this deny; every other role stays denied. No blanket
+    // external-directory allow is added, so project-level denies are preserved.
+    for (const resource of options.externalDirectory ?? []) {
+        rules.push(allow('external_directory', resource));
+    }
+    return rules;
 }
 function buildBrainstormerPermissions(p) {
     const sw = dirGlob(p.superpowers);
@@ -127,13 +247,12 @@ function buildBrainstormerPermissions(p) {
         allow('edit', worktreeGlob(sw)),
         allow('edit', worktreeGlob(plans)),
         allow('edit', worktreeGlob(specs)),
-        deny('shell', '*'),
-        allow('shell', 'git diff*'),
-        allow('shell', 'git log*'),
-        allow('shell', 'mkdir*'),
+        ...shellRules(RESEARCH_SHELL_ALLOWS),
+        ...routeRules({ research: true }),
     ];
 }
-function buildImplementerPermissions(p) {
+function buildImplementerPermissions(config) {
+    const p = config.paths;
     const src = dirGlob(p.source);
     const tst = dirGlob(p.tests);
     const sw = dirGlob(p.superpowers);
@@ -147,12 +266,12 @@ function buildImplementerPermissions(p) {
         allow('edit', worktreeGlob(tst)),
         allow('edit', '/tmp/**'),
         allow('edit', 'tmp/**'),
-        allow('external_directory', '/tmp/**'),
-        allow('external_directory', 'tmp/**'),
-        allow('shell', '*'),
+        allow('edit', SDD_WORKSPACE_GLOB),
+        ...shellRules([...RESEARCH_SHELL_ALLOWS, 'git ls-files --others --exclude-standard'], evaluationCommands(config)),
+        ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
     ];
 }
-function buildReviewerPermissions(_p) {
+function buildReviewerPermissions(config) {
     return [
         ...buildBroadReadPermissions(),
         deny('edit', '*'),
@@ -163,11 +282,8 @@ function buildReviewerPermissions(_p) {
         allow('edit', '.opencode/docs/reviews/*'),
         allow('edit', '.worktree/**/.agentic/reviews/*'),
         allow('edit', '.worktree/**/.opencode/docs/reviews/*'),
-        allow('external_directory', '/tmp/**'),
-        allow('external_directory', 'tmp/**'),
-        deny('shell', '*'),
-        allow('shell', 'git diff*'),
-        allow('shell', 'git log*'),
+        ...shellRules(RESEARCH_SHELL_ALLOWS, evaluationCommands(config)),
+        ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
     ];
 }
 function buildEscalationPermissions() {
@@ -178,11 +294,8 @@ function buildEscalationPermissions() {
         allow('edit', '.opencode/docs/reviews/*'),
         allow('edit', '.worktree/**/.agentic/reviews/*'),
         allow('edit', '.worktree/**/.opencode/docs/reviews/*'),
-        allow('external_directory', '/tmp/**'),
-        allow('external_directory', 'tmp/**'),
-        deny('shell', '*'),
-        allow('shell', 'git diff*'),
-        allow('shell', 'git log*'),
+        ...shellRules(RESEARCH_SHELL_ALLOWS),
+        ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
     ];
 }
 function buildHistorianPermissions(p) {
@@ -220,20 +333,37 @@ function buildHistorianPermissions(p) {
     rules.push(deny('edit', tst));
     rules.push(deny('edit', worktreeGlob(src)));
     rules.push(deny('edit', worktreeGlob(tst)));
-    rules.push(deny('shell', '*'));
-    rules.push(allow('shell', 'git log*'));
-    rules.push(allow('shell', 'git diff*'));
+    rules.push(...shellRules(RESEARCH_SHELL_ALLOWS));
+    rules.push(...routeRules({ research: false }));
     return rules;
+}
+function buildOrchestratorPermissions(p) {
+    // Coordination stays command-free: no shell allows, only the ask fallback
+    // and force-push taboos. Read protections apply and the only edit grants are
+    // the task registry and the SDD ledger/briefs workspace.
+    return [
+        ...buildBroadReadPermissions(),
+        deny('edit', '*'),
+        allow('edit', p.taskRegistry),
+        allow('edit', SDD_WORKSPACE_GLOB),
+        ...shellRules([]),
+        ...routeRules({ research: false, orchestrator: true }),
+    ];
 }
 function renderPermissions(rules) {
     const lines = ['permissions:'];
     for (const rule of rules) {
-        lines.push(`  - action: ${rule.action}`);
+        // Quote the action: the generic MCP rule uses `*_*`, which is a YAML alias
+        // if emitted bare.
+        lines.push(`  - action: ${JSON.stringify(rule.action)}`);
         lines.push(`    resource: ${JSON.stringify(rule.resource)}`);
         lines.push(`    effect: ${rule.effect}`);
     }
     return lines.join('\n');
 }
+// Every generated agent prompt carries this exact line: a blocked or rejected
+// operation must never be retried or worked around (remote-change safety).
+const PERMISSION_BLOCK_PROMPT = 'If a command is blocked or its approval is rejected, do not retry and do not work around it; report `PERMISSION_BLOCKED: <command>` and stop.';
 function buildHistorianResponsibilities(p) {
     const lines = [
         `1. **README:** Keep \`${p.readme}\` current with project description, setup instructions, and feature list.`,
@@ -252,9 +382,11 @@ function buildHistorianResponsibilities(p) {
 }
 export function generateOrchestratorTemplate(config) {
     const p = config.paths;
+    const perms = buildOrchestratorPermissions(p);
     return `---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
+${renderPermissions(perms)}
 ---
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 
@@ -295,8 +427,10 @@ Dispatch the correct subagent via the \`subagent\` tool. Do not write code, impl
 A dispatch fails when the subagent returns empty output, cannot complete, tests fail after 3 retries, or exceeds 30 minutes.
 
 1. **Retry once** with the same prompt.
+   - **Permission block override:** if a subagent reports \`PERMISSION_BLOCKED: <command>\`, do not retry; report the blocked command and stop.
 2. Before dispatching \`kiki-escalation\`, log the failure in \`${p.taskRegistry}\`, increment the failure counter, and include the failed phase and reason.
 3. **Never block silently.**
+${PERMISSION_BLOCK_PROMPT}
 `;
 }
 export function generateBrainstormerTemplate(config) {
@@ -314,6 +448,7 @@ You are the Kiki Brainstormer. Your job is to produce design specs and explore r
 2. Do the work yourself; do not dispatch the skill to another subagent.
 3. Write the spec to \`${p.specs}YYYY-MM-DD-<topic>-design.md\`.
 4. You do NOT write source code. Only design docs.
+${PERMISSION_BLOCK_PROMPT}
 `;
 }
 export function generatePlannerTemplate(config) {
@@ -346,10 +481,11 @@ Example:
 - parallel: true
 - depends_on: ['Task 1', 'Task 2']
 \`\`\`
+${PERMISSION_BLOCK_PROMPT}
 `;
 }
 export function generateImplementerTemplate(config) {
-    const perms = buildImplementerPermissions(config.paths);
+    const perms = buildImplementerPermissions(config);
     return `---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
@@ -380,10 +516,11 @@ You are the Kiki Implementer. Implement code strictly per the approved plan.
 
 ## Handoff
 When done, append a short **Implementation Summary** (3–5 sentences + changed files) for the reviewer and historian.
+${PERMISSION_BLOCK_PROMPT}
 `;
 }
 export function generateGuiDesignerTemplate(config) {
-    const perms = buildImplementerPermissions(config.paths);
+    const perms = buildImplementerPermissions(config);
     return `---
 description: Kiki GUI Designer — UI/UX design + implementation via superpowers skills
 mode: subagent
@@ -391,10 +528,11 @@ ${renderPermissions(perms)}
 ---
 
 You are the Kiki GUI Designer. You own UI/UX design and implementation end-to-end. Load the \`ui-ux-pro-max\` skill for design intelligence, the \`executing-plans\` skill for plan execution discipline, the \`test-driven-development\` skill for implementation, and the \`systematic-debugging\` skill for when things break. Follow all four exactly. Produce both design direction and working frontend code. Do not split visual work from implementation.
+${PERMISSION_BLOCK_PROMPT}
 `;
 }
 export function generateReviewerTemplate(config) {
-    const perms = buildReviewerPermissions(config.paths);
+    const perms = buildReviewerPermissions(config);
     return `---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent
@@ -419,6 +557,7 @@ Verdict: PASS | FAIL
 Blockers:
 1. <if FAIL, numbered blockers>
 \`\`\`
+${PERMISSION_BLOCK_PROMPT}
 `;
 }
 export function generateEscalationTemplate(_config) {
@@ -440,6 +579,7 @@ You are the Kiki Escalation Agent. Diagnose why the pipeline failed.
    - **Stop:** Recommend cancellation.
 
 Be honest and direct. Do not try to "save" a failing task.
+${PERMISSION_BLOCK_PROMPT}
 `;
 }
 export function generateHistorianTemplate(config) {
@@ -461,6 +601,7 @@ ${responsibilities}
 - You do NOT create plans or specs.
 - Use the **Implementation Summary** from the implementer as your primary input. Read changed files only if needed.
 - When updating CHANGELOG, follow Keep a Changelog format (Added, Changed, Fixed, Removed, Security).
+${PERMISSION_BLOCK_PROMPT}
 `;
 }
 export function generateWorkflowTemplate(config) {

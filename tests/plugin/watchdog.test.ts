@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createWatchdog, createWatchdogSessionAdapter } from '../../src/server/watchdog';
 import type { WatchdogEvent } from '../../src/server/watchdog-events';
-import type { KikiHealthConfig } from '../../src/cli/config';
+import { DEFAULT_HEALTH, type KikiHealthConfig } from '../../src/cli/config';
 
 type Watchdog = ReturnType<typeof createWatchdog>;
 type Interrupt = (id: string) => Promise<void>;
@@ -760,6 +760,96 @@ describe('watchdog agent filtering and discovery', () => {
     await h.tick();
 
     expect(h.interrupt).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('watchdog permission waits', () => {
+  function ask(h: Harness, id: string, requestID: string): void {
+    h.watchdog.handle({ type: 'permission-asked', id, requestID });
+  }
+
+  function reply(
+    h: Harness,
+    id: string,
+    requestID: string,
+    value: 'once' | 'always' | 'reject' = 'once',
+  ): void {
+    h.watchdog.handle({ type: 'permission-replied', id, requestID, reply: value });
+  }
+
+  it('permission_wait_suspends_watchdog', async () => {
+    // Use the shipped health deadlines: a pending approval must survive both
+    // the stuck threshold and the absolute maximum, with no abort.
+    const h = buildWatchdog({ config: DEFAULT_HEALTH });
+    createChild(h, { id: 'waiting' });
+    createChild(h, { id: 'unrelated' });
+
+    // Overlapping requests plus a duplicate ask for the same request ID.
+    ask(h, 'waiting', 'per_a');
+    ask(h, 'waiting', 'per_b');
+    ask(h, 'waiting', 'per_a');
+
+    const startedAt = h.getTime();
+    h.setTime(startedAt + DEFAULT_HEALTH.absoluteMaxMs + DEFAULT_HEALTH.stuckThresholdMs);
+    await h.tick();
+
+    // The unrelated child still times out; the pending child does not.
+    expect(h.interrupt).toHaveBeenCalledTimes(1);
+    expect(h.interrupt).toHaveBeenCalledWith('unrelated');
+    expect(h.interrupt).not.toHaveBeenCalledWith('waiting');
+
+    // One reply leaves the second overlapping request pending.
+    reply(h, 'waiting', 'per_a', 'once');
+    h.setTime(h.getTime() + DEFAULT_HEALTH.stuckThresholdMs);
+    await h.tick();
+    expect(h.interrupt).not.toHaveBeenCalledWith('waiting');
+
+    // Unmatched replies, duplicate replies and late replies for unknown
+    // sessions must not resume or disturb evaluation.
+    reply(h, 'waiting', 'per_unknown', 'reject');
+    reply(h, 'waiting', 'per_a', 'once');
+    reply(h, 'unknown-session', 'per_b', 'once');
+    await h.tick();
+    expect(h.interrupt).not.toHaveBeenCalledWith('waiting');
+
+    // The final reply ends the wait. The waiting interval is excluded from
+    // the active age, and silence restarts, so no immediate abort happens.
+    const repliedAt = h.getTime();
+    reply(h, 'waiting', 'per_b', 'reject');
+    await h.tick();
+    expect(h.interrupt).not.toHaveBeenCalledWith('waiting');
+
+    // The resumed timeout fires only after a fresh full silence window.
+    h.setTime(repliedAt + DEFAULT_HEALTH.stuckThresholdMs);
+    await h.tick();
+    expect(h.interrupt).toHaveBeenCalledWith('waiting');
+    const abort = h.writeHealth.mock.calls.find(
+      ([, entry]) => entry.event === 'watchdog-abort' && entry.sessionId === 'waiting',
+    );
+    expect(abort?.[1]).toMatchObject({ reason: 'stuck' });
+  });
+
+  it('ignores permission events for untracked root sessions', async () => {
+    const h = buildWatchdog();
+    ask(h, 'root-1', 'per_root');
+    h.watchdog.handle({ type: 'finished', id: 'root-1' });
+    reply(h, 'root-1', 'per_root');
+    h.setTime(h.getTime() + 6000);
+    await h.tick();
+
+    expect(h.interrupt).not.toHaveBeenCalled();
+  });
+
+  it('clears pending permission state when the session finishes', async () => {
+    const h = buildWatchdog();
+    createChild(h);
+    ask(h, 'child-1', 'per_a');
+    h.watchdog.handle({ type: 'finished', id: 'child-1' });
+    reply(h, 'child-1', 'per_a');
+    h.setTime(h.getTime() + 6000);
+    await h.tick();
+
+    expect(h.interrupt).not.toHaveBeenCalled();
   });
 });
 

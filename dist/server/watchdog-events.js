@@ -106,6 +106,19 @@ export function decodeWatchdogEvent(event) {
             return [{ type: 'running', id: event.data.sessionID }];
         case 'session.retry.scheduled':
             return [{ type: 'running', id: event.data.sessionID, status: 'retry' }];
+        case 'permission.asked':
+            return [
+                { type: 'permission-asked', id: event.data.sessionID, requestID: event.data.id },
+            ];
+        case 'permission.replied':
+            return [
+                {
+                    type: 'permission-replied',
+                    id: event.data.sessionID,
+                    requestID: event.data.requestID,
+                    reply: event.data.reply,
+                },
+            ];
         case 'session.step.ended':
             return [tokenEvent(event.data.sessionID, event.data.tokens)];
         case 'session.step.failed':

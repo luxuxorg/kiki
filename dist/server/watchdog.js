@@ -149,6 +149,9 @@ export function createWatchdog(deps) {
             toolNames: new Map(),
             texts: new Map(),
             warned50: false,
+            pendingRequestIds: new Set(),
+            waitingSince: null,
+            pausedMs: 0,
         });
     }
     function markFinished(id) {
@@ -203,6 +206,31 @@ export function createWatchdog(deps) {
             state.lastActivityAt = now();
         }
     }
+    /**
+     * A pending approval pauses evaluation. The first ask starts the wait; the
+     * final reply ends it, accumulates the waiting interval and restarts the
+     * silence clock so the resumed timeout is never immediate.
+     */
+    function permissionAsked(state, requestID) {
+        if (state.pendingRequestIds.has(requestID))
+            return;
+        if (state.pendingRequestIds.size === 0)
+            state.waitingSince = now();
+        state.pendingRequestIds.add(requestID);
+    }
+    function permissionReplied(state, requestID) {
+        // Unmatched, duplicate and late replies for already-resolved requests are
+        // ignored: they must not end the wait or refresh activity.
+        if (!state.pendingRequestIds.delete(requestID))
+            return;
+        if (state.pendingRequestIds.size > 0)
+            return;
+        if (state.waitingSince !== null) {
+            state.pausedMs += Math.max(0, now() - state.waitingSince);
+            state.waitingSince = null;
+        }
+        state.lastActivityAt = now();
+    }
     function shouldWatch(state) {
         if (config.watchAllSubagents)
             return true;
@@ -213,10 +241,16 @@ export function createWatchdog(deps) {
     function evaluate(state) {
         if (!shouldWatch(state))
             return null;
+        // A session blocked on a human approval produces no activity by design.
+        // Suppress every verdict (loops included) until the final reply.
+        if (state.pendingRequestIds.size > 0)
+            return null;
         if (state.status !== 'busy')
             return null;
         const time = now();
-        const age = time - state.startedAt;
+        // Waiting for a permission decision is not active execution time, so the
+        // absolute deadline is measured without the accumulated wait.
+        const age = Math.max(0, time - state.startedAt - state.pausedMs);
         const partHashes = state.partEntries.map((entry) => entry.value);
         const toolSignatures = state.toolEntries.map((entry) => entry.value);
         // Loops bypass the grace gate: a loop is real output, not a startup artifact.
@@ -350,6 +384,19 @@ export function createWatchdog(deps) {
                     recordTokens(state, event.counters);
                 return;
             }
+            case 'permission-asked': {
+                const state = sessions.get(event.id);
+                // Unknown sessions include roots, which are never registered.
+                if (state)
+                    permissionAsked(state, event.requestID);
+                return;
+            }
+            case 'permission-replied': {
+                const state = sessions.get(event.id);
+                if (state)
+                    permissionReplied(state, event.requestID);
+                return;
+            }
         }
     }
     function start() {
@@ -368,6 +415,11 @@ export function createWatchdog(deps) {
             clearInterval(interval);
             interval = null;
         }
+        // Drop pending permission bookkeeping with the stopped engine.
+        sessions.forEach((state) => {
+            state.pendingRequestIds.clear();
+            state.waitingSince = null;
+        });
         const pending = ticking;
         if (pending) {
             try {
