@@ -1,6 +1,6 @@
 import * as readline from 'readline';
 import { basename } from 'path';
-import { DEFAULT_PATHS, DEFAULT_HEALTH, ensurePathExists, loadConfig, } from '../config.js';
+import { DEFAULT_PATHS, DEFAULT_HEALTH, DEFAULT_DIAGNOSTICS, ensurePathExists, loadConfig, } from '../config.js';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { install, installProjectConfig } from './install.js';
@@ -107,6 +107,7 @@ export async function runWizard(targetPath) {
             taskRegistry: '.agentic/kiki/TASK_REGISTRY.json',
         },
         health: { ...DEFAULT_HEALTH },
+        diagnostics: { ...DEFAULT_DIAGNOSTICS },
     };
     return config;
 }

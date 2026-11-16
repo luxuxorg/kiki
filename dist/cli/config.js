@@ -23,6 +23,23 @@ export const DEFAULT_HEALTH = {
     watchAllSubagents: false,
     logPath: '.agentic/kiki/health_log.jsonl',
 };
+export const DEFAULT_DIAGNOSTICS = {
+    enabled: false,
+};
+/**
+ * Sanitizes the diagnostics section with the same safe-fallback pattern as the
+ * runtime health settings: only an explicit boolean enables collection, and
+ * unknown fields are discarded rather than trusted.
+ */
+export function sanitizeDiagnostics(raw) {
+    const out = { ...DEFAULT_DIAGNOSTICS };
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        return out;
+    const source = raw;
+    if (typeof source.enabled === 'boolean')
+        out.enabled = source.enabled;
+    return out;
+}
 /**
  * Kiki version. MUST be kept in sync with package.json on every release. The
  * published package ships only dist/ (see package.json "files"), so a globally
@@ -41,6 +58,7 @@ export const DEFAULT_CONFIG = {
     },
     paths: DEFAULT_PATHS,
     health: DEFAULT_HEALTH,
+    diagnostics: DEFAULT_DIAGNOSTICS,
 };
 export const DEFAULT_ALIGNMENT = {
     guardrails: [
@@ -72,6 +90,18 @@ function fileDir(path) {
 function worktreeGlob(path) {
     return '.worktree/**/' + path;
 }
+function worktreesGlob(path) {
+    return '.worktrees/**/' + path;
+}
+/**
+ * Both project-worktree layouts for the same role-scoped path: the existing
+ * singular `.worktree/` directory and the plural `.worktrees/` directory.
+ * Callers keep their existing narrow path grants; this adds parity, never a
+ * blanket worktree grant.
+ */
+function worktreeGlobs(path) {
+    return [worktreeGlob(path), worktreesGlob(path)];
+}
 export function loadConfig(targetPath) {
     const modernConfigPath = join(targetPath, '.agentic', 'kiki', 'config.json');
     const legacyConfigPath = join(targetPath, '.agentic', 'config.json');
@@ -86,6 +116,7 @@ export function loadConfig(targetPath) {
             ...rest,
             paths: { ...DEFAULT_PATHS, ...(rest.paths ?? {}) },
             health: { ...DEFAULT_HEALTH, ...(rest.health ?? {}) },
+            diagnostics: sanitizeDiagnostics(rest.diagnostics),
         };
     }
     catch {
@@ -228,14 +259,14 @@ function buildBrainstormerPermissions(p) {
         allow('edit', sw),
         allow('edit', plans),
         allow('edit', specs),
-        allow('edit', worktreeGlob(sw)),
-        allow('edit', worktreeGlob(plans)),
-        allow('edit', worktreeGlob(specs)),
+        ...worktreeGlobs(sw).map(resource => allow('edit', resource)),
+        ...worktreeGlobs(plans).map(resource => allow('edit', resource)),
+        ...worktreeGlobs(specs).map(resource => allow('edit', resource)),
         ...shellRules(),
         ...routeRules({ research: true }),
     ];
 }
-function buildImplementerPermissions(config) {
+function buildImplementerPermissions(config, options = {}) {
     const p = config.paths;
     const src = dirGlob(p.source);
     const tst = dirGlob(p.tests);
@@ -246,8 +277,16 @@ function buildImplementerPermissions(config) {
         deny('edit', sw),
         allow('edit', src),
         allow('edit', tst),
-        allow('edit', worktreeGlob(src)),
-        allow('edit', worktreeGlob(tst)),
+        ...worktreeGlobs(src).map(resource => allow('edit', resource)),
+        ...worktreeGlobs(tst).map(resource => allow('edit', resource)),
+        // Only the implementer maintains .gitignore, and only at the exact root or
+        // inside a project worktree; never a blanket `**/.gitignore` grant.
+        ...(options.gitignore
+            ? [
+                allow('edit', '.gitignore'),
+                ...worktreeGlobs('.gitignore').map(resource => allow('edit', resource)),
+            ]
+            : []),
         allow('edit', '/tmp/**'),
         allow('edit', 'tmp/**'),
         allow('edit', SDD_WORKSPACE_GLOB),
@@ -264,8 +303,8 @@ function buildReviewerPermissions() {
         deny('edit', 'docs/**'),
         allow('edit', '.agentic/reviews/*'),
         allow('edit', '.opencode/docs/reviews/*'),
-        allow('edit', '.worktree/**/.agentic/reviews/*'),
-        allow('edit', '.worktree/**/.opencode/docs/reviews/*'),
+        ...worktreeGlobs('.agentic/reviews/*').map(resource => allow('edit', resource)),
+        ...worktreeGlobs('.opencode/docs/reviews/*').map(resource => allow('edit', resource)),
         ...shellRules(),
         ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
     ];
@@ -276,8 +315,8 @@ function buildEscalationPermissions() {
         deny('edit', '*'),
         allow('edit', '.agentic/reviews/*'),
         allow('edit', '.opencode/docs/reviews/*'),
-        allow('edit', '.worktree/**/.agentic/reviews/*'),
-        allow('edit', '.worktree/**/.opencode/docs/reviews/*'),
+        ...worktreeGlobs('.agentic/reviews/*').map(resource => allow('edit', resource)),
+        ...worktreeGlobs('.opencode/docs/reviews/*').map(resource => allow('edit', resource)),
         ...shellRules(),
         ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
     ];
@@ -300,23 +339,23 @@ function buildHistorianPermissions(p) {
         if (decDir) {
             const decGlob = dirGlob(decDir);
             rules.push(allow('edit', decGlob));
-            rules.push(allow('edit', worktreeGlob(decGlob)));
+            rules.push(...worktreeGlobs(decGlob).map(resource => allow('edit', resource)));
         }
     }
     if (p.knowledge) {
         const kgGlob = dirGlob(p.knowledge);
         rules.push(allow('edit', kgGlob));
-        rules.push(allow('edit', worktreeGlob(kgGlob)));
+        rules.push(...worktreeGlobs(kgGlob).map(resource => allow('edit', resource)));
     }
     rules.push(allow('edit', '.agentic/**'));
-    rules.push(allow('edit', worktreeGlob(readmeGlob)));
-    rules.push(allow('edit', worktreeGlob(changelogGlob)));
-    rules.push(allow('edit', worktreeGlob(docsGlob)));
-    rules.push(allow('edit', '.worktree/**/.agentic/**'));
+    rules.push(...worktreeGlobs(readmeGlob).map(resource => allow('edit', resource)));
+    rules.push(...worktreeGlobs(changelogGlob).map(resource => allow('edit', resource)));
+    rules.push(...worktreeGlobs(docsGlob).map(resource => allow('edit', resource)));
+    rules.push(...worktreeGlobs('.agentic/**').map(resource => allow('edit', resource)));
     rules.push(deny('edit', src));
     rules.push(deny('edit', tst));
-    rules.push(deny('edit', worktreeGlob(src)));
-    rules.push(deny('edit', worktreeGlob(tst)));
+    rules.push(...worktreeGlobs(src).map(resource => deny('edit', resource)));
+    rules.push(...worktreeGlobs(tst).map(resource => deny('edit', resource)));
     rules.push(...shellRules());
     rules.push(...routeRules({ research: false }));
     return rules;
@@ -330,6 +369,7 @@ function buildOrchestratorPermissions(p) {
         ...buildBroadReadPermissions(),
         deny('edit', '*'),
         allow('edit', p.taskRegistry),
+        ...worktreeGlobs(p.taskRegistry).map(resource => allow('edit', resource)),
         allow('edit', SDD_WORKSPACE_GLOB),
         ...shellRules(),
         ...routeRules({ research: false, orchestrator: true }),
@@ -424,6 +464,12 @@ Dispatch the correct subagent via the \`subagent\` tool. Do not write code, impl
 - Review phase → @kiki-reviewer
 - Documentation decision required → dispatch @kiki-historian unless the registry explicitly records \`documentation.status: "not_required"\` with a concrete reason.
 - Failure diagnosis → @kiki-escalation, only for a technical deadlock.
+
+## Dispatch Labels and Requested Comparisons
+- Prefix every dispatch description with \`[task:<taskId> <kind>]\`, where the task ID uses the existing task identity and the kind is \`initial\` | \`fix\` | \`review\`. Comparison runs use \`[task:<taskId> <kind> cmp:<groupId>]\`. \`cmp\` is an independent field and never overwrites the task ID or kind. Keep the whole description within the 3–5-word rule; a malformed or missing label logs \`unknown\`. Examples: \`[task:diag fix] Correct regression now\` and \`[task:diag review cmp:trial] Check changes\`. No new registry counters are introduced.
+- Only when the user explicitly requests a comparison, obtain the task text, chosen variants and starting revision from the user. You are dispatch-only: delegate preparation and execution to existing authorized builders, or use user-prepared directories. Each trial uses a fresh separate worktree at the same starting revision. These worktrees are not sandboxes; commands run under ordinary permissions, and there is no invented subagent working-directory argument.
+- When collection is enabled and writing the ledger is permitted, the preparation builder appends one metadata-only comparison marker using the existing \`createLedgerWriter\`: task and group with the known starting commit and any genuinely available result commit. That marker records supplied context, not a verified dispatch-to-session binding; when collection is off, no marker is written, and never copy prompts, diffs or source. Preparation and cleanup preserve user changes and report dirty or untracked limitations; there are no hidden models, paid trials, global routing edits or automatic commits.
+- Use the summary to compare metadata and per-session statistics side by side only. Without a verified dispatch-to-child binding, token attribution stays unknown; state that and never claim equal quality, savings or equivalence. This adds no new CLI command, runner or subagent argument.
 
 ## Process
 1. **Intake:** Ask clarifying questions one at a time until requirements are clear.
@@ -563,7 +609,7 @@ ${ALIGNMENT_GUARDRAIL_PROMPT}
 `;
 }
 export function generateImplementerTemplate(config) {
-    const perms = buildImplementerPermissions(config);
+    const perms = buildImplementerPermissions(config, { gitignore: true });
     return `---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent

@@ -3,6 +3,7 @@ import { install } from './commands/install.js';
 import { init } from './commands/init.js';
 import { update } from './commands/update.js';
 import { status } from './commands/status.js';
+import { stats } from './commands/stats.js';
 import { verify } from './commands/verify.js';
 import { release } from './commands/release.js';
 import { doctor } from './commands/doctor.js';
@@ -33,6 +34,11 @@ async function main() {
     case 'status':
       await status(args[1] ?? '.');
       break;
+    case 'stats': {
+      const code = await stats(args[1] ?? '.');
+      if (code !== 0) process.exit(code);
+      break;
+    }
     case 'verify':
       await verify(args[1]);
       break;
@@ -57,6 +63,7 @@ Commands:
   migrate [--from <dir>] [--project <path>] [--force]  Migrate OC1 models/permissions into OC2 (global by default)
   reset --project <path>    Remove project Kiki agent overrides after backup
   status [path]       Show global/project configuration
+  stats [path]        Summarize local usage diagnostics (read-only)
   routing             Retired; configure agents.<id>.model in opencode.json
   verify <file>        Check for TBDs/TODOs/placeholders
   doctor [path]        Validate config, paths, agent files, and skills

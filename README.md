@@ -475,6 +475,59 @@ It does not repair an already running or stuck OpenCode session.
   name drift, duplicate copies and superpowers versions are warnings/info and never
   change the exit code. Skill presence does not confirm live plugin registration.
 - `kiki verify <file>`: checks Markdown for unfinished markers or checklist items.
+- `kiki stats [path]`: read-only summary of the opt-in metadata ledger, the
+  configured health log and existing task-registry references. It makes no model
+  call, writes nothing and never opens referenced spec/plan documents.
+
+### Usage diagnostics (opt-in)
+
+Collection is **off by default** and changes nothing until a project opts in
+through its existing `.agentic/kiki/config.json`:
+
+```json
+{ "diagnostics": { "enabled": true } }
+```
+
+When disabled, the plugin creates no ledger file, records nothing and adds no
+observation instrumentation, keeping the existing watchdog and routing behavior.
+When enabled, it appends one metadata-only JSON line per dispatch, child-session
+snapshot and comparison marker to `.agentic/kiki/run_ledger.jsonl`. Records
+contain declared labels (task ID, kind `initial`/`fix`/`review`, optional
+comparison group and the declared dispatch model string), observed child-session
+identity, status, a `partial` completeness flag, durations, retry count and the
+five token counters. The dispatch model string is the declared input, not a
+verified resolved model. No prompt, response, diff, source, transcript or secret
+is copied into the ledger.
+
+The ledger is append-only and grows without rotation; delete it manually to
+discard history. `kiki stats` reads it regardless of the current setting. The
+feature records activity only and evaluates no output quality.
+
+Declared dispatch counts and observed session usage are displayed as separate
+tables. The fix and review counts are declared invocation counts, not logical
+review rounds. There is no verified dispatch-to-child session binding — not even
+for sequential dispatches — so task and comparison-group token attribution stays
+**unknown**. Session usage is the latest observed snapshot per session, never a
+sum of snapshots; missing tokens, status or durations remain unknown rather than
+zero, and interrupted or incomplete sessions keep their last snapshot with the
+`partial` flag. Watchdog incidents are joined strictly by session ID. Registry
+spec/plan entries appear as current reference paths, not historical versions, and
+a starting revision never reconstructs dirty or untracked worktree content.
+
+**Manual comparisons** happen only when the user explicitly requests one and
+supplies the task text, variants and starting revision. The orchestrator is
+dispatch-only: existing authorized builders, or user-prepared directories,
+prepare and execute each trial in a fresh separate worktree at the same starting
+revision under ordinary permissions. Worktrees are not sandboxes, and there are
+no hidden models, paid trials, global routing edits or automatic commits. With
+collection enabled and ledger writes permitted, the preparation builder appends
+one metadata-only comparison marker using the existing `createLedgerWriter`
+(task/group with the known starting commit and any genuinely available result
+commit). With collection off, no marker is written; no prompts, diffs or source
+are copied. `kiki stats` shows supplied comparison metadata and per-session
+statistics side by side only. Without a verified child binding, comparison token
+attribution is unknown, and no result claims equal quality, savings or
+equivalence.
 
 ## Release validation
 
@@ -601,7 +654,8 @@ npm run lint
 npm run build
 # Source-only typecheck, separate from lint (tsconfig excludes tests):
 node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
-# Optional integration tests against an installed OpenCode 2.x binary:
+# Optional integration tests against an installed OpenCode 2.x binary
+# (the opt-in real-binary suites require OPENCODE_TEST_BINARY):
 OPENCODE_TEST_BINARY=/absolute/path/to/opencode npm test
 ```
 

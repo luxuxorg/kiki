@@ -14,6 +14,7 @@ import {
   generateHistorianTemplate,
   generateWorkflowTemplate,
 } from '../../src/cli/config';
+import { parseDispatchLabels } from '../../src/diagnostics/ledger';
 
 // The eight agent generators, keyed as the generated template names. The
 // workflow generator is deliberately excluded: it is not an agent prompt.
@@ -759,6 +760,118 @@ describe('escalation contract and presentation', () => {
       );
       expect(body, `${label}: Stop is user decision`).toContain(
         '**Stop-needs-user** → the user decides.',
+      );
+    }
+  });
+});
+
+describe('orchestrator dispatch labels and requested comparisons', () => {
+  it('R17_labels_keep_task_kind_and_optional_comparison_group', () => {
+    for (const [label, config] of CONFIGS) {
+      const body = bodyOf(generateOrchestratorTemplate(config));
+
+      expect(body, `${label}: normal label grammar`).toContain('[task:<taskId> <kind>]');
+      expect(body, `${label}: comparison label grammar`).toContain(
+        '[task:<taskId> <kind> cmp:<groupId>]',
+      );
+      expect(body, `${label}: normal example`).toContain(
+        '[task:diag fix] Correct regression now',
+      );
+      expect(body, `${label}: comparison example`).toContain(
+        '[task:diag review cmp:trial] Check changes',
+      );
+      expect(body, `${label}: description stays 3-5 words`).toContain('3–5-word');
+      expect(body, `${label}: kind is one of three`).toContain(
+        '`initial` | `fix` | `review`',
+      );
+      expect(body, `${label}: cmp never overwrites task/kind`).toContain(
+        '`cmp` is an independent field and never overwrites the task ID or kind',
+      );
+      expect(body, `${label}: missing labels log unknown`).toContain(
+        'malformed or missing label logs `unknown`',
+      );
+      expect(body, `${label}: existing task identity`).toContain('existing task identity');
+      expect(body, `${label}: no new registry counters`).toContain(
+        'no new registry counters',
+      );
+    }
+
+    const normal = '[task:diag fix] Correct regression now';
+    const comparison = '[task:diag review cmp:trial] Check changes';
+    expect(normal.split(/\s+/)).toHaveLength(5);
+    expect(comparison.split(/\s+/)).toHaveLength(5);
+    expect(parseDispatchLabels(normal)).toEqual({
+      taskId: 'diag',
+      kind: 'fix',
+      comparisonGroup: 'unknown',
+    });
+    expect(parseDispatchLabels(comparison)).toEqual({
+      taskId: 'diag',
+      kind: 'review',
+      comparisonGroup: 'trial',
+    });
+    expect(parseDispatchLabels('Correct regression now')).toEqual({
+      taskId: 'unknown',
+      kind: 'unknown',
+      comparisonGroup: 'unknown',
+    });
+  });
+
+  it('R18_requested_comparisons_use_existing_authorized_workflow', () => {
+    for (const [label, config] of CONFIGS) {
+      const body = bodyOf(generateOrchestratorTemplate(config));
+
+      expect(body, `${label}: explicit user request only`).toContain(
+        'Only when the user explicitly requests a comparison',
+      );
+      expect(body, `${label}: user supplies task, variants and revision`).toContain(
+        'obtain the task text, chosen variants and starting revision from the user',
+      );
+      expect(body, `${label}: orchestrator is dispatch-only`).toContain('dispatch-only');
+      expect(body, `${label}: delegates to authorized builders`).toContain(
+        'delegate preparation and execution to existing authorized builders',
+      );
+      expect(body, `${label}: user-prepared directories are allowed`).toContain(
+        'user-prepared directories',
+      );
+      expect(body, `${label}: fresh separate worktrees`).toContain(
+        'fresh separate worktree',
+      );
+      expect(body, `${label}: same starting revision`).toContain('same starting revision');
+      expect(body, `${label}: worktrees are not sandboxes`).toContain(
+        'worktrees are not sandboxes',
+      );
+      expect(body, `${label}: ordinary permissions`).toContain('ordinary permissions');
+      expect(body, `${label}: no invented workdir argument`).toContain(
+        'no invented subagent working-directory argument',
+      );
+      expect(body, `${label}: marker uses existing writer`).toContain('createLedgerWriter');
+      expect(body, `${label}: marker is metadata only`).toContain(
+        'metadata-only comparison marker',
+      );
+      expect(body, `${label}: known revisions only`).toContain(
+        'known starting commit and any genuinely available result commit',
+      );
+      expect(body, `${label}: off writes nothing`).toContain(
+        'when collection is off, no marker is written',
+      );
+      expect(body, `${label}: no prompt or source copies`).toContain(
+        'never copy prompts, diffs or source',
+      );
+      expect(body, `${label}: no hidden models or paid trials`).toContain(
+        'no hidden models, paid trials, global routing edits or automatic commits',
+      );
+      expect(body, `${label}: compares metadata side by side`).toContain(
+        'compare metadata and per-session statistics side by side',
+      );
+      expect(body, `${label}: never claims quality or savings`).toContain(
+        'never claim equal quality, savings or equivalence',
+      );
+      expect(body, `${label}: unknown token attribution`).toContain(
+        'token attribution stays unknown',
+      );
+      expect(body, `${label}: no new execution surface`).toContain(
+        'no new CLI command, runner or subagent argument',
       );
     }
   });

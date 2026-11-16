@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import plugin, { loadHealthConfig, type ServerContext } from '../../src/server/index';
 import { DEFAULT_HEALTH } from '../../src/cli/config';
+import { readLedger } from '../../src/diagnostics/ledger';
 import type { OpenCodeEvent } from '../../src/server/watchdog-events';
 
 type CreatedEvent = Extract<OpenCodeEvent, { type: 'session.created' }>;
@@ -36,9 +37,16 @@ function idleEvent(sessionID: string): IdleEvent {
   return { ...meta, type: 'session.idle', data: { sessionID } };
 }
 
+interface HookEvent {
+  tool: string;
+  sessionID?: string;
+  id?: string;
+  input: unknown;
+}
+
 interface HookRecord {
   name: string;
-  handler: (event: { tool: string; input: unknown }) => Promise<void> | void;
+  handler: (event: HookEvent) => Promise<void> | void;
   disposeCalls: number;
   disposed: boolean;
 }
@@ -108,7 +116,7 @@ function makeContext(root: string, options: { stubborn?: boolean } = {}): FakeCo
   const tool = {
     hook: async (
       name: string,
-      handler: (event: { tool: string; input: unknown }) => Promise<void> | void,
+      handler: (event: HookEvent) => Promise<void> | void,
     ) => {
       const record: HookRecord = { name, handler, disposeCalls: 0, disposed: false };
       hooks.push(record);
@@ -275,6 +283,48 @@ describe('server lifecycle', () => {
 
     expect(h.session.interrupt).not.toHaveBeenCalled();
     expect(readHealth(root, DEFAULT_HEALTH.logPath)).toEqual([]);
+  });
+
+  it('keeps one hook and one stream with diagnostics enabled, writing only the run ledger', async () => {
+    vi.useFakeTimers();
+    const directory = join(root, '.agentic', 'kiki');
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(directory, 'config.json'),
+      JSON.stringify({
+        health: { checkIntervalMs: 10 },
+        diagnostics: { enabled: true },
+      }),
+    );
+    const h = makeContext(root);
+
+    const cleanup = await plugin.setup(h.ctx);
+
+    expect(h.hooks).toHaveLength(1);
+    expect(h.streams).toHaveLength(1);
+    await h.hooks[0].handler({
+      tool: 'subagent',
+      sessionID: 'parent-session',
+      id: 'call-1',
+      input: { agent: 'kiki-reviewer', model: 'openai/gpt', description: '[task:diag review] Check changes' },
+    });
+
+    const ledger = readLedger(root);
+    expect(ledger.skipped).toBe(0);
+    expect(ledger.readError).toBeNull();
+    expect(ledger.records).toHaveLength(1);
+    expect(ledger.records[0]).toMatchObject({
+      type: 'dispatch',
+      parentSessionId: 'parent-session',
+      callId: 'call-1',
+      agent: 'kiki-reviewer',
+      childSessionId: 'unknown',
+    });
+    expect(existsSync(join(root, DEFAULT_HEALTH.logPath))).toBe(false);
+
+    await cleanup();
+    expect(h.hooks[0].disposed).toBe(true);
+    expect(h.streams[0].returnCalls).toBe(1);
   });
 
   it('loads health settings from the project config and writes health entries under the project root', async () => {
