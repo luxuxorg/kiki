@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Opt-in lightweight usage diagnostics:** one metadata-only ledger
+  (`.agentic/kiki/run_ledger.jsonl`, off by default) records declared dispatch
+  task/kind/optional comparison group and observed child-session status,
+  durations, retries and five token counters; `kiki stats [path]` summarizes
+  declared invocations, observed sessions, watchdog incidents joined by session
+  ID and current registry reference paths without a model call. No prompts,
+  diffs, source or transcripts are stored. Declared counts and observed session
+  tokens stay unjoined because no verified dispatch-to-child binding exists, so
+  task/comparison token attribution is unknown. The ledger is append-only and
+  has no rotation. Manual comparisons remain an explicitly requested
+  orchestrator-delegated workflow in fresh separate worktrees at one starting
+  revision under ordinary permissions; worktrees are not sandboxes and no
+  quality, savings or equivalence is claimed. No measured savings are claimed.
 - **Bounded loop controls and review governance in generated agent prompts:**
   the reviewer reports exactly one of `PASS`, `PASS_WITH_NOTES` or `FAIL`, with
   `Reason` (`implementation` | `plan` | `spec` | `user-decision` |

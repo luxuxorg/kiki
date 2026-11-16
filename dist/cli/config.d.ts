@@ -21,6 +21,9 @@ export interface KikiHealthConfig {
     watchAllSubagents: boolean;
     logPath: string;
 }
+export interface KikiDiagnosticsConfig {
+    enabled: boolean;
+}
 export interface KikiConfig {
     projectName: string;
     language: string;
@@ -32,9 +35,17 @@ export interface KikiConfig {
     };
     paths: KikiPaths;
     health: KikiHealthConfig;
+    diagnostics: KikiDiagnosticsConfig;
 }
 export declare const DEFAULT_PATHS: KikiPaths;
 export declare const DEFAULT_HEALTH: KikiHealthConfig;
+export declare const DEFAULT_DIAGNOSTICS: KikiDiagnosticsConfig;
+/**
+ * Sanitizes the diagnostics section with the same safe-fallback pattern as the
+ * runtime health settings: only an explicit boolean enables collection, and
+ * unknown fields are discarded rather than trusted.
+ */
+export declare function sanitizeDiagnostics(raw: unknown): KikiDiagnosticsConfig;
 /**
  * Kiki version. MUST be kept in sync with package.json on every release. The
  * published package ships only dist/ (see package.json "files"), so a globally

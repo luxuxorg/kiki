@@ -1,8 +1,10 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Plugin } from '@opencode/plugin';
-import { DEFAULT_HEALTH } from '../cli/config.js';
+import { DEFAULT_HEALTH, sanitizeDiagnostics, } from '../cli/config.js';
+import { createLedgerWriter } from '../diagnostics/ledger.js';
 import { startRoutingLogger } from './routing-logger.js';
+import { createUsageDiagnostics } from './usage-diagnostics.js';
 import { createWatchdog, createWatchdogSessionAdapter } from './watchdog.js';
 import { decodeWatchdogEvent } from './watchdog-events.js';
 const ITERATOR_SHUTDOWN_TIMEOUT_MS = 250;
@@ -50,6 +52,20 @@ export function loadHealthConfig(directory) {
         return sanitizeHealth(null);
     }
 }
+/**
+ * Loads only the project-scoped modern diagnostics setting. A missing,
+ * unreadable or malformed config falls back to the default-off value; legacy
+ * config and global settings are never consulted.
+ */
+export function loadDiagnosticsConfig(directory) {
+    try {
+        const raw = JSON.parse(readFileSync(join(directory, '.agentic', 'kiki', 'config.json'), 'utf-8'));
+        return sanitizeDiagnostics(raw.diagnostics);
+    }
+    catch {
+        return sanitizeDiagnostics(null);
+    }
+}
 function createHealthWriter(directory, config) {
     return (level, entry) => {
         try {
@@ -93,8 +109,23 @@ function settleWithin(promise, timeoutMs) {
 export async function setup(ctx) {
     const root = ctx.location.directory;
     const health = loadHealthConfig(root);
+    const diagnostics = loadDiagnosticsConfig(root);
+    // Off means off: no collector, no ledger writer and no extra instrumentation.
+    const usage = diagnostics.enabled
+        ? createUsageDiagnostics({
+            write: createLedgerWriter(root),
+            now: () => Date.now(),
+        })
+        : null;
     // The logger is acquired first; every later failure must release it.
-    const stopLogger = await startRoutingLogger(ctx);
+    let stopLogger;
+    try {
+        stopLogger = await startRoutingLogger(ctx, usage ? (record) => usage.dispatch(record) : undefined);
+    }
+    catch (error) {
+        usage?.stop();
+        throw error;
+    }
     const controller = new AbortController();
     let watchdog = null;
     let iterator = null;
@@ -121,6 +152,9 @@ export async function setup(ctx) {
             }
             if (streamLoop)
                 await settleWithin(streamLoop, ITERATOR_SHUTDOWN_TIMEOUT_MS);
+            // Event intake has stopped; flush the last known session snapshots before
+            // the remaining existing cleanup steps, once and without a new timer.
+            usage?.stop();
             if (watchdogStop)
                 await watchdogStop;
             await stopLogger();
@@ -142,6 +176,7 @@ export async function setup(ctx) {
         iterator = stream[Symbol.asyncIterator]();
         const liveIterator = iterator;
         const liveWatchdog = watchdog;
+        const liveUsage = usage;
         streamLoop = (async () => {
             try {
                 while (!controller.signal.aborted) {
@@ -152,6 +187,15 @@ export async function setup(ctx) {
                         break;
                     for (const event of decodeWatchdogEvent(next.value))
                         liveWatchdog.handle(event);
+                    if (liveUsage) {
+                        // Own exception boundary: diagnostics never disturb watchdog intake.
+                        try {
+                            liveUsage.event(next.value);
+                        }
+                        catch {
+                            // Ignored by design.
+                        }
+                    }
                 }
             }
             catch {

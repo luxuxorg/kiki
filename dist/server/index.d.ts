@@ -1,5 +1,5 @@
 import { Plugin } from '@opencode/plugin';
-import { type KikiHealthConfig } from '../cli/config.js';
+import { type KikiDiagnosticsConfig, type KikiHealthConfig } from '../cli/config.js';
 /**
  * Canonical server context derived from the published SDK, as pinned by the
  * Task 2 contract. `Plugin.Context` is the exact context handed to setup.
@@ -12,6 +12,12 @@ export type ServerContext = Parameters<typeof Plugin.define>[0]['setup'] extends
 export declare function sanitizeHealth(raw: unknown): KikiHealthConfig;
 /** Loads only the project-scoped health settings; no global or cwd fallback. */
 export declare function loadHealthConfig(directory: string): KikiHealthConfig;
+/**
+ * Loads only the project-scoped modern diagnostics setting. A missing,
+ * unreadable or malformed config falls back to the default-off value; legacy
+ * config and global settings are never consulted.
+ */
+export declare function loadDiagnosticsConfig(directory: string): KikiDiagnosticsConfig;
 export declare function setup(ctx: ServerContext): Promise<Plugin.Cleanup>;
 declare const _default: Plugin.Plugin;
 export default _default;

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { parse } from 'jsonc-parser';
 import { update } from '../../src/cli/commands/update';
 import { currentPackageSpec } from '../../src/cli/oc2-registration';
+import { parseDispatchLabels } from '../../src/diagnostics/ledger';
 
 describe('global update command', () => {
   let root: string;
@@ -24,6 +25,35 @@ describe('global update command', () => {
     expect(parse(readFileSync(join(global, 'opencode.jsonc'), 'utf8')).plugins).toEqual([currentPackageSpec()]);
     expect(readFileSync(join(project, 'opencode.json'), 'utf8')).toBe('{"agent":{"mine":{"model":"keep"}}}');
     expect(existsSync(join(project, '.opencode'))).toBe(false);
+  });
+
+  it('installs the labeled-dispatch guidance in the orchestrator prompt only', async () => {
+    const project = join(root, 'project'); mkdirSync(project);
+    await update([]);
+
+    const orchestrator = readFileSync(join(global, 'agents/kiki-orchestrator.md'), 'utf8');
+    const implementer = readFileSync(join(global, 'agents/kiki-implementer.md'), 'utf8');
+
+    expect(orchestrator).toContain('[task:<taskId> <kind>]');
+    expect(orchestrator).toContain('[task:<taskId> <kind> cmp:<groupId>]');
+    expect(orchestrator).toContain('[task:diag fix] Correct regression now');
+    expect(orchestrator).toContain('[task:diag review cmp:trial] Check changes');
+    expect(orchestrator).toContain('Only when the user explicitly requests a comparison');
+    expect(orchestrator).toContain('createLedgerWriter');
+    expect(orchestrator).toContain('worktrees are not sandboxes');
+    expect(parseDispatchLabels('[task:diag fix] Correct regression now')).toEqual({
+      taskId: 'diag',
+      kind: 'fix',
+      comparisonGroup: 'unknown',
+    });
+    expect(parseDispatchLabels('[task:diag review cmp:trial] Check changes')).toEqual({
+      taskId: 'diag',
+      kind: 'review',
+      comparisonGroup: 'trial',
+    });
+
+    expect(implementer).not.toContain('[task:<taskId> <kind>]');
+    expect(implementer).not.toContain('createLedgerWriter');
   });
 
   it('rejects the old destructive positional project update before writing', async () => {

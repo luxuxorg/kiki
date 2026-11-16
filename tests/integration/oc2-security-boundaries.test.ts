@@ -17,6 +17,7 @@ import {
 import {
   fixtureProviderConfig,
   startFixtureProvider,
+  type FixtureMessage,
   type FixtureProvider,
   type FixtureReply,
   type FixtureRequest,
@@ -402,6 +403,53 @@ interface RouteObservation {
   toolStatus?: string;
   error: string;
   output: string;
+}
+
+interface SubagentReport {
+  sessionID: string;
+  state: string;
+  description: string;
+  body: string;
+}
+
+const SUBAGENT_MESSAGE = /<subagent\b([^>]*)>([\s\S]*?)<\/subagent>/g;
+
+function attribute(attributes: string, name: string): string | undefined {
+  return attributes.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`))?.[1];
+}
+
+/**
+ * OpenCode 2.x always dispatches subagents in the background: the `subagent`
+ * tool result is only a launch notice. When the child goes idle, the runtime
+ * injects a synthetic `<subagent ... state="completed">child output</subagent>`
+ * user message into the parent session. That message, bound to the launched
+ * child session, is the terminal-result evidence. Launch notices, running /
+ * pending / error / cancelled states, echoed task text and the parent's own
+ * replies are deliberately not accepted.
+ */
+function completedSubagentReport(
+  bodies: FixtureRequest[],
+  sessionID: string,
+  description: string,
+): SubagentReport | undefined {
+  for (const request of [...bodies].reverse()) {
+    if (request.model !== 'fixture-probe') continue;
+    for (const message of request.messages) {
+      if (message.role !== 'user' || typeof message.content !== 'string') continue;
+      for (const match of message.content.matchAll(SUBAGENT_MESSAGE)) {
+        const attributes = match[1] ?? '';
+        if (
+          attribute(attributes, 'sessionID') !== sessionID
+          || attribute(attributes, 'state') !== 'completed'
+          || attribute(attributes, 'description') !== description
+        ) continue;
+        const body = match[2].trim();
+        if (!body) continue;
+        return { sessionID, state: 'completed', description, body };
+      }
+    }
+  }
+  return undefined;
 }
 
 async function routeRun(
@@ -857,6 +905,72 @@ describe('OpenCode 2.x security boundaries', () => {
     }
   }, 300_000);
 
+  it('security_runtime_subagent_completion_evidence', () => {
+    const sessionID = 'ses_fixturechild';
+    const description = 'review route';
+    const synthetic = (
+      state: string,
+      body: string,
+      id = sessionID,
+      label = description,
+    ): string => `<subagent sessionID="${id}" state="${state}" description="${label}">\n${body}\n</subagent>`;
+    const request = (...messages: FixtureMessage[]): FixtureRequest => ({
+      model: 'fixture-probe',
+      messages,
+      body: {},
+      url: '/v1/chat/completions',
+    });
+    const launchNotice = `The subagent is working in the background (sessionID: ${sessionID}). You will receive a <subagent> message when it goes idle, and again after each later round of work.`;
+
+    expect(completedSubagentReport([], sessionID, description), 'no child evidence')
+      .toBeUndefined();
+    expect(
+      completedSubagentReport([
+        request(
+          { role: 'user', content: 'review' },
+          { role: 'tool', content: launchNotice },
+          { role: 'assistant', content: 'child done' },
+        ),
+      ], sessionID, description),
+      'launch notice, echoed task and parent reply are not completion',
+    ).toBeUndefined();
+
+    for (const state of ['running', 'pending', 'error', 'cancelled']) {
+      expect(
+        completedSubagentReport([
+          request({ role: 'user', content: synthetic(state, 'child done') }),
+        ], sessionID, description),
+        `${state} child is not a terminal success`,
+      ).toBeUndefined();
+    }
+
+    expect(
+      completedSubagentReport([
+        request({ role: 'user', content: synthetic('completed', 'child done', 'ses_other') }),
+      ], sessionID, description),
+      'completion must bind to the launched child session',
+    ).toBeUndefined();
+    expect(
+      completedSubagentReport([
+        request({ role: 'user', content: synthetic('completed', 'child done', sessionID, 'other route') }),
+      ], sessionID, description),
+      'completion must bind to the launched description',
+    ).toBeUndefined();
+    expect(
+      completedSubagentReport([
+        request({ role: 'user', content: synthetic('completed', '   ') }),
+      ], sessionID, description),
+      'completed child without output is not success',
+    ).toBeUndefined();
+
+    const completed = completedSubagentReport([
+      request({ role: 'user', content: synthetic('completed', 'child done') }),
+    ], sessionID, description);
+    expect(completed, 'completed child with fixture output').toBeDefined();
+    expect(completed!.state).toBe('completed');
+    expect(completed!.body).toBe('child done');
+  });
+
   it('security_runtime_routes', async () => {
     const { binary, version } = gate();
     let webHits = 0;
@@ -1013,8 +1127,22 @@ describe('OpenCode 2.x security boundaries', () => {
               description: 'review route',
               prompt: 'review',
             });
+            expect(named.exitStatus, `${role}: named dispatch exit`).toBe(0);
             expect(named.toolStatus, `${role}: named dispatch`).toBe('completed');
-            expect(named.output, `${role}: named dispatch child`).toContain('child done');
+            // On OpenCode 2.x the tool result is a background-launch notice;
+            // success is the child's terminal synthetic message, not this text.
+            const launchNotice = named.output.match(
+              /subagent is working in the background \(sessionID: (ses_[A-Za-z0-9]+)\)/,
+            );
+            expect(launchNotice, `${role}: named dispatch launch notice`).not.toBeNull();
+            const completedChild = completedSubagentReport(
+              provider.bodies(),
+              launchNotice![1]!,
+              'review route',
+            );
+            expect(completedChild, `${role}: named dispatch child completion`).toBeDefined();
+            expect(completedChild!.state, `${role}: named dispatch child state`).toBe('completed');
+            expect(completedChild!.body, `${role}: named dispatch child`).toContain('child done');
             const other = await routeRun(fixture, provider, 'subagent', {
               agent: 'other-agent',
               description: 'other route',

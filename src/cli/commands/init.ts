@@ -4,6 +4,7 @@ import {
   KikiConfig,
   DEFAULT_PATHS,
   DEFAULT_HEALTH,
+  DEFAULT_DIAGNOSTICS,
   ensurePathExists,
   loadConfig,
 } from '../config.js';
@@ -131,6 +132,7 @@ export async function runWizard(targetPath: string): Promise<KikiConfig> {
       taskRegistry: '.agentic/kiki/TASK_REGISTRY.json',
     },
     health: { ...DEFAULT_HEALTH },
+    diagnostics: { ...DEFAULT_DIAGNOSTICS },
   };
 
   return config;

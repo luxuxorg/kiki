@@ -4,10 +4,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startRoutingLogger } from '../../src/server/routing-logger';
 import type { ServerContext } from '../../src/server/index';
+import type { DispatchRecord } from '../../src/diagnostics/ledger';
+
+interface HookEvent {
+  tool: string;
+  sessionID?: string;
+  id?: string;
+  input: unknown;
+}
 
 interface HookRecord {
   name: string;
-  handler: (event: { tool: string; input: unknown }) => Promise<void> | void;
+  handler: (event: HookEvent) => Promise<void> | void;
   disposeCalls: number;
   disposed: boolean;
 }
@@ -19,7 +27,7 @@ function makeContext(root: string): { ctx: ServerContext; hooks: HookRecord[] } 
     tool: {
       hook: async (
         name: string,
-        handler: (event: { tool: string; input: unknown }) => Promise<void> | void,
+        handler: (event: HookEvent) => Promise<void> | void,
       ) => {
         const record: HookRecord = { name, handler, disposeCalls: 0, disposed: false };
         hooks.push(record);
@@ -173,5 +181,102 @@ describe('startRoutingLogger', () => {
     expect(hooks[0].disposeCalls).toBe(1);
     await hooks[0].handler({ tool: 'subagent', input: { agent: 'kiki-reviewer' } });
     expect(readEntries(root)).toEqual([]);
+  });
+
+  it('observes a metadata-only dispatch record without changing the routing log', async () => {
+    const { ctx, hooks } = makeContext(root);
+    const observed: DispatchRecord[] = [];
+    const dispose = await startRoutingLogger(ctx, (record) => observed.push(record));
+
+    await hooks[0].handler({
+      tool: 'subagent',
+      sessionID: 'parent-session',
+      id: 'call-1',
+      input: {
+        agent: 'kiki-implementer',
+        model: 'openai/gpt-6.1-sol',
+        description: '[task:diag fix cmp:trial] Correct regression now',
+        prompt: 'PROMPT_BODY_SENTINEL_9f3c',
+      },
+    });
+
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toMatchObject({
+      v: 1,
+      id: 'dispatch:parent-session:call-1',
+      type: 'dispatch',
+      parentSessionId: 'parent-session',
+      callId: 'call-1',
+      agent: 'kiki-implementer',
+      declared: {
+        taskId: 'diag',
+        kind: 'fix',
+        comparisonGroup: 'trial',
+        model: 'openai/gpt-6.1-sol',
+      },
+      childSessionId: 'unknown',
+    });
+    expect(Number.isNaN(Date.parse(observed[0].timestamp))).toBe(false);
+    expect(JSON.stringify(observed[0])).not.toContain('Correct regression now');
+    expect(JSON.stringify(observed[0])).not.toContain('PROMPT_BODY_SENTINEL_9f3c');
+
+    const entries = readEntries(root);
+    expect(entries).toHaveLength(1);
+    expect(Object.keys(entries[0]).sort()).toEqual(['agent', 'model', 'timestamp']);
+    await dispose();
+  });
+
+  it('keeps routing logging when the dispatch observer throws', async () => {
+    const { ctx, hooks } = makeContext(root);
+    const observer = vi.fn(() => {
+      throw new Error('observer failed');
+    });
+    const dispose = await startRoutingLogger(ctx, observer);
+
+    await expect(
+      Promise.resolve(
+        hooks[0].handler({
+          tool: 'subagent',
+          sessionID: 'parent-session',
+          id: 'call-1',
+          input: { agent: 'kiki-reviewer', description: '[task:diag review] Check changes' },
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(observer).toHaveBeenCalledTimes(1);
+    expect(readEntries(root)).toEqual([
+      expect.objectContaining({ agent: 'kiki-reviewer', model: 'unknown' }),
+    ]);
+    await dispose();
+  });
+
+  it('does not invent dispatch identities or observe unrelated tools', async () => {
+    const { ctx, hooks } = makeContext(root);
+    const observed: DispatchRecord[] = [];
+    const dispose = await startRoutingLogger(ctx, (record) => observed.push(record));
+
+    await hooks[0].handler({
+      tool: 'subagent',
+      input: { agent: 'kiki-reviewer', description: 'Check changes' },
+    });
+    await hooks[0].handler({
+      tool: 'read',
+      sessionID: 'parent-session',
+      id: 'call-1',
+      input: { agent: 'kiki-reviewer' },
+    });
+    await hooks[0].handler({
+      tool: 'subagent',
+      sessionID: 'parent-session',
+      id: 'call-1',
+      input: { agent: 'general' },
+    });
+
+    expect(observed).toEqual([]);
+    expect(readEntries(root)).toEqual([
+      expect.objectContaining({ agent: 'kiki-reviewer', model: 'unknown' }),
+    ]);
+    await dispose();
   });
 });
