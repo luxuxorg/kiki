@@ -61,6 +61,16 @@
         },
         {
           "action": "edit",
+          "resource": ".worktree/**/.agentic/kiki/TASK_REGISTRY.json",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/.agentic/kiki/TASK_REGISTRY.json",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
           "resource": ".superpowers/sdd/**",
           "effect": "allow"
         },
@@ -349,6 +359,21 @@
           "effect": "allow"
         },
         {
+          "action": "edit",
+          "resource": ".worktrees/**/docs/superpowers/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/docs/superpowers/plans/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/docs/superpowers/specs/**",
+          "effect": "allow"
+        },
+        {
           "action": "shell",
           "resource": "*",
           "effect": "allow"
@@ -598,6 +623,21 @@
           "effect": "allow"
         },
         {
+          "action": "edit",
+          "resource": ".worktrees/**/docs/superpowers/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/docs/superpowers/plans/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/docs/superpowers/specs/**",
+          "effect": "allow"
+        },
+        {
           "action": "shell",
           "resource": "*",
           "effect": "allow"
@@ -829,6 +869,31 @@
         {
           "action": "edit",
           "resource": ".worktree/**/tests/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/tests/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".gitignore",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktree/**/.gitignore",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/.gitignore",
           "effect": "allow"
         },
         {
@@ -1088,6 +1153,16 @@
         {
           "action": "edit",
           "resource": ".worktree/**/tests/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/src/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/tests/**",
           "effect": "allow"
         },
         {
@@ -1364,6 +1439,16 @@
           "effect": "allow"
         },
         {
+          "action": "edit",
+          "resource": ".worktrees/**/.agentic/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/.opencode/docs/reviews/*",
+          "effect": "allow"
+        },
+        {
           "action": "shell",
           "resource": "*",
           "effect": "allow"
@@ -1604,6 +1689,16 @@
         {
           "action": "edit",
           "resource": ".worktree/**/.opencode/docs/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/.agentic/reviews/*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/.opencode/docs/reviews/*",
           "effect": "allow"
         },
         {
@@ -1893,6 +1988,36 @@
         {
           "action": "edit",
           "resource": ".worktree/**/tests/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/README*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/CHANGELOG*",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/docs/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/.agentic/**",
+          "effect": "allow"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/src/**",
+          "effect": "deny"
+        },
+        {
+          "action": "edit",
+          "resource": ".worktrees/**/tests/**",
           "effect": "deny"
         },
         {
