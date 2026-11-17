@@ -93,7 +93,7 @@ export function sanitizeDiagnostics(raw: unknown): KikiDiagnosticsConfig {
  * installed CLI cannot read its own package.json at runtime — this const is the
  * runtime source of truth for version checks and release transforms.
  */
-export const KIKI_VERSION = '3.0.1';
+export const KIKI_VERSION = '3.1.0';
 
 export const DEFAULT_CONFIG: KikiConfig = {
   projectName: 'my-project',

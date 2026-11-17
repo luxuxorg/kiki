@@ -42,12 +42,37 @@
     },
     {
       "id": "release-3.1.0",
-      "description": "Prepare Kiki 3.1.0 including committed changes since the prior release, using existing release tooling and verification, then push as requested. Preserve all unrelated uncommitted work; no unrequested npm publication, force push or release-gate bypass.",
-      "status": "in_progress",
-      "phase": "intake",
+      "description": "Set Kiki3.1.0 including committed changes since v3.0.1, build and verify release version consistency, then create release commit/tag and push. User explicitly waives another complete test run; reuse recorded774pass2skip evidence honestly, never fabricate a fresh gate pass. No npm publication or force push.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-17",
       "startedAt": "2026-11-17",
-      "authorization": "User: Release with all recent commits then push; corrected requested version from 2.4.0 to 3.1.0.",
-      "progress": "2026-11-17: Cleanup locally completed in one commit, final bookkeeping amendment and authorized main push handled by cleanup-and-push delivery. Release3.1.0 remains unprepared: no version bump/tag/publication, no worktree or longer-timeout release runner approved. Original preflight snapshot below predates cleanup (HEADf3e5af7,15commits); refresh actual refs/count if release resumes. CLI120s timeout remains a separate release-tool constraint.",
+      "authorization": "User requests3.1.0 release and push; subsequently explicitly asks to set3.1.0 without repeating complete tests. Parent confirms only version/changelog/build-consistency checks, release commit/tag push, no npm publish.",
+      "progress": "2026-11-17: Local version-only3.1.0 preparation complete: package/lock/src/dist synchronized, reviewed changelog body preserved under dated3.1.0 heading, build and18direct invariants successful; dependency graph/code behavior unchanged. User explicitly waives repeat full suite; prior774pass2skip remains prior evidence, not fresh candidatePASS. This final bookkeeping snapshot is included in release commit before authorized annotatedv3.1.0 tag/main push. No remote success is asserted here; delivery agent must verify actual remote refs. No npm publish, GitHub Release/assets or live install.",
+      "verification": {
+        "sessionID": "ses_e1736260cffeGCvGYyaICiMR04",
+        "evidence": "tmp/release-3.1.0/",
+        "build": "npm run build EXIT0 reported; generated config.js/config.d.ts changed only version literal",
+        "versionChecks": "node tmp/release-3.1.0/assert-version.mjs EXIT0;18/18 consistency invariants",
+        "scope": "Only version fields, changelog headings/date and generated version literals; dependency graph and existing changelog body unchanged; no repeat fullsuite/audit",
+        "beforeReleaseCommit": "e6967ac186a9ff9f908c9a354be95b13ad1e4b80",
+        "baseTag": "v3.0.1",
+        "commitsBeforeRelease": 16
+      },
+      "delivery": {
+        "authorization": "User requests3.1.0 release and push, explicitly without rerunning complete tests.",
+        "branch": "main",
+        "remote": "origin",
+        "tag": "v3.1.0",
+        "instruction": "Commit version-only release and this final registry snapshot, create annotatedv3.1.0, push main+tag without force, verify actual remote main and peeled tag both equal final releaseHEAD. No self-referential finalSHA embedded.",
+        "constraints": "No additional fullsuite/candidate tests, new source behavior, npm publish, GitHub Release/assets, install/update, force push/tag overwrite."
+      },
+      "verificationException": {
+        "authorization": "User: Kannst du einfach3.1.0 release setzen ohne den erneuten kompletten Test?",
+        "fullSuite": "not_rerun_user_authorized",
+        "previousEvidence": "tmp/kiki-necessity-gate-verification-20261117T091102-661186/full-suite.log;774passed2skipped EXIT0",
+        "limit": "Source behavior must remain identical except version constant; dependency versions unchanged. Build and version invariants must be freshly checked; no automatic green result for omitted suite."
+      },
       "preflight": {
         "snapshot": "Before cleanup commit; historical observed values, not a claim about latest post-cleanup refs.",
         "sessionID": "ses_e175a3ba7ffexDlWX7X3I3WjhO",
@@ -61,7 +86,8 @@
         "publication": "No repository CI auto-publishes on push; GitHub Release/assets separate from tag/branch push and npm publish."
       },
       "documentation": {
-        "status": "pending"
+        "status": "not_required",
+        "reason": "Version-only release: already reviewed Unreleased prose remains unchanged; only existing CHANGELOG section gets3.1.0/date and an empty Unreleased heading. No new feature/prose or README decision requiring another historian pass."
       },
       "failures": 0
     },
