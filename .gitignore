@@ -5,4 +5,7 @@ node_modules/
 tmp/
 .agentic/cache/
 .agentic/routing_log.jsonl
+.agentic/kiki/routing_log.jsonl
+.agentic/kiki/health_log.jsonl
+.agentic/kiki/migration.json
 .agentic/kiki/run_ledger.jsonl

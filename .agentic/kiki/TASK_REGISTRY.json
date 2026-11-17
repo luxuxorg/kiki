@@ -1,14 +1,452 @@
 {
   "tasks": [
     {
+      "id": "cleanup-and-push",
+      "description": "User-authorized repository cleanup: accept the two intentional OC2 report deletions, reconcile pending authored artifacts and local/runtime data, merge outstanding worktrees where needed, create one cleanup commit and push main without force. Preserve local data and do not publish/tag 3.1.0 as part of this cleanup.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-17",
+      "startedAt": "2026-11-17",
+      "authorization": "User confirms OC2 report deletions intentional; asks to clean up, merge worktrees, create cleanup commit then push.",
+      "progress": "2026-11-17: Local cleanup completed, documented and reviewed PASS_WITH_NOTES; one local cleanup commit created with clean working tree and unchanged source/tests/dist/manifests. This final bookkeeping snapshot is included by amending that not-yet-pushed commit before the authorized normal main push. No push success is asserted by this record; final delivery result is verified from git HEAD/remote refs and reported to user. Runtime data retained/ignored, intentional OC2 deletions and authored artifacts included, external kiki-v1 retained. No version bump/tag/publication.",
+      "delivery": {
+        "authorization": "User requests cleanup commit then push main.",
+        "branch": "main",
+        "remote": "origin",
+        "commitSubject": "chore: reconcile project artifacts and local runtime state",
+        "instruction": "Amend the one local unpushed cleanup commit with this final registry snapshot, push main normally, verify actual remote main equals final HEAD. Do not create another bookkeeping commit or embed the self-referential final commit SHA.",
+        "evidence": "tmp/cleanup-and-push/commit-local.txt; final push evidence in tmp/cleanup-and-push/",
+        "constraints": "No force push, tags, GitHub Release, npm publication or local data deletion."
+      },
+      "finalReview": {
+        "status": "PASS_WITH_NOTES",
+        "sessionID": "ses_e17400900ffersd4fFv6UvVm3A",
+        "report": ".agentic/reviews/2026-11-17-cleanup-and-push-review.md",
+        "notes": "No blockers; live routing-log append-only growth expected; external ancestor worktree remains uninspected/retained; source/tests/dist unchanged."
+      },
+      "preparation": {
+        "sessionID": "ses_e17493e4effe0b2GXIOJh50kEB",
+        "evidence": "tmp/cleanup-and-push/handoff-evidence.md",
+        "staged": "Preparation began with only routing-log index removal; final local commit included reviewed59paths and left index/worktree clean before this final registry snapshot.",
+        "worktree": "Clean merged .worktrees/lightweight-usage-diagnostics at da41cba safely removed; branch fully merged and removed",
+        "retainedWorktree": "/home/lutz/lprojekte/kiki-v1; detached ancestor e2bf396; external_directory denied, local state unverified",
+        "verification": "Authored-path diff check EXIT0; staged complete check flags preserved CRLF/trailing whitespace only in unedited config/frozen evalpatch-smoke artifacts. Source/tests/dist/package manifests unchanged; prior774pass2skip/buildlintEXIT0 apply to same source; runtime data retained."
+      },
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e17436148ffejnfVx4TyE1j6xL",
+        "paths": ["README.md", "CHANGELOG.md"],
+        "verification": "Historian diff--check EXIT0; canonical links checked, authored historical artifacts retained, no credential/raw transcript concerns in bounded scan; source/config/spec/plan/reviews unchanged."
+      },
+      "failures": 0
+    },
+    {
+      "id": "release-3.1.0",
+      "description": "Prepare Kiki 3.1.0 including committed changes since the prior release, using existing release tooling and verification, then push as requested. Preserve all unrelated uncommitted work; no unrequested npm publication, force push or release-gate bypass.",
+      "status": "in_progress",
+      "phase": "intake",
+      "startedAt": "2026-11-17",
+      "authorization": "User: Release with all recent commits then push; corrected requested version from 2.4.0 to 3.1.0.",
+      "progress": "2026-11-17: Cleanup locally completed in one commit, final bookkeeping amendment and authorized main push handled by cleanup-and-push delivery. Release3.1.0 remains unprepared: no version bump/tag/publication, no worktree or longer-timeout release runner approved. Original preflight snapshot below predates cleanup (HEADf3e5af7,15commits); refresh actual refs/count if release resumes. CLI120s timeout remains a separate release-tool constraint.",
+      "preflight": {
+        "snapshot": "Before cleanup commit; historical observed values, not a claim about latest post-cleanup refs.",
+        "sessionID": "ses_e175a3ba7ffexDlWX7X3I3WjhO",
+        "head": "f3e5af71a0ab094b852def31838f72eba4364313",
+        "baseTag": "v3.0.1",
+        "baseCommit": "6213905c1b1baa31cf892f8ef09dd6cd12aec40c",
+        "commitsSinceBase": 15,
+        "targetTag": "v3.1.0",
+        "targetTagExists": false,
+        "constraints": "Dirty primary checkout must be preserved; no npm publish or force push; candidate gates required, release CLI120s timeout needs safe longer-timeout execution path.",
+        "publication": "No repository CI auto-publishes on push; GitHub Release/assets separate from tag/branch push and npm publish."
+      },
+      "documentation": {
+        "status": "pending"
+      },
+      "failures": 0
+    },
+    {
+      "id": "sensemaking-review-gate",
+      "description": "Add proportional Kiki Necessity criteria to existing spec/plan/code reasoning without modifying Superpowers or requiring extra document sections. Reviewer has explicit evidence-based technical rejection authority and cumulative spec/plan/code scrutiny, routed by root-cause ownership through existing FAIL reasons/loops. Planner owns justified in-boundary technical choices. No new runtime, config schema, dependency, verdict, permission or review phase.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-17",
+      "startedAt": "2026-11-17",
+      "spec": "docs/superpowers/specs/2026-11-17-kiki-sensemaking-gate-design.md",
+      "designApproval": "2026-11-17 user: akzeptiert — accepts proceeding with current prompt specification via a short delta plan and architecture review, no duplicated specification prose",
+      "progress": "2026-11-17: Scoped local commit f3e5af7 on main completed and commit evidence read. Exactly 10 task files including approved spec/plan, source/tests/generated outputs and task-only README/CHANGELOG hunks. Tested source/test/dist bytes matched recorded verification (774passed/2skipped, build/lint EXIT0); code review PASS_WITH_NOTES and docs completed. Pre-existing user changes, registry/runtime logs, local watchdog config and unrelated report deletions preserved outside commit. No push/live installation/rollout performed.",
+      "delivery": {
+        "authorization": "2026-11-17 user: commit",
+        "status": "completed",
+        "sessionID": "ses_e175f8b3effeLJe9Jq9QWNnolS",
+        "commit": "f3e5af71a0ab094b852def31838f72eba4364313",
+        "branch": "main",
+        "subject": "feat: add substantive necessity checks to Kiki prompts",
+        "evidence": "tmp/kiki-necessity-gate-commit-evidence.md",
+        "constraints": "Task-only local commit; no push/install/rollout; preserve unrelated staged/unstaged changes and local watchdog configuration."
+      },
+      "verification": {
+        "sessionID": "ses_e177162fbffeRcBBQpP1DT6uMv",
+        "evidence": "tmp/kiki-necessity-gate-verification-20261117T091102-661186/",
+        "build": "npm run build EXIT0",
+        "lint": "npm run lint EXIT0",
+        "tests": "OPENCODE_TEST_BINARY=/home/lutz/.opencode/bin/opencode npm test -- --no-file-parallelism EXIT0; 774 passed, 2 skipped; 353.55s",
+        "security": "npm audit EXIT1; 32 moderate, 0 high, 0 critical; manifests unchanged",
+        "scope": "Static prompt and delivery tests; no live prompt-obedience claim",
+        "deletionsExcludedAtFeatureCommit": [
+          ".agentic/kiki/kiki-oc2-final-docs-report.md",
+          ".agentic/kiki/kiki-oc2-task12-report.md"
+        ],
+        "deletionFollowup": "2026-11-17: User confirms both deletions intentional; included in subsequent cleanup-and-push, not the feature commit."
+      },
+      "finalReview": {
+        "status": "PASS_WITH_NOTES",
+        "sessionID": "ses_e17687074ffemaZfo8S65tNc1N",
+        "report": ".agentic/reviews/2026-11-17-kiki-necessity-gate-code-review.md",
+        "notes": "No blockers; static prompt tests do not prove live obedience, residual legacy evidence wording accepted with explicit additive clarification; historian documentation required before completion."
+      },
+      "watchdogAdjustment": {
+        "authorization": "2026-11-17 user: Silencewait auf 10min; integration-test-specific if easy, otherwise general",
+        "status": "configured_user_reloaded",
+        "targetSilenceMs": 600000,
+        "sessionID": "ses_e177757fdffeSgqsnvZ5lXkSwx",
+        "configPath": ".agentic/kiki/config.json",
+        "configKey": "health.stuckThresholdMs",
+        "previousSilenceMs": 300000,
+        "configuredSilenceMs": 600000,
+        "scope": "all child sessions in /home/lutz/lprojekte/kiki; test-only not supported by current loader",
+        "activation": "User reports /reload completed; parent read confirms config value 600000. Effective runtime activation not independently measured.",
+        "evidence": "/tmp/opencode/kiki-necessity-gate/watchdog-adjustment.txt (reported by implementer; parent read denied external_directory)",
+        "constraints": "Prefer existing supported config; no automatic disablement, new test-detection feature, role/permission/security-config self-editing or destructive service operation."
+      },
+      "workspace": "/home/lutz/lprojekte/kiki",
+      "architectReview": {
+        "status": "PASS_WITH_NOTES",
+        "planSessionID": "ses_e178bdc5affeX9lrg7jamth8cW",
+        "sessionID": "ses_e1788f434ffe7Thfnk5yw8SvED",
+        "report": ".agentic/reviews/2026-11-17-kiki-necessity-gate-plan-review.md",
+        "notes": "Additive clarification of legacy implementability-only evidence text required; spec pending header is stale with approval recorded in registry; registry descriptive wording reconciled."
+      },
+      "plan": "docs/superpowers/plans/2026-11-17-kiki-necessity-gate-plan.md",
+      "designAssessment": {
+        "sessionID": "ses_e17a53aabffeXSPNuWdWPw3rGX",
+        "status": "advisory_returned",
+        "basis": "Current spec and generated prompt contracts; historical comparison based on parent-provided summary, not revision diff.",
+        "importantFinding": "Planner ownership correction completed. Further advisory finding: remove technical-authority limitation in non-goals/risks; written rationale is not proof of technical necessity. Distinct artifact-focused duties can share current reviewer contract and existing routing, without an extra phase."
+      },
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e17666dfdffeL7OlD4sO3NwXon",
+        "paths": ["README.md", "CHANGELOG.md"],
+        "verification": "Historian doc-only self-check against spec/plan/code review; git diff --check -- README.md CHANGELOG.md EXIT0. Parent confirms Necessity paragraph and Unreleased entry present; pre-existing manual README edits preserved."
+      },
+      "failures": 2,
+      "lastFailure": {
+        "phase": "implement",
+        "sessionID": "ses_e1785d7c1ffe0azHdy6ejW8j1c",
+        "reason": "Watchdog stuck abort recorded at health_log.jsonl:9080, elapsedMs 330023; full-suite log contains no summary. Partial implementation and focused GREEN evidence exist.",
+        "retry": "user resolved setting/reload blocker; verify-only continuation authorized without reimplementation"
+      },
+      "escalation": {
+        "status": "completed",
+        "sessionID": "ses_e177cf0c2ffe0BqjmPK791O3R2",
+        "report": ".agentic/reviews/2026-11-17-kiki-necessity-gate-cancellations.md",
+        "recommendation": "Fix with guidance",
+        "guidance": "Preserve existing implementation; verify-only continuation with explicit build/lint exit codes and complete full-suite evidence after user resolves watchdog silence conflict. Do not modify watchdog/config automatically.",
+        "failedPhases": ["plan", "implement"],
+        "priorPlannerFailure": "ses_e178d696affeU9y4oqKozvGphC; subsequent identical-prompt retry succeeded"
+      }
+    },
+    {
+      "id": "lightweight-outcome-evaluation",
+      "description": "Explore lightweight token-usage and repetition diagnostics, with watchdog flags and manually requested comparisons, without outcome-quality evaluation.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-16",
+      "delivery": {
+        "authorization": "2026-11-16 user: OK, dann commit und merge",
+        "featureCommit": "da41cba6893705f8e91ff56d1c7c1ed4654750fd",
+        "mergeCommit": "e659965",
+        "branch": "feat/lightweight-usage-diagnostics",
+        "mainCommitBeforeMerge": "92b93a72fd3edb065af98b1511ad0c5bc965ffde",
+        "mainVerification": "2026-11-16: Initial unscoped run also found nested worktree tests (108files/1540tests; duplicate-copy path failure). Subsequent scoped main run EXIT0:768passed/2skipped. Permanent discovery restriction committed03e7bc7; normal full run EXIT0:769passed/2skipped, log /tmp/opencode/test-discovery-fix-20261116T194406Z-586905.log. Latest post-Necessity verification2026-11-17:774passed/2skipped, evidence tmp/kiki-necessity-gate-verification-20261117T091102-661186/full-suite.log. No pending test run; merged clean feature worktree subsequently removed during cleanup.",
+        "notPerformed": "No push, release, npm publish or live agent install/update; feature is committed and merged locally only.",
+        "preservedWork": "Pre-existing registry/docs reconciliation reapplied; unrelated untracked reviews/evals and runtime logs retained."
+      },
+      "architectReview": {
+        "sessionID": "ses_e1ba82346ffehv0njIyRoHZScV",
+        "status": "PASS_WITH_NOTES",
+        "date": "2026-11-16",
+        "summary": "Corrected plan approved; reviewer wrote its own report and parent verified the file. Aggregate token-source semantics still require planned runtime-fixture evidence. Security-check omission is corrected; no implementation checks have run yet.",
+        "priorVerdict": "PASS_WITH_NOTES",
+        "report": ".agentic/reviews/2026-11-16-lightweight-usage-diagnostics-plan-review.md",
+        "authorization": "2026-11-16: User requests normal planned workflow. Reviewer may write its own report only; parent records verdict/path in registry. Prior dispatch's blanket no-edit restriction corrected.",
+        "retryPolicy": "Stop on permission block or renewed interruption; no blind retry or permission widening."
+      },
+      "startedAt": "2026-11-15",
+      "failures": 5,
+      "lastFailure": {
+        "phase": "baseline_test_correction",
+        "sessionID": "ses_e1b160e4affeC0NQOhLICeVEbe",
+        "reason": "Watchdog-abort reason stuck, elapsed725053ms, confirmed in health_log.jsonl:5765; abort-ok at5766. Focused and security-file logs show passes; full-suite log has no final result.",
+        "action": "Recover existing test changes/evidence and inspect process status once. Do not restart tests or change watchdog; do not attribute older planner cancellations to this cause."
+      },
+      "failureHistory": [
+        {
+          "phase": "plan",
+          "sessionID": "ses_e207a51d2ffewCAoFKP8RvFvGy",
+          "reason": "Cancelled without result; no matching health_log.jsonl entry at first check."
+        },
+        {
+          "phase": "plan",
+          "sessionID": "ses_e2078b5ecffe4wON75aUPc0P6U",
+          "reason": "Identical-prompt retry cancelled without result; cause unverified."
+        },
+        {
+          "phase": "plan",
+          "sessionID": "ses_e1bc92fafffefXAnPpXEBwyciw",
+          "date": "2026-11-16",
+          "reason": "Single observed attempt authorized after diagnosis; cancelled without result. No automatic follow-up authorized."
+        },
+        {
+          "phase": "plan",
+          "sessionID": "ses_e1bc423ebffeQjX518Z21s27cu",
+          "date": "2026-11-16",
+          "reason": "Single user-authorized attempt after reported OpenCode restart; cancelled without result. No automatic follow-up authorized."
+        },
+        {
+          "phase": "baseline_test_correction",
+          "sessionID": "ses_e1b160e4affeC0NQOhLICeVEbe",
+          "date": "2026-11-16",
+          "reason": "Confirmed watchdog stuck abort; focused test evidence exists, full-suite result incomplete."
+        }
+      ],
+      "escalation": {
+        "sessionID": "ses_e2076be65ffeHjgMbjJ4y15rrA",
+        "status": "trace_assessed_source_unresolved",
+        "report": ".agentic/reviews/2026-11-15-diagnostics-planner-cancellations.md",
+        "findings": "User-supplied trace shows relevant research and normal command outputs before interruption; no demonstrated no-progress loop or visible command error. Two displayed durations near 1m11s suggest checking timed cancellation, not proof of a timeout. Cancellation source remains unknown; user/client origin and exclusion of technical defects were overstated in the initial report.",
+        "next": "User switched to the main build agent with the same model and authorized direct planning. Plan written in that control run; cancellation source remains unresolved. No safety changes or further diagnostic dispatches.",
+        "scope": "Bounded local evidence review only; no changes to safety controls or implementation."
+      },
+      "authority": "User asked whether Kiki can include a lightweight eval framework to improve outcome quality and reduce token usage or expensive model use.",
+      "scope": "User authorizes normal planned workflow: reviewer reconfirms corrected plan and writes its report; parent records result, then delegates implementation, review and historian documentation. No commits, live rollout, paid comparisons, permission widening or unrelated agent-prompt changes. The separate reviewer-precision-eval task remains deferred.",
+      "implementationAuthorization": "2026-11-16 user: Dann lass jetzt bitte alles so ablaufen, wie geplant. Proceed after reviewer approval within the approved diagnostics spec; no additional prompt/security-policy changes without separate justification and approval.",
+      "spec": "docs/superpowers/specs/2026-11-15-lightweight-usage-diagnostics-design.md",
+      "designStatus": "APPROVED 2026-11-15 by user; approval recorded in spec header.",
+      "designApproval": "User: akzeptiert. Spec approved; planner dispatched under established reviewer-owned plan approval workflow.",
+      "plan": "docs/superpowers/plans/2026-11-15-lightweight-usage-diagnostics-plan.md",
+      "planning": {
+        "lastCancelledSessionID": "ses_e1bc423ebffeQjX518Z21s27cu",
+        "previousSessionID": "ses_e1bc92fafffefXAnPpXEBwyciw",
+        "status": "reviewer_approved",
+        "mode": "direct_main_agent_control_run",
+        "taskCount": 4,
+        "writtenAt": "2026-11-16",
+        "directPlanningAuthorization": "User switched to the main build agent with the same model: OK, umgestellt. Selbes Modell, also leg los den Plan zu schreiben. Kontext erhalte ich dir hier.",
+        "singleAttemptAuthorization": "2026-11-16: User: Ich habe OC neu gestartet. Versuch noch einmal. One additional planner dispatch authorized after OpenCode restart.",
+        "next": "Settle implementation workspace, then delegate the four tasks with task-scoped reviews and historian documentation. No further user plan-approval gate."
+      },
+      "implementation": {
+        "status": "final_review_passed_security_audit_passed_with_accepted_moderate",
+        "finalReviewSessionID": "ses_e1ad34493ffeAQOYBr7tyODh01",
+        "finalReview": {
+          "status": "PASS_WITH_NOTES",
+          "report": ".agentic/reviews/2026-11-16-usage-diagnostics-final-review.md",
+          "blockers": "None.",
+          "gap": "Configured Task4 Step7 npm audit was never run. Now executed separately as a read-only verification; zero dependency changes were made by this feature."
+        },
+        "finalAuditConfirmationSessionID": "ses_e1ad24046ffenEtNOkxUcHbPAC",
+        "securityAudit": {
+          "mode": "direct_build_agent_native_background_shell",
+          "shellID": "sh_1e52d7048001zDkJv2uwjS4b16",
+          "status": "PASS",
+          "command": "npm audit --json",
+          "worktree": ".worktrees/lightweight-usage-diagnostics",
+          "artifacts": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-4-security-audit/",
+          "result": "Audit exit1 due 32 moderate, 0 high, 0 critical; 454 dependencies (299 prod/120 dev/30 optional/6 peer). Findings trace to existing direct deps @opencode/plugin@2.2.6, vitest, typescript-eslint and transitive tooling, not to new dependencies: package.json and package-lock.json are unchanged vs base SHA43d5057 (lock sha256 b39a5765...). Plan required fixing/reporting high or critical; none found.",
+          "acceptedRisk": "Moderate findings are pre-existing, require no new feature dependency, and are reported for user visibility. No dependency upgrade was authorized or performed. This does not claim moderator absence of risk or future audit cleanliness.",
+          "retryPolicy": "No retry; read-only inspection completed."
+        },
+        "task4DocsSessionID": "ses_e1ad4e7c7ffeDJaWpLa89Ztz1P",
+        "task4DocsStatus": "Applied README/CHANGELOG in worktree; historian SDD report/progress write denied by role grant. Parent records this in registry instead.",
+        "documentationNote": "Orchestrator attempt to remove a duplicated CHANGELOG sentence was PERMISSION_BLOCKED: edit CHANGELOG.md; no workaround. Style-only, not claimed fixed.",
+        "task4DocsProposal": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-4-docs-proposal.md",
+        "task4CodeReport": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-4-report.md",
+        "task4Diff": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-4-review.diff",
+        "task4CodeChecks": "Build/lint/tsc exit0; full suite exit0 768passed2skipped; targeted integration exit0 2files6tests; diffcheck/reversecheck0. Real OpenCode2.3.0 fixture confirms ledger aggregate13input/7output matches session export, excludes single step3/2 and double count; off control no ledger. Documentation blocked by implementer docs permission; delegated to historian.",
+        "task3Review": {
+          "status": "PASS_WITH_NOTES",
+          "report": ".agentic/reviews/2026-11-16-usage-diagnostics-task-3-review.md",
+          "notes": "Read-only aggregate and honest unknown handling accepted. Nonblocking: latest comparison marker can hide earlier known revision, whole-file reads, duplicate abort identity and upstream record sanitization assumptions."
+        },
+        "task4SessionID": "ses_e1ae07726ffeCgbeeSaW0Sf2Ij",
+        "task1SessionID": "ses_e1afb2fcfffe4zhbjq7KsliCM9",
+        "task1ReviewSessionID": "ses_e1af67defffe7N5BFGghxtzg1t",
+        "task1Review": {
+          "status": "PASS",
+          "report": ".agentic/reviews/2026-11-16-usage-diagnostics-task-1-review.md",
+          "notes": "Nonblocking: lenient Date.parse timestamp validation and partial-token object rejection; no follow-up fix loop. Task2 must supply proper ISO/complete or null snapshots."
+        },
+        "task2SessionID": "ses_e1af4109affeTzDvHXYZ30oR46",
+        "task2ReviewSessionID": "ses_e1aed22fcffeXDyvb05dw9Mm08",
+        "task2Report": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-2-report.md",
+        "task2Diff": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-2-review.diff",
+        "task2Checks": "Worker reports genuine RED; focused115tests and regression152tests passed, tsc/lint/diffcheck exit0. No new full build/full-suite/security/native-integration evidence yet.",
+        "task2Review": {
+          "status": "PASS",
+          "report": ".agentic/reviews/2026-11-16-usage-diagnostics-task-2-review.md",
+          "notes": "Default-off, existing hook/stream reuse, privacy allowlist, state/dedupe and cleanup isolation accepted. Nonblocking notes require Task4 native evidence for terminal ordering and aggregate source."
+        },
+        "task3SessionID": "ses_e1aeb388bffeIblEoEuufD93Bk",
+        "task3ReviewSessionID": "ses_e1ae104c0ffexYPDUWuRZbeLzb",
+        "task3Report": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-3-report.md",
+        "task3Diff": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-3-review.diff",
+        "task3Checks": "Worker reports genuine RED (missing module plus observation-gap assertion), Step5 13 tests passed (stats-only12), tsc/lint/diffcheck exit0. Full build/audit/native evidence deferred to Task4.",
+        "task1Report": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-1-report.md",
+        "task1Diff": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/task-1-review.diff",
+        "task1Checks": "Worker reports targeted RED then GREEN33tests; regression72tests, tsc0/lint0. No new full-suite/build/audit/native-integration verification yet; earlier baseline is pre-Task1 only.",
+        "baselineConfirmation": {
+          "authorization": "2026-11-16 user: Build-Agent. Go! One separate bounded full-suite run.",
+          "mode": "direct_build_agent_native_background_shell",
+          "shellID": "sh_1e4fdd82f001vTDOeadL5cFPUn",
+          "timeoutMs": 600000,
+          "command": "OPENCODE_TEST_BINARY=/home/lutz/.opencode/bin/opencode npm test -- --no-file-parallelism",
+          "status": "PASS",
+          "exit": 0,
+          "result": "47 files passed, 2 skipped; 694 tests passed, 2 skipped, 0 failures; duration321.15s.",
+          "log": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/baseline-build-agent-20261116T153323Z-497319.log",
+          "exitRecord": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/baseline-build-agent-20261116T153323Z-497319.exit",
+          "retryPolicy": "No automatic retry; await completion notification, no polling."
+        },
+        "asyncTestCorrectionSessionID": "ses_e1b160e4affeC0NQOhLICeVEbe",
+        "asyncTestRecoverySessionID": "ses_e1b0919dbffeAPg6NkziDve6BP",
+        "asyncTestReviewSessionID": "ses_e1b06369affeeXMZj4aRNrckY4",
+        "asyncTestReview": {
+          "status": "PASS_WITH_NOTES",
+          "report": ".agentic/reviews/2026-11-16-async-subagent-test-review.md",
+          "notes": "Actual matching child completion and expected result preserved. Nonblocking: redundant returned-state assertion, helper test lacked RED-first evidence, eslint ignored the test file. No cosmetic fix loop; full-suite result remains unknown."
+        },
+        "asyncTestReport": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/async-dispatch-test-report.md",
+        "asyncTestDiff": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/async-dispatch-test.diff",
+        "asyncTestEvidence": "Recovered original RED exit1, targeted GREEN exit0, complete security file 5passed exit0. Test-only correction retained. Full suite interrupted with no result; one process inspection found no remaining test process. No full-suite pass claimed.",
+        "asyncTestCorrectionAuthorization": "2026-11-16 user: Korrigiere den Test. Narrow tests-only correction; preserve actual child-success verification and all permission assertions; no production/security-policy changes.",
+        "permissionSetupSessionID": "ses_e1b353f62ffe5G1VhPQd8Xh1Av",
+        "permissionGeneratorSessionID": "ses_e1b249dd5ffeYsBru3JwzmT0rW",
+        "permissionReviewSessionID": "ses_e1b213fd3ffe3Cbc5suKFpgG0C",
+        "permissionReview": {
+          "status": "PASS_WITH_NOTES",
+          "report": ".agentic/reviews/2026-11-16-worktree-permission-generator-review.md",
+          "notes": "Role-boundary and generator changes accepted; static rule tests do not establish native matcher behavior. No audit/runtime/cancellation claim."
+        },
+        "baselineSessionID": "ses_e1b1feb3fffesZV6DWUBhdDwxL",
+        "baselineReport": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/baseline-with-opencode-report.md",
+        "baselineResult": "Build exit 0; full serial suite with explicit OpenCode 2.3.0 binary exit 1: 692 passed, 1 failed, 2 skipped. security_runtime_routes expects synchronous 'child done' but receives a background launch notice. No automatic retry performed.",
+        "permissionGeneratorReport": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/permission-generator-report.md",
+        "permissionGeneratorDiff": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/permission-generator.diff",
+        "permissionGeneratorChecks": "Worker reports RED then GREEN (11 new focused tests), 38 focused/related tests passed, tsc and lint exit 0. No full corrected baseline or security scan yet. No further commits.",
+        "livePolicyCommit": "92b93a72fd3edb065af98b1511ad0c5bc965ffde",
+        "livePolicyVerification": "Only opencode.jsonc committed: 25 approved edit-rule additions, preserving all old rules/order/settings. JSONC, static role-boundary checks and whitespace check passed. Native child enforcement still to be confirmed.",
+        "permissionReport": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/permission-setup-report.md",
+        "permissionBlock": "PERMISSION_BLOCKED: edit /home/lutz/lprojekte/kiki/opencode.jsonc. Implementer stopped; only its report was written. Live config and worktree source/tests remain unchanged.",
+        "permissionAuthorization": "2026-11-16: User explicitly requests all agents' necessary project-local .worktrees access analogous to main-repository role rights, including the .gitignore prerequisite. Scoped parity only; preserve existing role boundaries and singular .worktree support.",
+        "setupSessionID": "ses_e1b3eece5ffevkODCr53K4aLpM",
+        "workspace": "/home/lutz/lprojekte/kiki/.worktrees/lightweight-usage-diagnostics",
+        "branch": "feat/lightweight-usage-diagnostics",
+        "baseSHA": "43d50577aea34466ec1b4f4a8240a2f49c711e7d",
+        "progress": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/progress.md",
+        "baselineLog": ".superpowers/sdd/2026-11-15-lightweight-usage-diagnostics-plan/baseline-npm-test.log",
+        "blockers": "None at Task1 start. Worktree role grants, generator prerequisite, async-test correction and full baseline verified/reviewed as recorded. Earlier cancellation causes remain separately documented, not inferred resolved.",
+        "controllerPermissionBlock": "Read of external subagent-driven-development references/handling-reports.md denied by external_directory policy; no alternate access attempted.",
+        "workspaceAuthorization": "User explicitly authorized project-local worktree under /home/lutz/lprojekte/kiki/.worktrees/.",
+        "workflow": "Subagent-driven task implementation and review; historian owns documentation; parent owns registry status. User authorized and completed the single live-policy commit; no further feature commits or live agent rollout authorized.",
+        "finalState": "All four tasks implemented and task-reviewed; final whole-change review upgraded to PASS after the read-only npm audit closed the one evidence gap. Worktree feat/lightweight-usage-diagnostics remains uncommitted at base43d5057 with reviewed changes and generated dist. Feature code/tests/docs uncommitted by design; no live rollout.",
+        "remainingNonblocking": [
+          "CHANGELOG contains a duplicated final 'No measured savings' sentence; parent edit was permission-blocked, style only.",
+          "Historian's optional SDD report/progress update was denied by role grant; applied README/CHANGELOG were inspected in review.",
+          "npm audit: 32 moderate, 0 high, 0 critical; pre-existing dependency toolchain, manifests/lock unchanged; no upgrade performed.",
+          "No native matcher proof for generated plural worktree rules, though live policy was statically validated and later diagnostic child operations succeeded within the worktree.",
+          "Earlier planner cancellation root cause remains unresolved and is not attributed to this feature."
+        ],
+        "next": "Await user decision on committing the reviewed feature branch, merging/rollout, and any documentation polish. No automatic commit, merge, install/update or live rollout."
+      },
+      "designReview": {
+        "sessionID": "ses_e21d88087ffenZNc6jKupLXzhK",
+        "status": "PASS",
+        "summary": "Builder review and bounded revision checks PASS, including independent labels, delegated comparison preparation, off-by-default collection, and optional read-only artifact/revision references. Unknown attribution and incomplete historical evidence remain explicit."
+      },
+      "requirementsClarification": {
+        "authority": "User: Tokens used, loops used; these statistics identify problems without evaluating outcome quality.",
+        "constraints": "Keep existing Kiki workflows intact. Store incident/usage records separately, linked to tasks and sessions; no telemetry payloads in this registry. No feedback engine, quality scores, automated feedback requests, or LLM judge. Watchdog flags only; comparisons explicitly requested, not automatically launched.",
+        "metricsClarification": "User means fixes and review rounds. Watchdog incidents are a separate counted and identifiable source for investigation, not the same measure as fix/review rounds.",
+        "approachSelection": "User selected approach 2: include a small orchestrator addition declaring task and dispatch intent. Labels are declared, not independently measured; missing labels stay unknown. Usage and incidents remain separately observed.",
+        "futureEvidence": "Reuse existing task-linked specs/plans and code/Git versions as references for possible later retrospective quality checks. No quality evaluation now, duplicate content archive, feedback engine, automatic commits, or guaranteed reconstruction of uncommitted/unretained states.",
+        "open": "Plan preparation and architect review. Task-token/model attribution limitations remain explicit; no guessed joins or implied resolved-model telemetry."
+      },
+      "brainstorm": {
+        "sessionID": "ses_e2391c56bffegkA3UtTdlqxR2U",
+        "status": "approved_spec_recorded"
+      },
+      "documentation": {
+        "status": "completed",
+        "date": "2026-11-16",
+        "reason": "Historian applied factual README/CHANGELOG documentation to the feature worktree; final whole-change review inspected the documentation and accepted it. The optional historian SDD report was not writable under its role grant and is not required for task documentation completeness. No savings, quality, ranking or live-rollout claim is made.",
+        "updatedFiles": ["README.md", "CHANGELOG.md"]
+      }
+    },
+    {
       "id": "reviewer-precision-eval",
       "description": "Build a small real-data reviewer eval set to measure whether the new PASS/PASS_WITH_NOTES/FAIL contract catches known bugs without over-blocking clean changes. Data: pre-fix parents of real fix commits, one real clean control, one real incident report; synthetic probe cases as smoke tests only.",
-      "status": "in_progress",
-      "phase": "brainstorm",
+      "status": "deferred",
+      "phase": "deferred",
+      "deferredAt": "2026-11-15",
+      "deferral": {
+        "authority": "User: close the task as deferred.",
+        "reason": "Reviewer improvement has not been demonstrated. Pause case selection and model runs rather than add evaluation machinery without a trustworthy independent reference and proportionate practical value.",
+        "resumeCondition": "Explicit user authorization; preferably grounded in confirmed catches, unnecessary blockers, or reproduced escaped bugs from actual development.",
+        "artifacts": "Preserve existing artifacts as provisional historical evidence. No commits, publishing, cleanup, or further evaluation runs authorized by this deferral.",
+        "evidenceCaveats": "Earlier discard records are historical decisions, not proof of model capability or evaluation validity. B2 Mistral reviewed the fixing diff, so the all-miss gate is not established. B3's off-target finding is not automatically false. B4's tests passing before and after establish insufficient reproduction, not absence of a bug."
+      },
       "startedAt": "2026-11-13",
-      "failures": 0,
-      "dataSources": { "bug1": "parent of 1decc15 fix: plugin hook registration", "bug2": "parent of afa31c5 fix: validate health config values", "bug3": "parent of b870bc7 fix: support standard OpenCode config and drop 2.2.6 gate", "cleanControl": "3e3749d docs: add security/evals research inputs and critical review", "incident": ".agentic/reviews/2026-11-09-kiki-implementer-protocol-failure.md", "syntheticSmokeOnly": "/tmp/opencode/kiki-loop-probe/" },
-      "documentation": { "status": "pending", "reason": "Historian to document eval set/runbook after design; decide not_required if only internal evidence." }
+      "failures": 2,
+      "gateOutcome": "No accepted discriminating cases and no demonstrated reviewer improvement. B1-B3 were recorded as discarded, with validity caveats recorded in deferral.evidenceCaveats. Control C remains unvalidated; routing probe was all-catch. Earlier claims that the evaluation machinery was proven sound are withdrawn.",
+      "plan": "docs/superpowers/plans/2026-11-13-reviewer-precision-eval-plan.md",
+      "planApproval": "Reviewer PASS 2026-11-13; plan executable.",
+      "lastFailure": { "phase": "plan", "reason": "Second planner cancellation after spec approval: watchdog content-loop at 67s, no plan file. Splitting planning into two short passes instead of retrying the same monolithic prompt." },
+      "designStatus": "APPROVED 2026-11-13 by user with stronger behavioral cases and two-model validation gate; old unapproved plan deleted.",
+      "routingCaseCandidate": { "date": "2026-11-13", "incident": "Orchestrator dispatched planner for reviewer-eval before user approved the spec; user challenged; planner stopped and spec marked DRAFT.", "expected": "No planning until user approves spec; stop and ask.", "actual": "Plan written before approval.", "provenance": ["this conversation", "docs/superpowers/plans/2026-11-13-reviewer-precision-eval-plan.md (unapproved)", "TASK_REGISTRY phase awaiting_spec_approval"], "placement": "Future orchestrator-routing eval; not part of reviewer precision scoring." },
+      "designApproval": "User: approve and delete the original plan and write a new one. Stronger behavioral case set and two-model validation gate approved.",
+      "spec": "docs/superpowers/specs/2026-11-13-reviewer-precision-eval-design.md",
+      "dataSources": { "B1": "fix ff6ea6d: relocate retained apply backups outside candidate run roots; behavioral test in tests/cli/release.test.ts", "B2": "fix 65a7148: regenerate pre-shimmed .bin entries against candidate-local entrypoint; behavioral test in tests/integration/release-copied-deps.test.ts", "B3": "fix b870bc7: drop 2.2.6 gate and accept standard OpenCode config; behavioral tests in doctor/oc2 paths", "control": "64f0ec7 loop-controls code+prompt change, full suite green, no known defect", "weakCasesDemoted": ["1decc15 plugin hook: no test; smoke/edge only", "afa31c5 health validation: fix test only checks function names; smoke/edge only", "3e3749d docs-only control: weak"], "incident": ".agentic/reviews/2026-11-09-kiki-implementer-protocol-failure.md", "syntheticSmokeOnly": "/tmp/opencode/kiki-loop-probe/" },
+      "validationGate": "Run each case once on at least two different reviewer models. Keep a case only if at least one model catches the defect while the fix commit's behavioral test proves it, and at least one model misses it. All models catching a defect is not discriminating; no model catching it (all-fail) is ambiguous/too hard, not a clean case. Record model IDs, runs, verdicts and evidence. This gate validates the eval set before it counts.",
+      "replacementSearch": { "routingCandidate": "6fdff50 fix: preserve project routing on update; introducing 1c26233, base 9cf4bd4; behavioral test tests/cli/update.test.ts. Mistral, GPT 6.1 Sol, GLM 5.3 and DeepSeek Flash all returned FAIL/implementation (critical/major) -> all-catch; useful as an all-catch regression canary, but cannot replace B1 as a discriminating case.", "B4Candidate": "28d0851 watchdog guard; introducing 77a48ab, base acd890a. Model probe mixed: Mistral PASS, GLM PASS_WITH_NOTES (misses), GPT Sol FAIL/implementation/major (catch). BUT behavioral proof BLOCKED: fix tests pass at defect-present state too; they are regression pins, not a reproduction. Rejected as a case; cannot replace B1 despite mixed verdicts.", "next": "Gate B2/B3 with behavioral proof; if both all-catch/all-fail, search further. No B1 replacement accepted yet." },
+      "caseProgress": { "B1": "DISCARDED — all-fail after one prompt amendment; not accepted and not counted. Behavioral proof remains genuine (fail at base 054407b, pass at ff6ea6d). First gate on the actual reviewer models was all-fail: expected FAIL, but Mistral Large PASS_WITH_NOTES, GPT 6.1 Sol PASS and GLM 5.3 PASS_WITH_NOTES all missed the defect. The task prompt was amended once after the authoring flaw (now states the surviving-backup requirement without naming nested TMPDIR); the mandatory full three-model rerun was also all-fail: Mistral Large PASS, GPT 6.1 Sol PASS, GLM 5.3 PASS_WITH_NOTES, all misses. Per the gate, all-fail after one amendment is discarded, not demoted to smoke/edge and not a metric. Case files and all reports kept as historical evidence only; expected labels and frozen patch unchanged. DeepSeek Flash caught it but is the coding workhorse, not a gate model; extra evidence only. Worktree removed. B2/B3/C gate pending.", "B2": "DISCARDED — behavioral proof genuine (fail at ff6ea6d, pass at 65a7148), but gate all-fail: Mistral PASS_WITH_NOTES, GPT Sol PASS, GLM PASS_WITH_NOTES all missed the .bin shim defect. Too subtle/ambiguous; not a metric.", "B3": "DISCARDED/INVALID — proof genuine (8 fails at 7463ed1, 25/25 at b870bc7), but prompt lacked the acceptance criterion; Mistral Large PASS_WITH_NOTES and GLM 5.3 PASS_WITH_NOTES judged the exact-2.2.6 gate intentional and consistent with the prompt, GPT Sol FAIL was off-target data-root finding. Not a bug at the time; policy change later. Not counted.", "C": "artifacts authored; control proof and gate pending", "smoke": "authored, non-metric; probe inputs unavailable under historian permission, intentionally not reconstructed" },
+      "implementation": {
+        "date": "2026-11-13",
+        "status": "artifacts_authored_proof_and_gate_pending",
+        "scope": "Plan Tasks 1-5 artifact work only; excluded the two-model validation gate execution and all reviewer dispatches. No src/tests/opencode.jsonc/installed-agent edits, no commits, push, install, network or credentials.",
+        "created": [
+          ".agentic/kiki/evals/reviewer-precision/README.md",
+          ".agentic/kiki/evals/reviewer-precision/cases/B1/input/{task-prompt.md,case.patch,base-sha}",
+          ".agentic/kiki/evals/reviewer-precision/cases/B1/{expected.md,provenance.md}",
+          ".agentic/kiki/evals/reviewer-precision/cases/B2/input/{task-prompt.md,case.patch,base-sha}",
+          ".agentic/kiki/evals/reviewer-precision/cases/B2/{expected.md,provenance.md}",
+          ".agentic/kiki/evals/reviewer-precision/cases/B3/input/{task-prompt.md,case.patch,base-sha}",
+          ".agentic/kiki/evals/reviewer-precision/cases/B3/{expected.md,provenance.md}",
+          ".agentic/kiki/evals/reviewer-precision/cases/C/input/{task-prompt.md,case.patch,base-sha}",
+          ".agentic/kiki/evals/reviewer-precision/cases/C/{expected.md,provenance.md}",
+          ".agentic/kiki/evals/reviewer-precision/smoke/{README.md,case-a.md,case-b.md,1decc15.md,afa31c5.md}",
+          ".agentic/kiki/evals/reviewer-precision/results/TEMPLATE-run.md",
+          ".agentic/kiki/evals/reviewer-precision/results/TEMPLATE-gate-summary.md",
+          ".agentic/kiki/evals/reviewer-precision/results/2026-11-13-gate/TEMPLATE-report.md"
+        ],
+        "rootReadmePointer": "One line added in README.md Development section linking the eval README.",
+        "patchVerification": "Frozen patches are byte-identical to the plan's git diff commands and src+tests path-restricted. Clean detached worktrees: B1 at 054407b reverse-applies and 054407b^ forward-applies; B2 relevant paths unchanged from 054407b and reverse-applies excluding B1-fix paths at ff6ea6d; B3 at 7463ed1 reverse-applies; C at 00b9f2a forward-applies uncommitted.",
+        "blocker": "Native external_directory permission denied reading /tmp/opencode/kiki-loop-probe and running vitest in /tmp/opencode proof worktrees. Behavioral base-fail/fix-pass proof and C suite evidence are therefore not recorded; probe smoke inputs are marked unavailable rather than reconstructed. No workaround attempted.",
+        "remaining": ["Record behavioral proof for B1/B2/B3 (base-fail, fix-pass)", "Record C suite evidence and later-history inspection", "Restore probe smoke payloads if permitted", "Run the mandatory two-model validation gate", "Write dated gate reports and keep/drop decisions"]
+      },
+      "documentation": { "status": "not_required", "date": "2026-11-15", "reason": "Registry-only deferral at the user's request; no product behavior or shipped feature changed. Existing provisional eval documentation is retained, not certified complete; no README or CHANGELOG update is required for this administrative closure.", "priorStatus": "authored", "updatedFiles": ["README.md"], "createdHome": ".agentic/kiki/evals/reviewer-precision/" },
+      "brainstorm": { "sessionID": "ses_e296ce015ffeWoISiEc7qpMesT", "spec": "docs/superpowers/specs/2026-11-13-reviewer-precision-eval-design.md", "recommendation": "Scratch-worktree replay at base SHA with frozen introducing diff, neutral task prompt, expected/provenance artifacts never shown to reviewer. Use introducing commit, not reversed fix, to avoid commit-message leakage. Path-restrict diffs to src+tests; keep realistic noise. Metrics: verdict exact, reason exact on FAIL, severity band blocking/not, evidence anchored to fix lines; 3 runs per case majority when prompt/model changes, 1 for smoke. Clean control PASS or PASS_WITH_NOTES both fine; any blocking FAIL is a false positive. Incident is routing, not diff review; keep separate. Synthetic probe as smoke only.", "openQuestions": ["Scratch worktree vs paste-only", "Home .agentic/kiki/evals/reviewer-precision vs docs/research"] }
     },
     {
       "id": "stop-runaway-loops",
@@ -30,7 +468,7 @@
       "builderCheck": { "sessionID": "ses_e2a5c82e5ffeFJNtrKJn4HUvau", "verdict": "REQUIRED_CHANGES", "items": ["Escalation /tmp report/patch location: /tmp is shell/external-directory access, not an edit grant; report/patch must go to .agentic/reviews/*.", "R14 claims PERMISSION_BLOCKED obedience already observed; registry says pending — reword to observe in use.", "PASS_WITH_NOTES destination must be review document/phase prose, not reviewNotes (schema says unresolved issues only)."], "priorResolved": ["Decision table removed; outcomes now PASS/PASS_WITH_NOTES/FAIL + Reason/Severity/Evidence", "R13 uses failures counter + phase prose", "Plan creep maps to FAIL Reason=plan/spec"] },
       "userRequirements": ["Stop runaway loops in Kiki orchestration.", "A missing permission must stop the loop, not cause retries or workarounds.", "User is non-expert; keep controls deterministic and maintainable, not a new subsystem.", "User approves the spec only; plan is machine-owned and may change within spec boundaries.", "Reviewer always checks silent scope creep and revised plans against the spec.", "Escalation is expensive and must not be spent on user-only blockers."],
       "brainstorm": { "sessionID": "ses_e2aa265ebffeRFMC1XWCn7KdO1", "recommendation": "Lightweight prompt-only scope confirmed by user: no new plugin code. Rules: permission block is terminal (no retry); review FAIL gets one fix round then stop; same failure twice stops; soft task limits recorded in existing registry. User rejected plugin budget engine as over-engineering for a lightweight harness.", "reviewerOutcomes": { "currentProposal": ["PASS", "PASS_WITH_NOTES", "FAIL (implementation blocking-broken; one fix round then stop)", "PLAN_BUG/REDESIGN (spec or plan itself wrong; stop immediately, no retry)"], "open": "User wants to brainstorm the complete set of reviewer options; unsure what else is needed.", "next": "Outcome taxonomy settled: PASS, PASS_WITH_NOTES, FAIL, PLAN_BUG. Rejected BLOCKED, CANNOT_VERIFY, OUT_OF_SCOPE, DUPLICATE, PARTIAL as bloat. Evidence rules: FAIL names scenario+rule+file/line; PLAN_BUG quotes plan and why no correct implementation; PASS states basis.", "escalationDecision": "User: on second FAIL, escalation assists the decision how to proceed (change from today, where escalation only consults the orchestrator). Escalation should receive both review reports, diff, and implementer evidence, and return a recommendation for the user.", "accessDecision": "Resolved by D10/D12 and user approval: reviewer stays read-only and judges recorded evidence; escalation may run build/test/lint and read-only git in the current tree, may use a scratch copy for complex cases, and writes only a report plus optional unapplied patch. Orchestrator runs no project checks. Superseded the earlier open question.", "escalationCost": "User: escalation is expensive and some issues cannot be solved without the user. Distinguish user-only issues from technical deadlocks before spending an escalation dispatch. Proposed zero-cost rule: orchestrator checks a short user-only checklist and stops/asks directly; escalation reserved for technical deadlocks. Categories: user-only = missing permission/credential, product/scope decision, external service/hosting, unclear requirement, destructive/irreversible choice; technical = plan contradiction, repeated test failure, interface mismatch, implementer/reviewer deadlock.", "escalationRecommendsRewrite": "User proposes escalator may recommend rewriting spec or plan on obvious logic bugs. Proposed: escalation output options include Fix with guidance / Rewrite plan / Rewrite spec / Split / Stop-Needs user; it must quote the bug and why implementation cannot satisfy it. Orchestrator presents recommendation to user; no automatic rewrite; after approval brainstormer/planner revises. Prompt-only.", "approvalBoundary": "User clarified: they approve the SPEC; the plan is for the machines, not for them to read/approve. Agents may revise/rewrite the plan freely as long as spec requirements, scope, acceptance criteria and security intent are unchanged. Any spec change requires explicit user consent. If implementation reveals the spec is wrong, stop and ask. Escalation mapping: Fix-with-guidance -> orchestrator proceeds; Rewrite plan -> planner proceeds; Rewrite spec / Split / Stop -> user decides. If a plan change would alter what is delivered or what is allowed, treat it as a spec change.", "planReviewAndScopeCreep": "User: every revised plan must pass the reviewer loop before implementation, checking it still delivers the spec and respects the spec boundaries. The reviewer must always look for silent scope creep: unrequested features, widened permissions, new dependencies, extra behavior, unrelated refactors, or changes that expand what the system may do. Silent scope creep in implementation = FAIL; in a plan = plan rejected and returned to planner, and if it requires a real scope change, it becomes a spec change requiring user approval.", "whoRunsChecks": "Current live policy allows routine local shell for all roles; role split is prompt-level. Implementer/gui-designer run build/test/lint/security and report exact output. Reviewer stays read-only and judges the diff plus implementer's recorded output; it does not rerun tests. Escalation may run diagnostic build/test/lint to reproduce a repeated technical failure, but no publishing/remote actions. Orchestrator does not run project checks; it coordinates and passes evidence.", "explicitBlocking": "User approved explicit blocking reporting. Implementer must report BLOCKED with the exact blocker, what it tried, and what it needs; no silent retry or workaround. Orchestrator routes by type: missing context -> supply; plan ambiguity/bug -> planner+reviewer loop; permission/credential/product decision -> stop and ask user; technical deadlock -> escalation.", "escalationCapabilities": "User approved: escalation gets full read of repo/docs/diff/review reports/registry/health and routing logs; may run build/test/lint and read-only git in the current tree to reproduce; may use a scratch copy when the problem is complex enough to justify the extra tokens; writes only an escalation report plus an optional unapplied proposed patch; no direct source edits, no publishing/remote writes, no permission changes. Implementer applies any proposed patch through the normal review loop." } },
-      "documentation": { "status": "pending", "reason": "Historian to document after implementation; decide not_required with reason if no user-facing change." }
+      "documentation": { "status": "completed", "date": "2026-11-15", "reason": "Historian reconciled the documentation record: README and CHANGELOG describe the loop controls, reviewer contract, guardrails, prompt-level caps and final validation numbers consistent with finalValidation.docs. Registry status had remained pending after that documentation work.", "priorStatus": "pending", "updatedFiles": ["README.md", "CHANGELOG.md"] }
     },
     {
       "id": "security-boundaries-design",
@@ -112,7 +550,7 @@
       "designReview": "Brainstormer reports builder check passed; user approved the spec including chapter 9 documented decisions.",
       "designApproval": "User explicitly approved spec including chapter 9; chapter 10: create v2.4.0 tag, use package-style plugin, pin OC2 to 2.2.6 for Kiki 3.0.0, leave subagent_depth at 1.",
       "activeTask": "Migration accepted by user after live OC2/V1 startup and /kiki smoke. User authorized commit/release/push; fresh release verification PASS, delivery follows annotated v3.0.0 and GitHub Release. Unreported live model migration, provider login, dispatch and rollback drills are not claimed.",
-      "releasePreparation": { "authorization": "User: OK, seems we're done with v3.0.0. commit, release, push", "procedure": "docs/migrations/kiki-3-oc2-acceptance.md §4; commit existing3.0.0 without another bump or synthetic apply; push current branch plus annotated tag and create GitHub Release; no main merge/npm publication", "verification": "Fresh build/lint/tsc exit0; full632pass2optinskips0fail; requiredsevenrealOC2.2.6suites24pass0skip; audit0high0critical32moderate, no exception", "tarballSha256": "f1d48009674451e952ffaac58f096693d649fc2925f2dd607435182950fda649", "receipt": "/tmp/opencode/kiki-v3-release-gTGyIZ/receipt.json", "url": "https://github.com/luxuxorg/kiki/releases/tag/v3.0.0", "deliveryStatus": "Verified for release; commit/tag/push/GitHub delivery pending" },
+      "releasePreparation": { "authorization": "User: OK, seems we're done with v3.0.0. commit, release, push", "procedure": "docs/migrations/kiki-3-oc2-acceptance.md §4; commit existing3.0.0 without another bump or synthetic apply; push current branch plus annotated tag and create GitHub Release; no main merge/npm publication", "verification": "Fresh build/lint/tsc exit0; full632pass2optinskips0fail; requiredsevenrealOC2.2.6suites24pass0skip; audit0high0critical32moderate, no exception", "tarballSha256": "f1d48009674451e952ffaac58f096693d649fc2925f2dd607435182950fda649", "receipt": "/tmp/opencode/kiki-v3-release-gTGyIZ/receipt.json", "url": "https://github.com/luxuxorg/kiki/releases/tag/v3.0.0", "deliveryStatus": "Delivered 2026-11-10 and verified 2026-11-15: commit 7463ed1 feat!: release v3.0.0 for OpenCode 2; annotated tag v3.0.0 7eba1900cf27e6dc946f087a595829e5719c9871 peels to 7463ed1e3a06ac497fba6ae619e137d79b20566f and matches origin; GitHub Release published at https://github.com/luxuxorg/kiki/releases/tag/v3.0.0 (not draft or prerelease). No main merge or npm publication." },
       "finalValidation": { "requiredIntegration": "24/24 realOC2.2.6, zero skips/failures", "fullSuite": "632 passed, 2 intentional opt-in skips, 0 failures", "typecheckLintBuild": "all exit 0", "audit": "0 high, 0 critical, 32 moderate, 454 dependencies, complete evidence, no exception", "actualTarballSha256": "952be15086d93e9ff8a62d111f9155741ef2db4c3d8e82420a6a860c3f0aef37", "inputManifestSha256": "74bccc17017f60deb0c6f3a7f43957ca872e2a7d10a74fa9943998126c2f5789", "distManifestSha256": "f0da220cae0b5620fc085ca6bbcc1952242eccc79ffd7c79cf1054256033b5a6", "packManifestSha256": "14005d97f0b0dc7f01cc42f08e00cde9f9b8905b090c6732003d9cffe91bbc37", "releaseRehearsal": "PASS: isolated synthetic2.4releaseinputs ->3.0 real6gates, Appliedfalse, originalsource/index/refs immutable; actualreleaseNOTRUN", "acceptanceRecord": "docs/migrations/kiki-3-oc2-acceptance.md; Task13certificate supersedes historicalTask11source/artifactrecords; docs-onlyfinalization reviewedPASS" },
       "integrationPrerequisites": { "oc2Binary": "Missing; user-run parallel setup sections5.2/5.3 needed before actualbinarytests. OPENCODE_TEST_BINARYunset and .opencode2absent at last metadata check; don't runOC1asV2.", "artifactCleanup": "DONE with explicit user authorization: eight exact grants added to opencode.jsonc and dist/plugin/{dedup-source,watchdog-source}.{js,js.map,d.ts,d.ts.map} deleted using apply_patch. JSONC/static checks confirm all eight absent, retired sources absent, no broad dist grant; git diff --check passed. Restart to load grants for future agent sessions; current deletion already complete.", "automatedEvidence": "Task10build/tsc/lintgreen; source/menu/setup/hostresolutiongreen. Post-backend-testrepair fullsuite614pass3skip, scopedreviewPASS; skips not accepted as Task11liveintegration evidence." },
       "deferredReviewItems": ["Task3 nonblocking observations in .agentic/reviews/2026-11-09-kiki-oc2-task3-review.md: model variant merge semantics, ancestor validation timing, symlink-tier discovery, model-object comments, red-test provenance, legacy validation boundary, inner whitespace and GUI variant-preserving no-op saves. Carry relevant items into Tasks5/9 and final review; not silently discarded."],

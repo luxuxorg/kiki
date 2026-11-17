@@ -1,0 +1,1509 @@
+diff --git a/src/cli/config.ts b/src/cli/config.ts
+index 3387254..97dc35a 100644
+--- a/src/cli/config.ts
++++ b/src/cli/config.ts
+@@ -424,6 +424,46 @@ function renderPermissions(rules: PermissionRule[]): string {
+ const PERMISSION_BLOCK_PROMPT =
+   'Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
+ 
++// Every generated agent prompt carries this exact fixed baseline. It is a
++// literal, deliberately not derived from the active project's alignment.json
++// at generation time (the generators have no project root), and it matches
++// DEFAULT_ALIGNMENT one-to-one; R15 keeps the two from drifting apart.
++const ALIGNMENT_GUARDRAIL_PROMPT =
++  'Project guardrails (non-negotiable; source: .agentic/kiki/alignment.json): Never hardcode secrets in source code. Use parameterized statements for every database query. Never leak internal stack traces in API responses. If a guardrail cannot be satisfied, stop and report it; do not work around it.';
++
++// Shared builder contract for the implementer and gui-designer. Both run the
++// project's configured checks and hand the exact evidence to the reviewer and
++// historian; the reviewer judges that evidence instead of rerunning commands.
++// Blocking is explicit and terminal: no silent retry or workaround, and no
++// unilateral spec/plan edits.
++function buildBuilderHandoffPrompt(commands: KikiConfig['commands']): string {
++  return `## Verification and Handoff
++Run all four configured checks and record the exact command, exit status, and complete output (stdout and stderr), including failure output, in the handoff to the reviewer and historian:
++- Build: \`${commands.build}\`
++- Test: \`${commands.test}\`
++- Lint: \`${commands.lint}\`
++- Security: \`${commands.security}\`
++Never claim a check passed without its recorded output. When done, append the Implementation Summary and changed files to the handoff for the reviewer and historian.
++
++## Explicit Blocking
++If you cannot proceed, stop and report BLOCKED:
++\`\`\`
++BLOCKED
++Blocker: <the exact blocker>
++Tried: <what you tried>
++Need: <what you need to proceed>
++\`\`\`
++Do not silently retry, do not work around the blocker, and do not edit the spec or plan on your own. Report BLOCKED to the orchestrator and stop. A permission block takes priority: report \`PERMISSION_BLOCKED: <command>\` and stop instead of retrying or substituting another command.
++
++## Change Safety
++- Before starting, record the current project state:
++  1. Run \`git diff > /tmp/kiki-tracked-before.patch\` to capture tracked changes.
++  2. Run \`git ls-files --others --exclude-standard > /tmp/kiki-untracked-before.txt\` to capture existing untracked files.
++- Do NOT use \`git clean -fd\` at any point — it could delete user files.
++- If build, test, lint, or security still fails and you cannot fix it within this task, stop and report BLOCKED; do not start another autonomous retry loop, do not run a blanket checkout or reset, and preserve existing and user changes. Use the pre-change inventory to remove only new untracked files you created.
++- On success, you may delete \`/tmp/kiki-tracked-before.patch\` and \`/tmp/kiki-untracked-before.txt\`.`;
++}
++
+ function buildHistorianResponsibilities(p: KikiPaths): string {
+   const lines: string[] = [
+     `1. **README:** Keep \`${p.readme}\` current with project description, setup instructions, and feature list.`,
+@@ -452,7 +492,7 @@ ${renderPermissions(perms)}
+ You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
+ 
+ ## Your Role
+-Dispatch the correct subagent via the \`subagent\` tool. Do not write code, implementation files, docs, or run commands. The only direct file edit you may perform is updating \`${p.taskRegistry}\` for task state, phase transitions, and failure counts. Agent models and permissions are configured in global/project \`opencode.json\` or \`opencode.jsonc\` and resolved by OpenCode.
++Dispatch the correct subagent via the \`subagent\` tool. Do not write code, implementation files, docs, or run commands. The only direct file edit you may perform is updating \`${p.taskRegistry}\` for task state, phase transitions, and failure counts. Agent models and permissions are configured in global/project \`opencode.json\` or \`opencode.jsonc\` and resolved by OpenCode. You run no project checks: do not run build, test, lint, or security commands yourself. Pass the recorded evidence from builders to the reviewer and escalation.
+ 
+ ## Dispatch Rules
+ - UI/frontend/visual/layout/component/design task → @kiki-gui-designer
+@@ -461,7 +501,7 @@ Dispatch the correct subagent via the \`subagent\` tool. Do not write code, impl
+ - Planning phase → @kiki-planner
+ - Review phase → @kiki-reviewer
+ - Documentation decision required → dispatch @kiki-historian unless the registry explicitly records \`documentation.status: "not_required"\` with a concrete reason.
+-- Failure diagnosis → @kiki-escalation
++- Failure diagnosis → @kiki-escalation, only for a technical deadlock.
+ 
+ ## Process
+ 1. **Intake:** Ask clarifying questions one at a time until requirements are clear.
+@@ -473,6 +513,61 @@ Dispatch the correct subagent via the \`subagent\` tool. Do not write code, impl
+ 7. **Document:** Dispatch \`kiki-historian\` to update \`${p.readme}\`, \`${p.changelog}\`, and project docs.
+ 8. **Complete:** Update \`${p.taskRegistry}\` with the task status and any failure metrics.
+ 
++## Ownership
++The user approves the spec. Plans are machine-owned: you may accept a revised plan, or dispatch the planner to revise one, only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged. Changing what is delivered or what is allowed is a spec change and requires explicit user approval. If implementation reveals that the spec itself is wrong, stop and ask the user.
++Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes.
++
++## Routing Review Verdicts
++Route by the reviewer's Reason before retrying or escalating:
++- **PASS** / **PASS_WITH_NOTES** → accept; record the notes in the review document and the task's phase/progress prose (never \`reviewNotes\`); no follow-up.
++- **FAIL + Reason \`implementation\`** → exactly one fix round: dispatch the original builder (implementer or gui-designer) with the FAIL evidence, then dispatch \`kiki-reviewer\` to re-review. The fix round increments the task's numeric \`failures\` field.
++- **FAIL + Reason \`plan\`** → no fix round. Dispatch \`kiki-planner\` to revise the plan, then the reviewer loop; implementation resumes only after the revised plan passes. A second technical plan failure is a deadlock, not an unlimited planner loop.
++- **FAIL + Reason \`spec\`** → stop and ask the user. The spec is user-owned; a spec change requires explicit user approval.
++- **FAIL + Reason \`user-decision\`** → stop and ask the user directly. Do not dispatch escalation.
++- **FAIL + Reason \`environment/permission\`** → terminal: no retry, no workaround. Keep the \`PERMISSION_BLOCKED\` no-retry override; a missing credential or unreachable service stops for the user.
++
++## Second FAIL, Same Failure Twice, and Escalation
++On the second FAIL of the same task, or when the same failure happens twice, stop automatic work and classify the cause before spending escalation: user-only or technical.
++- Treat \`user-decision\` and \`environment/permission\` reasons as user-only.
++- When the Reason is technical (\`implementation\` or \`plan\`) but the failure pattern is user-only, ask the user anyway. Consult the user-only checklist: missing permission/credential, product or scope decision, external service/hosting, unclear requirement, destructive or irreversible choice, including ostensibly technical failures caused by a credential.
++- Only a **technical deadlock** may dispatch \`kiki-escalation\`, at most once per task.
++- Do not reset the failure counter after a plan revision or an escalation dispatch.
++
++## Handling Empty or Failed Subagent Results
++A dispatch fails when the subagent returns empty output or cannot complete.
++Terminal dispatch outcomes are never retried with the same prompt:
++- a \`BLOCKED\` report,
++- a \`PERMISSION_BLOCKED\` report,
++- a FAIL routed to the planner or the user.
++
++1. Only a non-BLOCKED empty or failed dispatch result is retried: retry once with the same prompt and increment \`failures\`.
++   - **Permission block override:** if a subagent reports \`PERMISSION_BLOCKED: <command>\`, do not retry; report the blocked command and stop.
++2. A second non-terminal empty or failed result is classified like a FAIL above (user-only or technical); never retry a third time.
++3. **Never block silently.**
++
++## BLOCKED Routing
++When a builder reports BLOCKED with \`Blocker:\`, \`Tried:\`, \`Need:\`, route by type; never blindly resend the same BLOCKED prompt:
++- Missing context → supply it.
++- Plan ambiguity or plan bug → dispatch \`kiki-planner\`, then the reviewer loop.
++- Permission, credential, or product decision → stop and ask the user.
++- Technical deadlock → the one-escalation limit above.
++
++## Escalation Recommendations
++Present the escalation recommendation to the user before doing anything; nothing is rewritten automatically. Once accepted:
++- **Fix with guidance** → proceed with the fix; no plan or spec change.
++- **Rewrite plan** → dispatch \`kiki-planner\`; the revised plan passes the reviewer loop before implementation resumes.
++- **Rewrite spec** → dispatch \`kiki-brainstormer\`; the revised spec requires explicit user approval.
++- **Split** → the user decides, then dispatch \`kiki-planner\`.
++- **Stop-needs-user** → the user decides.
++
++## Loop Caps and Recording
++- At most one eligible dispatch retry (only for non-terminal empty/failed results).
++- At most two review rounds per task, with the one implementation fix round between them.
++- One escalation per task.
++- The same failure twice stops automatic work.
++- Dispatch retries and fix rounds increment the existing numeric \`failures\` field; review rounds, escalation use, and notes are summarized in the task's phase/progress prose. Add no new registry counters or schema fields.
++- The 30-minute dispatch timeout and watchdog thresholds remain the wall-clock backstop. A token/wall-clock budget engine is deferred, not rejected.
++
+ ## Key Rules
+ - Always dispatch the correct **kiki subagent** via \`subagent\`.
+ - Every dispatch MUST include the target \`agent\` ID and a 3–5-word \`description\`.
+@@ -480,18 +575,11 @@ Dispatch the correct subagent via the \`subagent\` tool. Do not write code, impl
+ - Subagents MUST NOT dispatch other subagents; nested delegation is forbidden (\`experimental.subagent_depth\` is 1).
+ - **NEVER** do implementation, spec, plan, review, or documentation work yourself.
+ - Update the task registry after every phase transition.
+-- Never hardcode secrets or log sensitive data.
++- Do not repeat the guardrail block or paste the raw \`.agentic/kiki/alignment.json\` contents in dispatch payloads; every agent system prompt already carries the block.
+ - Never set a task to \`completed\` while \`documentation.status\` is \`pending\`. Resolve \`documentation.status\` to \`completed\` or \`not_required\` before marking the task complete.
+-- If a task fails twice, dispatch \`kiki-escalation\`.
+-
+-## Handling Empty or Failed Subagent Results
+-A dispatch fails when the subagent returns empty output, cannot complete, tests fail after 3 retries, or exceeds 30 minutes.
+-
+-1. **Retry once** with the same prompt.
+-   - **Permission block override:** if a subagent reports \`PERMISSION_BLOCKED: <command>\`, do not retry; report the blocked command and stop.
+-2. Before dispatching \`kiki-escalation\`, log the failure in \`${p.taskRegistry}\`, increment the failure counter, and include the failed phase and reason.
+-3. **Never block silently.**
+ ${PERMISSION_BLOCK_PROMPT}
++
++${ALIGNMENT_GUARDRAIL_PROMPT}
+ `;
+ }
+ 
+@@ -511,6 +599,8 @@ You are the Kiki Brainstormer. Your job is to produce design specs and explore r
+ 3. Write the spec to \`${p.specs}YYYY-MM-DD-<topic>-design.md\`.
+ 4. You do NOT write source code. Only design docs.
+ ${PERMISSION_BLOCK_PROMPT}
++
++${ALIGNMENT_GUARDRAIL_PROMPT}
+ `;
+ }
+ 
+@@ -530,6 +620,9 @@ You are the Kiki Planner. Your job is to write detailed implementation plans.
+ 3. Write the plan to \`${p.plans}YYYY-MM-DD-<topic>-plan.md\`.
+ 4. You do NOT write source code. Only plans.
+ 
++## Ownership
++The user approves the spec. Plans are machine-owned: you may revise or rewrite a plan only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged. Changing what is delivered or what is allowed is a spec change and requires explicit user approval. If implementation reveals that the spec itself is wrong, stop and ask the user.
++
+ ## Task Metadata
+ Every task must include a **Metadata** subsection with:
+ 
+@@ -545,6 +638,8 @@ Example:
+ - depends_on: ['Task 1', 'Task 2']
+ \`\`\`
+ ${PERMISSION_BLOCK_PROMPT}
++
++${ALIGNMENT_GUARDRAIL_PROMPT}
+ `;
+ }
+ 
+@@ -567,20 +662,10 @@ You are the Kiki Implementer. Implement code strictly per the approved plan.
+ - Use \`process.env\` for configuration, never hardcode secrets.
+ - Report hardcoded secrets to the reviewer but do not commit them.
+ 
+-## Rollback Safety
+-- Before starting, record the current project state so a failed implementation can be reverted safely:
+-  1. Run \`git diff > /tmp/kiki-tracked-before.patch\` to capture tracked changes.
+-  2. Run \`git ls-files --others --exclude-standard > /tmp/kiki-untracked-before.txt\` to capture existing untracked files.
+-- Do NOT use \`git clean -fd\` at any point — it could delete user files.
+-- If build/test/lint/security fail after all retries:
+-  1. Revert tracked changes: \`git checkout -- .\`
+-  2. Delete only new untracked files created during this implementation. Read \`/tmp/kiki-untracked-before.txt\` and remove any untracked file not listed there.
+-  3. Report the failure to the orchestrator.
+-- On success, you may delete \`/tmp/kiki-tracked-before.patch\` and \`/tmp/kiki-untracked-before.txt\`.
+-
+-## Handoff
+-When done, append a short **Implementation Summary** (3–5 sentences + changed files) for the reviewer and historian.
++${buildBuilderHandoffPrompt(config.commands)}
+ ${PERMISSION_BLOCK_PROMPT}
++
++${ALIGNMENT_GUARDRAIL_PROMPT}
+ `;
+ }
+ 
+@@ -593,7 +678,15 @@ ${renderPermissions(perms)}
+ ---
+ 
+ You are the Kiki GUI Designer. You own UI/UX design and implementation end-to-end. Load the \`ui-ux-pro-max\` skill for design intelligence, the \`executing-plans\` skill for plan execution discipline, the \`test-driven-development\` skill for implementation, and the \`systematic-debugging\` skill for when things break. Follow all four exactly. Produce both design direction and working frontend code. Do not split visual work from implementation.
++
++## Rules
++- Do the work yourself; do not dispatch skills to another subagent.
++- You do NOT modify specs or plans.
++
++${buildBuilderHandoffPrompt(config.commands)}
+ ${PERMISSION_BLOCK_PROMPT}
++
++${ALIGNMENT_GUARDRAIL_PROMPT}
+ `;
+ }
+ 
+@@ -604,26 +697,44 @@ description: Kiki Reviewer — read-only code and security review
+ mode: subagent
+ ${renderPermissions(perms)}
+ ---
+-You are the Kiki Reviewer. Review code against the approved plan.
++You are the Kiki Reviewer. Review code against the approved plan and spec.
+ 
+ ## Instructions
+ 1. **Load \`receiving-code-review\` or \`requesting-code-review\` skill** as appropriate and follow it **inline**.
+ 2. Do the work yourself; do not dispatch the skill to another subagent.
+ 3. You do NOT write code.
+-4. **Read the actual code diff**, not just the Implementation Summary.
++4. **Read the actual code diff or plan**, not just the Implementation Summary. For a plan review, compare the plan against the approved spec and quote the plan passages your verdict depends on. For a code review, compare the actual diff against the plan and spec.
++5. Judge the diff or plan plus the recorded evidence. Do not rerun build, test, lint, or security checks; judge the exact command output the implementer recorded. Missing or unverifiable evidence follows the downgrade rule below.
++6. Write the review document to \`.agentic/reviews/*\` in the active project and return its path with the verdict. Do not edit the plan or spec, and do not append verdicts to the plan; you have no plan edit grant.
++
++## Review Contract
++Report exactly one verdict, from exactly three: PASS, PASS_WITH_NOTES, or FAIL. There is no fourth verdict and no separate plan-bug verdict; anything else the reviewer wants to say is a field of a FAIL.
+ 
+ ## Checklist
+-- **Security scan:** The implementer must have run \`commands.security\` and fixed or reported high/critical findings.
+-- **Linting compliance:** The implementer must have run \`commands.lint\` and fixed all issues. No lint warnings or errors remain in changed files.
++- **Build:** The implementer must have run \`commands.build\` and recorded the exact command, exit status, and complete output. A failing build blocks.
++- **Tests:** The implementer must have run \`commands.test\` and recorded the exact command, exit status, and complete output, including failure output. Failing tests block.
++- **Security scan:** The implementer must have run \`commands.security\` and recorded the exact command, exit status, and complete output, fixing or reporting high/critical findings.
++- **Linting compliance:** The implementer must have run \`commands.lint\` and recorded the exact command, exit status, and complete output. No lint warnings or errors remain in changed files.
+ - **Parallelization logic:** No circular \`depends_on\` chains, all references exist, parallel tasks do not modify the same files, sequential tasks are correctly ordered.
+ 
++## Standing Checks
++- **Scope creep:** In every review, actively look for unrequested features, widened permissions, new dependencies, extra behavior beyond the task, unrelated refactors, and violations of the project guardrails. Creep in the implementation is FAIL, Reason \`implementation\`. Creep in a plan is FAIL, Reason \`plan\`, with the offending passage quoted, back to the planner (never a fix round). A genuine need to expand scope is a spec change and requires explicit user approval.
++- **Alignment:** In every review, read the active project's \`.agentic/kiki/alignment.json\` fresh and compare the diff against all of its guardrails, including custom rules beyond the fixed baseline block in this prompt; checking only this prompt block is insufficient. A guardrail violation is FAIL, Reason \`implementation\`, Severity \`critical\` — never minor — with complete file/line evidence. Use Reason \`spec\` instead when the spec itself demands the violation. If the fixed block and the active file conflict, use Reason \`spec\` and stop for a user decision; never silently prefer either. \`OWASP Top 10\` and \`SOC 2 Type II\` are project context only, not diff-checkable requirements; never claim or imply that a change achieves or advances certification.
++
+ ## Output Format
+-\`\`\`
+-Verdict: PASS | FAIL
+-Blockers:
+-1. <if FAIL, numbered blockers>
+-\`\`\`
++Verdict: PASS | PASS_WITH_NOTES | FAIL
++
++- **PASS** states \`Basis:\` — what was checked, against what.
++- **PASS_WITH_NOTES** states \`Basis:\` plus \`Notes:\` — concrete, non-blocking findings. Notes go in the review document and the task's phase/progress prose, never in \`reviewNotes\` (reserved for unresolved issues only).
++- **FAIL** carries, per blocking item:
++  - \`Reason: implementation | plan | spec | user-decision | environment/permission\`
++  - \`Severity: critical | major | minor\`
++  - \`Evidence:\` the scenario, the violated rule or requirement, and the file/line. For Reason \`plan\` or \`spec\`, Evidence instead quotes the faulty passage and explains why no implementation can satisfy it.
++- **Downgrade rule:** minor items and items whose evidence is incomplete become notes, not blockers, whatever their Reason. A FAIL stands only if at least one critical or major item with complete evidence remains; otherwise report PASS_WITH_NOTES. Unverifiable findings become notes, never a fourth verdict.
++- \`BLOCKED\` is the implementer's report format, not a reviewer verdict.
+ ${PERMISSION_BLOCK_PROMPT}
++
++${ALIGNMENT_GUARDRAIL_PROMPT}
+ `;
+ }
+ 
+@@ -634,19 +745,33 @@ description: Kiki Escalation — diagnoses failures and recommends next steps
+ mode: subagent
+ ${renderPermissions(perms)}
+ ---
+-You are the Kiki Escalation Agent. Diagnose why the pipeline failed.
++You are the Kiki Escalation Agent. Diagnose why the pipeline failed. You are dispatched at most once per task, only for a technical deadlock.
++
++## Inputs
++Read both review reports (plan review and code review), the actual diff, and the implementer's recorded build/test/lint/security evidence. On request, you may also read the task registry, health log, and routing log.
+ 
+ ## Instructions
+-1. Read the task registry, routing log, and git history.
+-2. **Load the \`systematic-debugging\` superpowers skill** and follow it **inline**.
+-3. Do the work yourself; do not dispatch the skill to another subagent.
+-4. Recommend exactly one of:
+-   - **Redesign:** Start over with a new plan.
+-   - **Split:** Break into smaller sub-tasks.
+-   - **Stop:** Recommend cancellation.
++1. **Load the \`systematic-debugging\` superpowers skill** and follow it **inline**.
++2. Do the work yourself; do not dispatch the skill to another subagent.
++3. You may reproduce the failure by running build, test, lint, and read-only git commands in the current tree. When the case justifies the extra tokens, you may create and use a scratch copy under \`/tmp/opencode\` through routine shell and the existing external-directory access; never use the edit tool for it.
++4. Write exactly one escalation report, plus at most one optional proposed patch left **unapplied**, and only into \`.agentic/reviews/*\` (your only edit grant).
++5. Do not edit source or any other file, do not publish, perform remote writes, or change permissions. These are prompt-level restrictions, not mechanical permission denial: the shell baseline still allows routine local commands, so the transcript is the backstop. The edit grant limited to \`.agentic/reviews/*\` is the one mechanical restriction.
++6. Diagnose; do not apply or publish fixes. An approved patch is applied by the implementer through the normal review loop.
++
++## Recommendations
++Return exactly one of these five recommendations:
++1. **Fix with guidance**
++2. **Rewrite plan**
++3. **Rewrite spec**
++4. **Split**
++5. **Stop-needs-user**
++
++A \`Rewrite plan\` or \`Rewrite spec\` recommendation must quote the faulty plan/spec passage and explain why no implementation can satisfy it.
+ 
+ Be honest and direct. Do not try to "save" a failing task.
+ ${PERMISSION_BLOCK_PROMPT}
++
++${ALIGNMENT_GUARDRAIL_PROMPT}
+ `;
+ }
+ 
+@@ -670,6 +795,8 @@ ${responsibilities}
+ - Use the **Implementation Summary** from the implementer as your primary input. Read changed files only if needed.
+ - When updating CHANGELOG, follow Keep a Changelog format (Added, Changed, Fixed, Removed, Security).
+ ${PERMISSION_BLOCK_PROMPT}
++
++${ALIGNMENT_GUARDRAIL_PROMPT}
+ `;
+ }
+ 
+@@ -681,7 +808,7 @@ export function generateWorkflowTemplate(config: KikiConfig): string {
+   const docExtraStr = docExtras.length > 0 ? ', plus ' + docExtras.join(', ') : '';
+   return `# Kiki Workflow
+ 
+-This document describes the Kiki software engineering pipeline enforced by the orchestrator agent.
++This document describes the Kiki software engineering pipeline coordinated by the orchestrator agent. These loop controls are prompt-level guidance carried by the generated agent prompts: apart from the unchanged permission arrays they are not mechanically enforced, and the transcript remains the backstop.
+ 
+ ## Pipeline Phases
+ 
+@@ -695,13 +822,15 @@ The orchestrator dispatches the \`kiki-brainstormer\` subagent. The brainstormer
+ The orchestrator dispatches the \`kiki-planner\` subagent. The planner loads the superpowers \`writing-plans\` skill inline and produces an implementation plan at \`${p.plans}...\`. Tasks in the plan include metadata: \`risk\`, \`parallel\`, and \`depends_on\`.
+ 
+ ### 4. Architect Review
+-The orchestrator dispatches \`kiki-reviewer\` for architect review of the plan against \`.agentic/kiki/alignment.json\` guardrails. The reviewer appends an inline verdict to the plan document. The plan must pass this gate before implementation begins.
++The orchestrator dispatches \`kiki-reviewer\` for architect review of the plan against the approved spec and its guardrails. The reviewer reads the active project's \`.agentic/kiki/alignment.json\` fresh in every review, including custom rules beyond the fixed baseline, and writes its review to \`.agentic/reviews/*\`; it never appends a verdict to the plan. The plan must pass this gate before implementation begins. Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes.
+ 
+ ### 5. Implement
+ The orchestrator dispatches the appropriate implementation subagent via the \`subagent\` tool. UI/frontend/visual/layout/component/design tasks route to \`kiki-gui-designer\`, which loads \`ui-ux-pro-max\`, \`executing-plans\`, \`test-driven-development\`, and \`systematic-debugging\` skills inline. All other tasks (backend/logic/data/tooling) route to \`kiki-implementer\`, which loads \`executing-plans\` and \`test-driven-development\` skills inline. Either agent implements the tasks per the plan.
+ 
+ ### 6. Review
+-The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-review\` inline and verifies plan adherence, security, code quality, test coverage, and parallelization logic. An inline verdict is appended to the plan.
++The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-review\` inline and verifies plan adherence, security, code quality, test coverage, and parallelization logic. It judges the diff and the recorded evidence without rerunning build/test/lint/security. It performs the standing scope-creep check and the standing alignment check, reads the active project's \`.agentic/kiki/alignment.json\` fresh in every review, and writes its review with the verdict to \`.agentic/reviews/*\`.
++
++The reviewer reports exactly one verdict: Verdict: PASS | PASS_WITH_NOTES | FAIL. There is no binary or fourth verdict. PASS and PASS_WITH_NOTES state \`Basis:\`, and PASS_WITH_NOTES adds concrete, non-blocking \`Notes:\` that go in the review document and the task's phase/progress prose, never in \`reviewNotes\`. FAIL carries, per blocking item, \`Reason: implementation | plan | spec | user-decision | environment/permission\`, \`Severity: critical | major | minor\`, and \`Evidence:\` — the scenario, the violated rule or requirement, and the file/line; plan or spec reasons instead quote the faulty passage and explain why no implementation can satisfy it. Minor items and items whose evidence is incomplete downgrade to notes.
+ 
+ ### 7. Document
+ The orchestrator dispatches the \`kiki-historian\` subagent to update \`${p.readme}\`, \`${p.changelog}\`, and any project docs in \`${p.docs}*\` (excluding \`${p.superpowers}*\`)${docExtraStr}.
+@@ -709,6 +838,33 @@ The orchestrator dispatches the \`kiki-historian\` subagent to update \`${p.read
+ ### 8. Complete
+ The orchestrator updates \`${p.taskRegistry}\` with the task status and any failure metrics.
+ 
++## Ownership and Revised Plans
++The user approves the spec. Plans are machine-owned: the planner may revise or rewrite a plan only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged. Changing what is delivered or what is allowed is a spec change and requires explicit user approval. If implementation reveals that the spec itself is wrong, work stops and the user is asked.
++Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes. A second technical plan failure is a deadlock, not an unlimited planner loop.
++
++## Orchestrator Routing and Loop Caps
++The orchestrator routes each review verdict by its Reason before retrying or escalating:
++- PASS / PASS_WITH_NOTES → accept and record notes; no follow-up.
++- FAIL/\`implementation\` → exactly one fix round with the original builder, then re-review.
++- FAIL/\`plan\` → the planner revises; no fix round.
++- FAIL/\`spec\` or FAIL/\`user-decision\` → stop and ask the user.
++- FAIL/\`environment/permission\` → terminal: no retry, no workaround.
++
++On a second FAIL or the same failure twice, the orchestrator stops automatic work and classifies user-only versus technical before spending escalation. It consults the user-only checklist — missing permission/credential, product or scope decision, external service/hosting, unclear requirement, destructive or irreversible choice — including ostensibly technical failures caused by a credential. Only a technical deadlock dispatches escalation, at most once per task.
++
++Terminal dispatch outcomes are never retried with the same prompt: a \`BLOCKED\` report, a \`PERMISSION_BLOCKED\` report, and a FAIL routed to the planner or the user. Only a non-BLOCKED empty or failed dispatch result is retried once with the same prompt.
++
++Caps: at most one eligible dispatch retry, at most two review rounds per task with the one implementation fix round between them, one escalation per task, and the same failure twice stops. Dispatch retries and fix rounds increment the existing numeric \`failures\` counter; review rounds, escalation use, and notes are summarized in the task's phase/progress prose. No new registry counters or schema fields are added. The 30-minute dispatch timeout and watchdog thresholds remain the wall-clock backstop; a token/wall-clock budget engine is deferred, not rejected.
++
++## BLOCKED Routing
++When a builder reports \`BLOCKED\` with \`Blocker:\`, \`Tried:\`, and \`Need:\`, the orchestrator routes by type and never blindly resends the same BLOCKED prompt: missing context is supplied; plan ambiguity or a plan bug goes to the planner and the reviewer loop; a permission, credential, or product decision stops for the user; a technical deadlock follows the one-escalation limit.
++
++## Who Runs Checks
++The implementer and gui-designer run build, test, lint, and the security scan, and report the exact command output in their handoff. The reviewer does not rerun them; it judges the diff plus the recorded evidence. Escalation may reproduce a repeated technical failure within its contract. The orchestrator runs no project checks; it coordinates and passes the recorded evidence to the reviewer and escalation.
++
++## Escalation
++Escalation is dispatched at most once per task, only for a technical deadlock. It returns exactly one recommendation: Fix with guidance, Rewrite plan, Rewrite spec, Split, or Stop-needs-user. A rewrite recommendation quotes the faulty plan or spec passage and why no implementation can satisfy it. The orchestrator presents the recommendation to the user before acting; nothing is rewritten automatically. Rewrite plan goes to the planner and the reviewer loop; Rewrite spec goes to the brainstormer and requires explicit user approval; Split is decided by the user, then the planner; Stop-needs-user is decided by the user. Escalation writes one report and at most one optional unapplied patch to \`.agentic/reviews/*\`; it does not edit source, publish, perform remote writes, or change permissions.
++
+ ## Task Registry Schema
+ 
+ TASK_REGISTRY entries use the descriptive schema:
+diff --git a/tests/cli/install.test.ts b/tests/cli/install.test.ts
+index b8f301a..6914152 100644
+--- a/tests/cli/install.test.ts
++++ b/tests/cli/install.test.ts
+@@ -15,6 +15,17 @@ const AGENTS = [
+   'kiki-gui-designer', 'kiki-reviewer', 'kiki-escalation', 'kiki-historian',
+ ];
+ 
++// The pinned §3 guardrail block. This delivery test asserts the installed
++// copies carry it verbatim exactly once, matching the generated templates.
++const GUARDRAIL_BLOCK =
++  'Project guardrails (non-negotiable; source: .agentic/kiki/alignment.json): Never hardcode secrets in source code. Use parameterized statements for every database query. Never leak internal stack traces in API responses. If a guardrail cannot be satisfied, stop and report it; do not work around it.';
++
++const REVIEWER_CONTRACT_LINE = 'Verdict: PASS | PASS_WITH_NOTES | FAIL';
++
++function bodyCount(text: string, marker: string): number {
++  return text.split(marker).length - 1;
++}
++
+ function filesUnder(directory: string): string[] {
+   if (!existsSync(directory)) return [];
+   return readdirSync(directory, { withFileTypes: true })
+@@ -58,6 +69,128 @@ describe('global installation CLI', () => {
+     expect(existsSync(join(global, 'kiki/agentic-workflow.md'))).toBe(true);
+   });
+ 
++  it('installs_loop_control_prompts_for_all_eight_roles', async () => {
++    await install([]);
++
++    for (const name of AGENTS) {
++      const file = join(global, 'agents', `${name}.md`);
++      const { prompt } = parseAgent(readFileSync(file, 'utf8'), file);
++      expect(bodyCount(prompt, GUARDRAIL_BLOCK), `${name}: guardrail block exactly once`).toBe(1);
++    }
++
++    const reviewerFile = join(global, 'agents', 'kiki-reviewer.md');
++    const reviewer = parseAgent(readFileSync(reviewerFile, 'utf8'), reviewerFile).prompt;
++    expect(reviewer, 'reviewer: three-verdict contract').toContain(REVIEWER_CONTRACT_LINE);
++    expect(reviewer, 'reviewer: no binary verdict').not.toContain('Verdict: PASS | FAIL');
++    expect(reviewer, 'reviewer: fresh active alignment read').toContain(
++      "read the active project's `.agentic/kiki/alignment.json` fresh",
++    );
++
++    const workflow = readFileSync(join(global, 'kiki/agentic-workflow.md'), 'utf8');
++    expect(workflow, 'workflow: three-verdict contract').toContain(REVIEWER_CONTRACT_LINE);
++    expect(workflow, 'workflow: Reason categories').toContain(
++      '`Reason: implementation | plan | spec | user-decision | environment/permission`',
++    );
++    expect(workflow, 'workflow: Severity levels').toContain(
++      '`Severity: critical | major | minor`',
++    );
++    expect(workflow, 'workflow: Evidence field').toContain('`Evidence:`');
++    expect(workflow, 'workflow: fresh active alignment read').toContain(
++      "reads the active project's `.agentic/kiki/alignment.json` fresh in every review",
++    );
++  });
++
++  it('updates_stale_prompt_bodies_without_changing_native_settings', async () => {
++    // A deliberate native reviewer restriction and model override, as in the
++    // existing preservation fixture; update must leave both untouched.
++    mkdirSync(global, { recursive: true });
++    writeFileSync(join(global, 'opencode.jsonc'), `{
++  "agents": {
++    "kiki-reviewer": {
++      "model": { "providerID": "custom", "model": "reviewer-model" },
++      "permissions": [
++        { "action": "edit", "resource": "src/**", "effect": "deny" }
++      ]
++    }
++  }
++}`);
++
++    await install([]);
++
++    const nativeBefore = readOpenCodeSettings(global, true).agents['kiki-reviewer'];
++    expect(nativeBefore).toEqual({
++      model: { providerID: 'custom', model: 'reviewer-model' },
++      permissions: [{ action: 'edit', resource: 'src/**', effect: 'deny' }],
++    });
++
++    const recorded: Record<string, {
++      settings: Record<string, unknown>;
++      permissions: unknown;
++      mode: unknown;
++      hasModel: boolean;
++    }> = {};
++    for (const name of AGENTS) {
++      const file = join(global, 'agents', `${name}.md`);
++      const text = readFileSync(file, 'utf8');
++      const { settings } = parseAgent(text, name);
++      recorded[name] = {
++        settings,
++        permissions: settings.permissions,
++        mode: settings.mode,
++        hasModel: 'model' in settings,
++      };
++
++      const match = text.match(/^((?:---\r?\n[\s\S]*?\r?\n---\r?\n))([\s\S]*)$/);
++      expect(match, `${name}: frontmatter retained`).not.toBeNull();
++      writeFileSync(file, `${match![1]}STALE_BODY_MARKER_${name}\n`);
++    }
++
++    await update([]);
++
++    for (const name of AGENTS) {
++      const file = join(global, 'agents', `${name}.md`);
++      const { settings, prompt } = parseAgent(readFileSync(file, 'utf8'), file);
++      expect(prompt, `${name}: stale body replaced`).not.toContain(`STALE_BODY_MARKER_${name}`);
++      expect(bodyCount(prompt, GUARDRAIL_BLOCK), `${name}: guardrail block exactly once`).toBe(1);
++      expect(settings, `${name}: native settings unchanged`).toEqual(recorded[name].settings);
++      expect(settings.permissions, `${name}: permissions unchanged`).toEqual(recorded[name].permissions);
++      expect(settings.mode, `${name}: mode unchanged`).toBe(recorded[name].mode);
++      expect('model' in settings, `${name}: model presence unchanged`).toBe(recorded[name].hasModel);
++    }
++
++    expect(readOpenCodeSettings(global, true).agents['kiki-reviewer']).toEqual(nativeBefore);
++
++    const reviewerFile = join(global, 'agents', 'kiki-reviewer.md');
++    const reviewer = parseAgent(readFileSync(reviewerFile, 'utf8'), reviewerFile).prompt;
++    expect(reviewer, 'reviewer: three-verdict contract').toContain(REVIEWER_CONTRACT_LINE);
++    expect(reviewer, 'reviewer: fresh active alignment read').toContain(
++      "read the active project's `.agentic/kiki/alignment.json` fresh",
++    );
++
++    const orchestratorFile = join(global, 'agents', 'kiki-orchestrator.md');
++    const orchestrator = parseAgent(readFileSync(orchestratorFile, 'utf8'), orchestratorFile).prompt;
++    expect(orchestrator, 'orchestrator: reason routing').toContain(
++      "Route by the reviewer's Reason before retrying or escalating",
++    );
++    expect(orchestrator, 'orchestrator: implementation fix round').toContain(
++      '**FAIL + Reason `implementation`** → exactly one fix round',
++    );
++
++    const workflow = readFileSync(join(global, 'kiki/agentic-workflow.md'), 'utf8');
++    expect(workflow, 'workflow: fresh active alignment read').toContain(
++      "reads the active project's `.agentic/kiki/alignment.json` fresh in every review",
++    );
++
++    const afterFirstUpdate = Object.fromEntries(
++      filesUnder(global).map(file => [file, readFileSync(file, 'utf8')]),
++    );
++    await update([]);
++    const afterSecondUpdate = Object.fromEntries(
++      filesUnder(global).map(file => [file, readFileSync(file, 'utf8')]),
++    );
++    expect(afterSecondUpdate).toEqual(afterFirstUpdate);
++  });
++
+   it('accepts repeated install/update without changing files or duplicating registration', async () => {
+     await install([]);
+     const before = Object.fromEntries(filesUnder(global).map(file => [file, readFileSync(file, 'utf8')]));
+diff --git a/tests/cli/loop-controls.test.ts b/tests/cli/loop-controls.test.ts
+new file mode 100644
+index 0000000..28a0756
+--- /dev/null
++++ b/tests/cli/loop-controls.test.ts
+@@ -0,0 +1,869 @@
++import { describe, it, expect } from 'vitest';
++import { readFileSync } from 'node:fs';
++import {
++  DEFAULT_ALIGNMENT,
++  DEFAULT_CONFIG,
++  KikiConfig,
++  generateOrchestratorTemplate,
++  generateBrainstormerTemplate,
++  generatePlannerTemplate,
++  generateImplementerTemplate,
++  generateGuiDesignerTemplate,
++  generateReviewerTemplate,
++  generateEscalationTemplate,
++  generateHistorianTemplate,
++  generateWorkflowTemplate,
++} from '../../src/cli/config';
++
++// The eight agent generators, keyed as the generated template names. The
++// workflow generator is deliberately excluded: it is not an agent prompt.
++const roleGenerators: Record<string, (config: KikiConfig) => string> = {
++  orchestrator: generateOrchestratorTemplate,
++  brainstormer: generateBrainstormerTemplate,
++  planner: generatePlannerTemplate,
++  implementer: generateImplementerTemplate,
++  guiDesigner: generateGuiDesignerTemplate,
++  reviewer: generateReviewerTemplate,
++  escalation: generateEscalationTemplate,
++  historian: generateHistorianTemplate,
++};
++
++const expectedRoles = [
++  'orchestrator',
++  'brainstormer',
++  'planner',
++  'implementer',
++  'guiDesigner',
++  'reviewer',
++  'escalation',
++  'historian',
++];
++
++const customConfig: KikiConfig = {
++  ...DEFAULT_CONFIG,
++  projectName: 'custom-project',
++  commands: {
++    build: 'custom-build',
++    test: 'custom-test',
++    lint: 'custom-lint',
++    security: 'custom-security',
++  },
++  paths: {
++    ...DEFAULT_CONFIG.paths,
++    source: 'backend/',
++    tests: 'spec/',
++    docs: 'documentation/',
++    superpowers: 'documentation/superpowers/',
++    specs: 'documentation/superpowers/specs/',
++    plans: 'documentation/superpowers/plans/',
++    changelog: 'HISTORY.md',
++    readme: 'ABOUT.md',
++    decisions: 'documentation/DECISIONS.md',
++    knowledge: 'knowledge/',
++    taskRegistry: '.agentic/custom-tasks.json',
++  },
++};
++
++// The pinned §3 block. Written as one literal so the test fails if any word
++// changes; the parts below are used to extract and compare the rule sentences.
++const GUARDRAIL_BLOCK_PREFIX =
++  'Project guardrails (non-negotiable; source: .agentic/kiki/alignment.json):';
++
++const GUARDRAIL_STOP_RULE =
++  'If a guardrail cannot be satisfied, stop and report it; do not work around it.';
++
++const GUARDRAIL_BLOCK =
++  'Project guardrails (non-negotiable; source: .agentic/kiki/alignment.json): Never hardcode secrets in source code. Use parameterized statements for every database query. Never leak internal stack traces in API responses. If a guardrail cannot be satisfied, stop and report it; do not work around it.';
++
++// Exact ordered guardrail list of the fixed baseline (DEFAULT_ALIGNMENT and
++// this repository's .agentic/kiki/alignment.json).
++const EXPECTED_GUARDRAIL_SOURCES = [
++  'No hardcoded secrets in source code',
++  'All database queries must use parameterized statements',
++  'API responses must not leak internal stack traces',
++];
++
++// Explicit three-pair mapping: each fixed-baseline guardrail to its sentence
++// in the pinned block. Neither side may drift from the other (R15).
++const GUARDRAIL_CORRESPONDENCE: ReadonlyArray<readonly [string, string]> = [
++  [EXPECTED_GUARDRAIL_SOURCES[0], 'Never hardcode secrets in source code.'],
++  [EXPECTED_GUARDRAIL_SOURCES[1], 'Use parameterized statements for every database query.'],
++  [EXPECTED_GUARDRAIL_SOURCES[2], 'Never leak internal stack traces in API responses.'],
++];
++
++function bodyOf(template: string): string {
++  const match = template.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
++  if (!match) throw new Error('missing frontmatter');
++  return match[2];
++}
++
++function guardrailBlockOf(body: string): string {
++  const start = body.indexOf(GUARDRAIL_BLOCK_PREFIX);
++  expect(start, 'guardrail block present').toBeGreaterThanOrEqual(0);
++  return body.slice(start, start + GUARDRAIL_BLOCK.length);
++}
++
++function guardrailPartsOf(block: string): { rules: string[]; stopRule: string } {
++  if (!block.startsWith(GUARDRAIL_BLOCK_PREFIX)) throw new Error('missing guardrail prefix');
++  const parts = block.slice(GUARDRAIL_BLOCK_PREFIX.length).trim().split('. ');
++  if (parts.length !== 4) throw new Error(`unexpected guardrail sentence count: ${parts.length}`);
++  return {
++    rules: parts.slice(0, 3).map(sentence => `${sentence}.`),
++    stopRule: parts[3],
++  };
++}
++
++const CONFIGS = [
++  ['default', DEFAULT_CONFIG],
++  ['custom', customConfig],
++] as const;
++
++describe('reviewer report contract', () => {
++  it('R1_reviewer_has_exact_three_verdicts_and_fail_fields', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateReviewerTemplate(config));
++
++      const verdictLines = body
++        .split('\n')
++        .map(line => line.trim())
++        .filter(line => line.startsWith('Verdict:'));
++      expect(verdictLines, `${label}: exactly one verdict line`).toEqual([
++        'Verdict: PASS | PASS_WITH_NOTES | FAIL',
++      ]);
++      expect(body, `${label}: no binary verdict`).not.toContain('Verdict: PASS | FAIL');
++      expect(body, `${label}: no fourth verdict vocabulary`).not.toMatch(
++        /PLAN_BUG|PARTIAL|OUT_OF_SCOPE|DUPLICATE|CANNOT_VERIFY/,
++      );
++
++      expect(body, `${label}: Reason labels`).toContain(
++        'Reason: implementation | plan | spec | user-decision | environment/permission',
++      );
++      expect(body, `${label}: Severity labels`).toContain(
++        'Severity: critical | major | minor',
++      );
++      expect(body, `${label}: Evidence label`).toContain('Evidence:');
++      expect(body, `${label}: fields are per blocking item`).toContain('per blocking item');
++    }
++  });
++
++  it('R2_reviewer_requires_complete_evidence_and_downgrades', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateReviewerTemplate(config));
++
++      expect(body, `${label}: scenario evidence`).toContain('the scenario');
++      expect(body, `${label}: violated rule evidence`).toContain(
++        'the violated rule or requirement',
++      );
++      expect(body, `${label}: file/line evidence`).toContain('the file/line');
++      expect(body, `${label}: plan/spec evidence quotes the fault`).toContain(
++        'quotes the faulty passage and explains why no implementation can satisfy it',
++      );
++      expect(body, `${label}: plan review cites the spec and quoted plan passages`).toContain(
++        'For a plan review, compare the plan against the approved spec and quote the plan passages your verdict depends on.',
++      );
++      expect(body, `${label}: code review cites the actual diff`).toContain(
++        'For a code review, compare the actual diff against the plan and spec.',
++      );
++
++      expect(body, `${label}: minor items downgrade`).toContain(
++        'minor items and items whose evidence is incomplete become notes',
++      );
++      expect(body, `${label}: no blockers without complete evidence`).toContain(
++        'A FAIL stands only if at least one critical or major item with complete evidence remains; otherwise report PASS_WITH_NOTES.',
++      );
++      expect(body, `${label}: unverifiable is a note`).toContain(
++        'Unverifiable findings become notes, never a fourth verdict.',
++      );
++      expect(body, `${label}: BLOCKED is not a verdict`).toContain(
++        "`BLOCKED` is the implementer's report format, not a reviewer verdict.",
++      );
++    }
++  });
++
++  it('R3_reviewer_records_basis_and_nonblocking_notes', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateReviewerTemplate(config));
++
++      expect(body, `${label}: PASS states its basis`).toContain('**PASS** states `Basis:`');
++      expect(body, `${label}: PASS_WITH_NOTES states its basis and notes`).toContain(
++        '**PASS_WITH_NOTES** states `Basis:` plus `Notes:`',
++      );
++      expect(body, `${label}: notes are concrete and non-blocking`).toContain(
++        'concrete, non-blocking findings',
++      );
++      expect(body, `${label}: notes go to the review document`).toContain('review document');
++      expect(body, `${label}: notes go to phase/progress prose`).toContain(
++        'phase/progress prose',
++      );
++      expect(body, `${label}: notes never use reviewNotes`).toContain(
++        'never in `reviewNotes`',
++      );
++      expect(body, `${label}: reviews live in the review directory`).toContain(
++        '.agentic/reviews/*',
++      );
++      expect(body, `${label}: reviewer does not edit the plan`).toContain(
++        'Do not edit the plan or spec',
++      );
++    }
++  });
++
++  it('R9_reviewer_checks_silent_scope_creep', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateReviewerTemplate(config));
++      const workflow = generateWorkflowTemplate(config);
++
++      expect(body, `${label}: standing creep list`).toContain(
++        'unrequested features, widened permissions, new dependencies, extra behavior beyond the task, unrelated refactors, and violations of the project guardrails',
++      );
++      expect(body, `${label}: implementation creep routes to implementation`).toContain(
++        'Creep in the implementation is FAIL, Reason `implementation`.',
++      );
++      expect(body, `${label}: plan creep quotes the passage`).toContain(
++        'Creep in a plan is FAIL, Reason `plan`, with the offending passage quoted',
++      );
++      expect(body, `${label}: genuine scope expansion needs the user`).toContain(
++        'A genuine need to expand scope is a spec change and requires explicit user approval.',
++      );
++
++      expect(workflow, `${label}: workflow names the standing scope check`).toContain(
++        'standing scope-creep check',
++      );
++      expect(workflow, `${label}: workflow names the review location`).toContain(
++        '.agentic/reviews/',
++      );
++      expect(workflow, `${label}: workflow does not append verdicts to plans`).not.toContain(
++        'appends an inline verdict to the plan',
++      );
++      expect(workflow, `${label}: workflow does not append verdicts to plans`).not.toContain(
++        'inline verdict is appended to the plan',
++      );
++    }
++  });
++
++  it('R16_reviewer_checks_alignment_without_certification_claims', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateReviewerTemplate(config));
++      const workflow = generateWorkflowTemplate(config);
++
++      expect(body, `${label}: reads the active alignment fresh`).toContain(
++        "read the active project's `.agentic/kiki/alignment.json` fresh",
++      );
++      expect(body, `${label}: includes custom rules`).toContain(
++        'including custom rules beyond the fixed baseline block in this prompt',
++      );
++      expect(body, `${label}: prompt block alone is insufficient`).toContain(
++        'checking only this prompt block is insufficient',
++      );
++      expect(body, `${label}: violations are never minor`).toContain('never minor');
++      expect(body, `${label}: violations route to implementation`).toContain(
++        'Reason `implementation`',
++      );
++      expect(body, `${label}: spec-demanded violations use spec reason`).toContain(
++        'Reason `spec` instead when the spec itself demands the violation',
++      );
++      expect(body, `${label}: fixed-block conflict stops for the user`).toContain(
++        'If the fixed block and the active file conflict, use Reason `spec` and stop for a user decision; never silently prefer either.',
++      );
++      expect(body, `${label}: compliance labels are context only`).toContain(
++        '`OWASP Top 10` and `SOC 2 Type II` are project context only, not diff-checkable requirements',
++      );
++      expect(body, `${label}: no certification claims`).toContain(
++        'never claim or imply that a change achieves or advances certification',
++      );
++      expect(body, `${label}: complete file/line evidence`).toContain(
++        'complete file/line evidence',
++      );
++
++      expect(workflow, `${label}: workflow names the fresh active-file read`).toContain(
++        "reads the active project's `.agentic/kiki/alignment.json` fresh in every review",
++      );
++      expect(workflow, `${label}: workflow names the standing alignment check`).toContain(
++        'standing alignment check',
++      );
++    }
++  });
++});
++
++describe('planner ownership', () => {
++  it('R7_planner_respects_spec_ownership', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generatePlannerTemplate(config));
++
++      expect(body, `${label}: user owns the spec`).toContain('The user approves the spec.');
++      expect(body, `${label}: plans are machine-owned within the spec`).toContain(
++        "Plans are machine-owned: you may revise or rewrite a plan only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged.",
++      );
++      expect(body, `${label}: delivery or permission changes are spec changes`).toContain(
++        'Changing what is delivered or what is allowed is a spec change and requires explicit user approval.',
++      );
++      expect(body, `${label}: a wrong spec stops for the user`).toContain(
++        'If implementation reveals that the spec itself is wrong, stop and ask the user.',
++      );
++    }
++  });
++});
++
++describe('builder evidence handoff and explicit blocking', () => {
++  const builderRoles = ['implementer', 'guiDesigner'] as const;
++
++  it('R10_builders_report_exact_output_reviewer_does_not_rerun', () => {
++    for (const [label, config] of CONFIGS) {
++      const expectedCommands = [
++        config.commands.build,
++        config.commands.test,
++        config.commands.lint,
++        config.commands.security,
++      ];
++
++      for (const role of builderRoles) {
++        const body = bodyOf(roleGenerators[role](config));
++
++        for (const command of expectedCommands) {
++          expect(body, `${label} ${role}: configured command ${command}`).toContain(
++            `\`${command}\``,
++          );
++        }
++        expect(body, `${label} ${role}: exact command`).toContain('exact command');
++        expect(body, `${label} ${role}: complete output`).toContain(
++          'complete output (stdout and stderr), including failure output',
++        );
++        expect(body, `${label} ${role}: exit status`).toContain('exit status');
++        expect(body, `${label} ${role}: handoff to reviewer and historian`).toContain(
++          'handoff to the reviewer and historian',
++        );
++        expect(body, `${label} ${role}: implementation summary`).toContain(
++          'Implementation Summary',
++        );
++        expect(body, `${label} ${role}: changed files`).toContain('changed files');
++      }
++
++      const reviewer = bodyOf(generateReviewerTemplate(config));
++      expect(reviewer, `${label}: reviewer does not rerun checks`).toContain(
++        'Do not rerun build, test, lint, or security checks',
++      );
++      expect(reviewer, `${label}: reviewer judges the diff and recorded evidence`).toContain(
++        'Judge the diff or plan plus the recorded evidence.',
++      );
++      expect(reviewer, `${label}: reviewer uses the recorded command output`).toContain(
++        'judge the exact command output the implementer recorded',
++      );
++      for (const placeholder of [
++        'commands.build',
++        'commands.test',
++        'commands.lint',
++        'commands.security',
++      ]) {
++        expect(reviewer, `${label}: reviewer checklist names ${placeholder}`).toContain(
++          placeholder,
++        );
++      }
++    }
++  });
++
++  it('R11_builders_define_BLOCKED_without_silent_workaround', () => {
++    for (const [label, config] of CONFIGS) {
++      for (const role of builderRoles) {
++        const body = bodyOf(roleGenerators[role](config));
++
++        expect(body, `${label} ${role}: BLOCKED report`).toContain('BLOCKED');
++        expect(body, `${label} ${role}: Blocker field`).toContain('Blocker:');
++        expect(body, `${label} ${role}: Tried field`).toContain('Tried:');
++        expect(body, `${label} ${role}: Need field`).toContain('Need:');
++        expect(body, `${label} ${role}: stop and report`).toContain('stop and report BLOCKED');
++        expect(body, `${label} ${role}: report and stop`).toContain(
++          'Report BLOCKED to the orchestrator and stop.',
++        );
++        expect(body, `${label} ${role}: no silent retry`).toContain('Do not silently retry');
++        expect(body, `${label} ${role}: no workaround`).toContain(
++          'do not work around the blocker',
++        );
++        expect(body, `${label} ${role}: no unilateral spec or plan edits`).toContain(
++          'do not edit the spec or plan on your own',
++        );
++        expect(body, `${label} ${role}: permission block priority`).toContain(
++          'A permission block takes priority',
++        );
++      }
++    }
++  });
++
++  it('builder_prompts_do_not_authorize_unbounded_retries_or_destructive_rollback', () => {
++    const prohibited = [
++      'after all retries',
++      'tests fail after 3 retries',
++      'git checkout -- .',
++    ];
++
++    for (const [label, config] of CONFIGS) {
++      for (const role of expectedRoles) {
++        const body = bodyOf(roleGenerators[role](config));
++        for (const phrase of prohibited) {
++          expect(body, `${label} ${role}: rejects "${phrase}"`).not.toContain(phrase);
++        }
++      }
++
++      const workflow = generateWorkflowTemplate(config);
++      for (const phrase of prohibited) {
++        expect(workflow, `${label} workflow: rejects "${phrase}"`).not.toContain(phrase);
++      }
++
++      for (const role of builderRoles) {
++        const body = bodyOf(roleGenerators[role](config));
++        expect(body, `${label} ${role}: tracked-state inventory retained`).toContain(
++          '/tmp/kiki-tracked-before.patch',
++        );
++        expect(body, `${label} ${role}: untracked-state inventory retained`).toContain(
++          '/tmp/kiki-untracked-before.txt',
++        );
++        expect(body, `${label} ${role}: git clean prohibition retained`).toContain(
++          'Do NOT use `git clean -fd`',
++        );
++        expect(body, `${label} ${role}: pre-change inventory retained`).toContain(
++          'pre-change inventory',
++        );
++      }
++    }
++  });
++});
++
++function sectionOf(body: string, heading: string): string {
++  const start = body.indexOf(heading);
++  if (start < 0) throw new Error(`missing section: ${heading}`);
++  const rest = body.slice(start + heading.length);
++  const next = rest.search(/\n## /);
++  return next < 0 ? rest : rest.slice(0, next);
++}
++
++function jsonBlockAfter(workflow: string, heading: string): string {
++  const start = workflow.indexOf(heading);
++  if (start < 0) throw new Error(`missing heading: ${heading}`);
++  const fenceStart = workflow.indexOf('```json', start);
++  if (fenceStart < 0) throw new Error(`missing json block after: ${heading}`);
++  const contentStart = workflow.indexOf('\n', fenceStart) + 1;
++  const fenceEnd = workflow.indexOf('```', contentStart);
++  if (fenceEnd < 0) throw new Error(`unterminated json block after: ${heading}`);
++  return workflow.slice(contentStart, fenceEnd);
++}
++
++describe('orchestrator routing, ownership, and caps', () => {
++  it('R4_orchestrator_routes_reasons_before_retry_or_escalation', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateOrchestratorTemplate(config));
++
++      expect(body, `${label}: routing happens before retry/escalation`).toContain(
++        "Route by the reviewer's Reason before retrying or escalating",
++      );
++      expect(body, `${label}: PASS variants accept`).toContain(
++        '**PASS** / **PASS_WITH_NOTES** → accept',
++      );
++      expect(body, `${label}: PASS variants have no follow-up`).toContain('no follow-up');
++
++      expect(body, `${label}: implementation becomes one fix round`).toContain(
++        '**FAIL + Reason `implementation`** → exactly one fix round',
++      );
++      expect(body, `${label}: one fix round goes to original builder`).toContain(
++        'original builder (implementer or gui-designer)',
++      );
++      expect(body, `${label}: one fix round carries FAIL evidence`).toContain(
++        'FAIL evidence',
++      );
++      expect(body, `${label}: one fix round is re-reviewed`).toContain('re-review');
++
++      expect(body, `${label}: plan gets no fix round`).toContain(
++        '**FAIL + Reason `plan`** → no fix round',
++      );
++      expect(body, `${label}: plan goes to planner`).toContain('`kiki-planner`');
++      expect(body, `${label}: spec stops for user`).toContain(
++        '**FAIL + Reason `spec`** → stop and ask the user',
++      );
++      expect(body, `${label}: user-decision stops for user`).toContain(
++        '**FAIL + Reason `user-decision`** → stop and ask the user',
++      );
++      expect(body, `${label}: environment/permission is terminal`).toContain(
++        '**FAIL + Reason `environment/permission`** → terminal: no retry, no workaround',
++      );
++
++      expect(body, `${label}: second FAIL classifies before escalation`).toContain(
++        'On the second FAIL of the same task, or when the same failure happens twice, stop automatic work and classify the cause before spending escalation',
++      );
++      expect(body, `${label}: user-only vs technical classification`).toContain(
++        'user-only or technical',
++      );
++      for (const checklistItem of [
++        'missing permission/credential',
++        'product or scope decision',
++        'external service/hosting',
++        'unclear requirement',
++        'destructive or irreversible choice',
++      ]) {
++        expect(body, `${label}: user-only checklist names ${checklistItem}`).toContain(
++          checklistItem,
++        );
++      }
++      expect(body, `${label}: credential-caused technical failures are user-only`).toContain(
++        'including ostensibly technical failures caused by a credential',
++      );
++      expect(body, `${label}: only technical deadlocks escalate`).toContain(
++        'Only a **technical deadlock** may dispatch `kiki-escalation`, at most once per task.',
++      );
++    }
++  });
++
++  it('R5_terminal_dispatch_reports_never_retry', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateOrchestratorTemplate(config));
++
++      expect(body, `${label}: exact permission override preserved`).toContain(
++        '**Permission block override:** if a subagent reports `PERMISSION_BLOCKED: <command>`, do not retry; report the blocked command and stop.',
++      );
++      expect(body, `${label}: terminal outcomes are never retried`).toContain(
++        'Terminal dispatch outcomes are never retried with the same prompt',
++      );
++      expect(body, `${label}: BLOCKED is terminal`).toContain('a `BLOCKED` report');
++      expect(body, `${label}: PERMISSION_BLOCKED is terminal`).toContain(
++        'a `PERMISSION_BLOCKED` report',
++      );
++      expect(body, `${label}: planner/user-routed FAIL is terminal`).toContain(
++        'a FAIL routed to the planner or the user',
++      );
++      expect(body, `${label}: only non-BLOCKED empty/failed results retry`).toContain(
++        'non-BLOCKED empty or failed dispatch result',
++      );
++      expect(body, `${label}: retries the same prompt once`).toContain(
++        'retry once with the same prompt',
++      );
++
++      expect(body, `${label}: old unconditional twice-failed escalation removed`).not.toContain(
++        'If a task fails twice, dispatch',
++      );
++      expect(body, `${label}: old retry wording removed`).not.toContain(
++        'tests fail after 3 retries',
++      );
++    }
++  });
++
++  it('BLOCKED_routing_supplies_context_or_stops_at_owner', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateOrchestratorTemplate(config));
++
++      expect(body, `${label}: BLOCKED routing section`).toContain(
++        'When a builder reports BLOCKED with `Blocker:`, `Tried:`, `Need:`',
++      );
++      expect(body, `${label}: never blindly resend BLOCKED`).toContain(
++        'never blindly resend the same BLOCKED prompt',
++      );
++      expect(body, `${label}: missing context is supplied`).toContain(
++        'Missing context → supply it.',
++      );
++      expect(body, `${label}: plan ambiguity/bug goes planner then reviewer`).toContain(
++        'Plan ambiguity or plan bug → dispatch `kiki-planner`, then the reviewer loop.',
++      );
++      expect(body, `${label}: permission/credential/product asks the user`).toContain(
++        'Permission, credential, or product decision → stop and ask the user.',
++      );
++      expect(body, `${label}: technical deadlock follows the one-escalation limit`).toContain(
++        'Technical deadlock → the one-escalation limit above.',
++      );
++    }
++  });
++
++  it('R7_R8_ownership_and_every_revised_plan_review', () => {
++    const ownership = [
++      'The user approves the spec. Plans are machine-owned',
++      'Changing what is delivered or what is allowed is a spec change and requires explicit user approval.',
++      'Every revised plan — from a FAIL/`plan`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes.',
++      'A second technical plan failure is a deadlock, not an unlimited planner loop.',
++    ];
++
++    for (const [label, config] of CONFIGS) {
++      const orchestrator = bodyOf(generateOrchestratorTemplate(config));
++      const workflow = generateWorkflowTemplate(config);
++
++      for (const phrase of ownership) {
++        expect(orchestrator, `${label} orchestrator: ${phrase}`).toContain(phrase);
++        expect(workflow, `${label} workflow: ${phrase}`).toContain(phrase);
++      }
++    }
++  });
++
++  it('R10_orchestrator_coordinates_without_project_checks', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateOrchestratorTemplate(config));
++
++      expect(body, `${label}: no project checks`).toContain(
++        'You run no project checks: do not run build, test, lint, or security commands yourself.',
++      );
++      expect(body, `${label}: passes recorded evidence along`).toContain(
++        'Pass the recorded evidence from builders to the reviewer and escalation.',
++      );
++    }
++  });
++
++  it('R13_caps_use_existing_failures_and_phase_prose', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateOrchestratorTemplate(config));
++
++      expect(body, `${label}: one eligible dispatch retry`).toContain(
++        'At most one eligible dispatch retry',
++      );
++      expect(body, `${label}: two review rounds`).toContain(
++        'At most two review rounds per task',
++      );
++      expect(body, `${label}: one implementation fix round between`).toContain(
++        'one implementation fix round between them',
++      );
++      expect(body, `${label}: one escalation per task`).toContain('One escalation per task.');
++      expect(body, `${label}: same failure twice stops`).toContain(
++        'The same failure twice stops automatic work.',
++      );
++      expect(body, `${label}: failures counter reused`).toContain(
++        'increment the existing numeric `failures` field',
++      );
++      expect(body, `${label}: review rounds in phase/progress prose`).toContain(
++        "summarized in the task's phase/progress prose",
++      );
++      expect(body, `${label}: no new counters`).toContain(
++        'no new registry counters or schema fields',
++      );
++      expect(body, `${label}: 30-minute timeout retained`).toContain(
++        '30-minute dispatch timeout',
++      );
++      expect(body, `${label}: watchdog retained`).toContain('watchdog thresholds');
++      expect(body, `${label}: budget engine deferred`).toContain(
++        'budget engine is deferred, not rejected',
++      );
++
++      const workflow = generateWorkflowTemplate(config);
++      const schema = JSON.parse(
++        jsonBlockAfter(workflow, '## Task Registry Schema'),
++      ) as Record<string, unknown>;
++      expect(Object.keys(schema), `${label}: schema keys unchanged`).toEqual([
++        'id',
++        'description',
++        'status',
++        'phase',
++        'failures',
++        'startedAt',
++        'completedAt',
++        'spec',
++        'plan',
++        'reviewNotes',
++        'documentation',
++      ]);
++      for (const key of Object.keys(schema)) {
++        expect(key, `${label}: no budget/review/escalation counter`).not.toMatch(
++          /budget|reviewRounds|escalations?/i,
++        );
++      }
++    }
++  });
++});
++
++describe('escalation contract and presentation', () => {
++  it('R6_escalation_contract_has_exact_five_recommendations', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateEscalationTemplate(config));
++      const recommendations = sectionOf(body, '## Recommendations');
++
++      // Extract only the ordered recommendation list and compare its entries.
++      const entries = [...recommendations.matchAll(/^\d+\. \*\*(.+?)\*\*/gm)].map(
++        match => match[1],
++      );
++      expect(entries, `${label}: exact five recommendations in order`).toEqual([
++        'Fix with guidance',
++        'Rewrite plan',
++        'Rewrite spec',
++        'Split',
++        'Stop-needs-user',
++      ]);
++      expect(recommendations, `${label}: announces exactly five`).toContain(
++        'Return exactly one of these five recommendations:',
++      );
++      for (const alias of ['**Redesign:**', '**Stop:**', '**Rewrite plan:**']) {
++        expect(body, `${label}: no shortened alias ${alias}`).not.toContain(alias);
++      }
++
++      expect(body, `${label}: both review reports are inputs`).toContain(
++        'both review reports',
++      );
++      expect(body, `${label}: actual diff is input`).toContain('the actual diff');
++      expect(body, `${label}: recorded builder evidence is input`).toContain(
++        'recorded build/test/lint/security evidence',
++      );
++      expect(body, `${label}: registry/health/routing logs on request`).toContain(
++        'task registry, health log, and routing log',
++      );
++      expect(body, `${label}: rewrite quotes the faulty passage`).toContain(
++        'quote the faulty plan/spec passage and explain why no implementation can satisfy it',
++      );
++      expect(body, `${label}: may reproduce checks in the current tree`).toContain(
++        'reproduce the failure by running build, test, lint, and read-only git commands in the current tree',
++      );
++      expect(body, `${label}: justified scratch copy`).toContain(
++        'scratch copy under `/tmp/opencode`',
++      );
++      expect(body, `${label}: scratch via routine shell`).toContain('routine shell');
++      expect(body, `${label}: scratch never via edit tool`).toContain(
++        'never use the edit tool',
++      );
++      expect(body, `${label}: one escalation report`).toContain(
++        'exactly one escalation report',
++      );
++      expect(body, `${label}: optional unapplied patch`).toContain(
++        'optional proposed patch left **unapplied**',
++      );
++      expect(body, `${label}: artifacts only in review directory`).toContain(
++        '`.agentic/reviews/*` (your only edit grant)',
++      );
++      expect(body, `${label}: no source edits`).toContain('Do not edit source');
++      expect(body, `${label}: no publish/remote/permission changes`).toContain(
++        'do not publish, perform remote writes, or change permissions',
++      );
++      expect(body, `${label}: prompt-level restrictions are honest`).toContain(
++        'prompt-level restrictions, not mechanical permission denial',
++      );
++      expect(body, `${label}: implementer applies approved patch`).toContain(
++        'applied by the implementer through the normal review loop',
++      );
++      expect(body, `${label}: at most once per task`).toContain('at most once per task');
++    }
++  });
++
++  it('R12_orchestrator_presents_escalation_recommendations_before_action', () => {
++    for (const [label, config] of CONFIGS) {
++      const body = bodyOf(generateOrchestratorTemplate(config));
++
++      expect(body, `${label}: present recommendation before anything`).toContain(
++        'Present the escalation recommendation to the user before doing anything',
++      );
++      expect(body, `${label}: no automatic rewrites`).toContain(
++        'nothing is rewritten automatically',
++      );
++      expect(body, `${label}: Fix with guidance proceeds`).toContain(
++        '**Fix with guidance** → proceed with the fix; no plan or spec change.',
++      );
++      expect(body, `${label}: Rewrite plan goes to planner`).toContain(
++        '**Rewrite plan** → dispatch `kiki-planner`',
++      );
++      expect(body, `${label}: Rewrite plan is reviewed`).toContain(
++        'revised plan passes the reviewer loop before implementation resumes',
++      );
++      expect(body, `${label}: Rewrite spec goes to brainstormer`).toContain(
++        '**Rewrite spec** → dispatch `kiki-brainstormer`',
++      );
++      expect(body, `${label}: Rewrite spec needs user approval`).toContain(
++        'revised spec requires explicit user approval',
++      );
++      expect(body, `${label}: Split is user then planner`).toContain(
++        '**Split** → the user decides, then dispatch `kiki-planner`.',
++      );
++      expect(body, `${label}: Stop is user decision`).toContain(
++        '**Stop-needs-user** → the user decides.',
++      );
++    }
++  });
++});
++
++describe('workflow governance', () => {
++  it('R1_workflow_documents_three_verdicts_and_fields', () => {
++    for (const [label, config] of CONFIGS) {
++      const workflow = generateWorkflowTemplate(config);
++
++      expect(workflow, `${label}: exact three verdicts`).toContain(
++        'Verdict: PASS | PASS_WITH_NOTES | FAIL',
++      );
++      expect(workflow, `${label}: no binary verdict`).not.toContain(
++        'Verdict: PASS | FAIL',
++      );
++      expect(workflow, `${label}: no fourth verdict token`).not.toMatch(
++        /PLAN_BUG|PARTIAL|OUT_OF_SCOPE|DUPLICATE|CANNOT_VERIFY/,
++      );
++      expect(workflow, `${label}: no binary or fourth verdict`).toContain(
++        'no binary or fourth verdict',
++      );
++      expect(workflow, `${label}: Reason categories`).toContain(
++        '`Reason: implementation | plan | spec | user-decision | environment/permission`',
++      );
++      expect(workflow, `${label}: Severity levels`).toContain(
++        '`Severity: critical | major | minor`',
++      );
++      expect(workflow, `${label}: Evidence field`).toContain('`Evidence:`');
++    }
++  });
++});
++
++describe('alignment guardrail baseline', () => {
++  it('R15_guardrail_block_all_eight_roles_exactly_once', () => {
++    // Compare against the named generators, not merely a count: a new role or a
++    // renamed generator must be reflected here deliberately.
++    expect(Object.keys(roleGenerators).sort()).toEqual(expectedRoles.slice().sort());
++
++    for (const [label, config] of [
++      ['default', DEFAULT_CONFIG],
++      ['custom', customConfig],
++    ] as const) {
++      for (const role of expectedRoles) {
++        const body = bodyOf(roleGenerators[role](config));
++        const occurrences = body.split(GUARDRAIL_BLOCK).length - 1;
++        expect(occurrences, `${label} ${role}: guardrail block appears exactly once`).toBe(1);
++      }
++    }
++  });
++
++  it('R15_guardrail_rules_match_alignment_one_to_one', () => {
++    // Test code only: read the repository alignment, never feed it to a
++    // generator. The generated block stays a fixed literal.
++    const alignment = JSON.parse(
++      readFileSync(new URL('../../.agentic/kiki/alignment.json', import.meta.url), 'utf8'),
++    ) as { guardrails: string[]; compliance: string[] };
++
++    expect(alignment.guardrails).toEqual(EXPECTED_GUARDRAIL_SOURCES);
++    expect(alignment.guardrails).toEqual(DEFAULT_ALIGNMENT.guardrails);
++    expect(GUARDRAIL_CORRESPONDENCE.map(([source]) => source)).toEqual(EXPECTED_GUARDRAIL_SOURCES);
++    expect(GUARDRAIL_BLOCK).toBe(
++      [
++        GUARDRAIL_BLOCK_PREFIX,
++        ...GUARDRAIL_CORRESPONDENCE.map(([, sentence]) => sentence),
++        GUARDRAIL_STOP_RULE,
++      ].join(' '),
++    );
++
++    for (const [label, config] of [
++      ['default', DEFAULT_CONFIG],
++      ['custom', customConfig],
++    ] as const) {
++      for (const role of expectedRoles) {
++        const block = guardrailBlockOf(bodyOf(roleGenerators[role](config)));
++        expect(block, `${label} ${role}: fixed literal`).toBe(GUARDRAIL_BLOCK);
++
++        const { rules, stopRule } = guardrailPartsOf(block);
++        expect(rules, `${label} ${role}: ordered rule sentences`).toEqual(
++          GUARDRAIL_CORRESPONDENCE.map(([, sentence]) => sentence),
++        );
++        expect(stopRule, `${label} ${role}: trailing stop rule`).toBe(GUARDRAIL_STOP_RULE);
++      }
++    }
++  });
++
++  it('guardrail_block_excludes_compliance_labels', () => {
++    const complianceLabels = ['OWASP Top 10', 'SOC 2 Type II'];
++    for (const label of complianceLabels) {
++      expect(GUARDRAIL_BLOCK).not.toContain(label);
++    }
++
++    for (const [configuration, config] of [
++      ['default', DEFAULT_CONFIG],
++      ['custom', customConfig],
++    ] as const) {
++      for (const role of expectedRoles) {
++        const block = guardrailBlockOf(bodyOf(roleGenerators[role](config)));
++        for (const label of complianceLabels) {
++          expect(
++            block,
++            `${configuration} ${role}: ${label} is project context, not a guardrail`,
++          ).not.toContain(label);
++        }
++      }
++    }
++  });
++});
+diff --git a/tests/cli/oc2-permissions.test.ts b/tests/cli/oc2-permissions.test.ts
+index 286dd4b..a2e4d1a 100644
+--- a/tests/cli/oc2-permissions.test.ts
++++ b/tests/cli/oc2-permissions.test.ts
+@@ -604,38 +604,63 @@ describe('ordered native permission translation', () => {
+     expect(orchestrator).toContain('do not retry; report the blocked command and stop');
+   });
+ 
+-  it('prompt_body_only_changes_delegation', () => {
+-    const approvedAdditions = new Set([
+-      '- Every dispatch MUST include the target `agent` ID and a 3–5-word `description`.',
+-      '- Optionally pass `model` with the dispatch and `sessionID` to continue an existing session.',
+-      '- Subagents MUST NOT dispatch other subagents; nested delegation is forbidden (`experimental.subagent_depth` is 1).',
+-      noCircumventionLine,
+-      '- **Permission block override:** if a subagent reports `PERMISSION_BLOCKED: <command>`, do not retry; report the blocked command and stop.',
+-    ]);
+-    const canonical = (value: string) => value
+-      .replace(/`task`/g, '`DELEGATE`')
+-      .replace(/`subagent`/g, '`DELEGATE`')
+-      .replace(/subagent_type/g, 'agent');
+-    const withoutApprovedAdditions = (value: string) => value
+-      .split('\n')
+-      .filter(line => !approvedAdditions.has(line.trim()))
+-      .join('\n');
+-
+-    for (const [config, templates, bodies] of [
+-      [DEFAULT_CONFIG, fixture.templates, fixture.promptBodies],
+-      [fixture.customConfig, fixture.customTemplates, fixture.customPromptBodies],
++  it('prompt_bodies_preserve_native_delegation_contract', () => {
++    const skillLoadingRoles: Record<string, string[]> = {
++      brainstormer: ['`brainstorming` superpowers skill', 'follow it **inline**'],
++      planner: ['`writing-plans` superpowers skill', 'follow it **inline**'],
++      implementer: [
++        '`executing-plans`',
++        '`test-driven-development`',
++        '`systematic-debugging`',
++        'follow them **inline**',
++      ],
++      guiDesigner: [
++        '`ui-ux-pro-max`',
++        '`executing-plans`',
++        '`test-driven-development`',
++        '`systematic-debugging`',
++        'Follow all four exactly',
++      ],
++      reviewer: [
++        '`receiving-code-review`',
++        '`requesting-code-review`',
++        'follow it **inline**',
++      ],
++      escalation: ['`systematic-debugging` superpowers skill', 'follow it **inline**'],
++    };
++
++    for (const [label, config] of [
++      ['default', DEFAULT_CONFIG],
++      ['custom', fixture.customConfig],
+     ] as const) {
++      const orchestrator = bodyOf(generateOrchestratorTemplate(config));
++      expect(orchestrator, label).toContain('`subagent` tool');
++      expect(orchestrator, label).toContain(
++        'Every dispatch MUST include the target `agent` ID and a 3–5-word `description`.',
++      );
++      expect(orchestrator, label).toContain(
++        'Optionally pass `model` with the dispatch and `sessionID` to continue an existing session.',
++      );
++      expect(orchestrator, label).toContain(
++        'Subagents MUST NOT dispatch other subagents; nested delegation is forbidden',
++      );
++      expect(orchestrator, label).toContain('**Permission block override:**');
++      expect(orchestrator, label).not.toContain('`task` tool');
++      expect(orchestrator, label).not.toContain('subagent_type');
++
++      for (const [role, expectedFragments] of Object.entries(skillLoadingRoles)) {
++        const body = bodyOf(roleGenerators[role](config));
++        for (const fragment of expectedFragments) {
++          expect(body, `${label} ${role}: ${fragment}`).toContain(fragment);
++        }
++      }
++
+       for (const [role, generate] of Object.entries(roleGenerators)) {
+-        const actual = bodyOf(generate(config));
+-        expect(canonical(withoutApprovedAdditions(actual)), role)
+-          .toBe(canonical(bodies[role]));
++        const body = bodyOf(generate(config));
++        expect(body, `${label} ${role}: no legacy task tool`).not.toContain('`task` tool');
++        expect(body, `${label} ${role}: no legacy subagent_type`).not.toContain('subagent_type');
+       }
+     }
+-
+-    const orchestrator = bodyOf(generateOrchestratorTemplate(DEFAULT_CONFIG));
+-    for (const line of approvedAdditions) expect(orchestrator).toContain(line);
+-    expect(orchestrator).toContain('`subagent` tool');
+-    expect(orchestrator).not.toContain('`task` tool');
+   });
+ 
+   it('workflow_uses_v2_delegation_and_config_keys', () => {

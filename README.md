@@ -252,16 +252,20 @@ Behavior when a decision is needed:
 - The watchdog source tracks pending permission requests per child, pauses stuck
   evaluation while an approval is pending, excludes the waiting time from active
   age and resets silence on the final reply. Fake-clock tests cover this logic.
-  Real TUI long waits (300,000 ms / 3,600,000 ms), reconnect/reload pending state
-  and model obedience of `PERMISSION_BLOCKED` remain **PENDING**, so no live
-  wait-safety claim is made.
+  On 2026-11-13 the user resolved the former live-check list: real TUI long
+  approval waits were never a concern and were removed; reconnect/restart state
+  is not a concern because a restart means restart; and `PERMISSION_BLOCKED` stop
+  behavior is to be observed in use. These are accepted limits, not live
+  measurements: no live wait-safety claim is made, and model obedience remains
+  observe-in-use rather than proven.
 
 **Approval discipline.** Answer `once` for any remote-changing operation. `Always`
 saves the proposed command prefix as a project-scoped grant, and later matching
 commands run without asking; auto-accept answers every pending request, including
-publish-class asks. Review saved grants periodically. **Saved-grant inventory is
-PENDING:** Kiki cannot yet inventory or remove saved grants, so this review is
-manual and the UI steps for reviewing or removing a grant are unverified. These
+publish-class asks. The user's discipline is to answer `once` and not `Always`.
+**Saved-grant inventory is not a current work item:** Kiki cannot yet inventory
+or remove saved grants, so any review of accumulated grants is manual, and the UI
+steps for reviewing or removing a grant were not verified. These
 notices are mistake protection, not a sandbox: Kiki does not detect or enforce
 around saved grants or auto-accept, and approving a publish means "make it live",
 not "this code is safe". The 18 command gates protect known publishing routes
@@ -283,16 +287,22 @@ user confirmed a root-visible permission prompt for an orchestrator-dispatched
 implementer `printf` command; it returned the expected output and the selected
 approval option was not recorded. The orchestrator's refusal to run the command
 directly demonstrates role-instruction compliance, not native shell denial.
-Direct orchestrator gate verification in a fresh primary session, TUI
-Always/reject/auto-accept, real long waits, saved-grant inventory, reconnect state
-and blocked-operation stop behavior remain unverified. This observation does not
-waive those verification limits. Removing Kiki does not remove native saved grants
+On 2026-11-13 the user resolved the former remaining-check list: the
+fresh-primary orchestrator gate is recorded as already covered by the README/TUI
+observation; real long approval waits were removed as a non-issue;
+reconnect/restart state is not a concern; saved-grant inventory is not a current
+work item; and blocked-operation stop behavior is to be observed in use. TUI
+Always/reject/auto-accept behavior was not separately re-verified. These
+resolutions retire checks; they do not convert waived or accepted items into
+independently measured evidence. Removing Kiki does not remove native saved grants
 or undo a publish. Automated evidence is on OpenCode 2.2.7 only: focused
 permission/migration/install/doctor tests 62/62 and the full suite 659 passed,
 2 skipped, 0 failed, with build/tsc/lint clean; the orchestrator re-verified the
 structural shell-rule check for all eight agents and focused tests 38/38 after
-apply. A different 2.x patch must be re-probed before
-relying on it. See the
+apply. Other 2.x patch levels are accepted as-is by the user for this solo
+setup; that is a user acceptance, not a compatibility result. Automated
+evidence remains on OpenCode 2.2.7 only, so no universal 2.x compatibility is
+claimed; re-probe if behavior looks wrong. See the
 [design](docs/superpowers/specs/2026-11-12-security-boundaries-design.md),
 [plan](docs/superpowers/plans/2026-11-12-security-boundaries-plan.md) and
 [probe record](docs/research/2026-11-12-security-boundaries-probes.md).
@@ -666,6 +676,11 @@ The `kiki` package provides two OC2 entrypoints:
   duplicate Kiki server registrations instead.
 - `./tui`: the native `/kiki` menu.
 
+`.agentic/kiki/routing_log.jsonl`, `.agentic/kiki/health_log.jsonl` and
+`.agentic/kiki/migration.json` are local project state: they are Git-ignored and
+existing local copies are retained. They are not part of the package or of a
+tracked project history.
+
 Server registration is `plugins` in the global `opencode.json`/`opencode.jsonc`; TUI
 registration is `plugins` in the global `cli.json`/`cli.jsonc`. A development checkout
 registers its absolute package directory; a release uses the package name once such a
@@ -704,8 +719,12 @@ requests.
 
 The final Task 13 snapshot recorded 24/24 required real-binary integration tests with zero
 skips, and 632 passed / 2 by-design opt-in skips / 0 failed in the full suite with the
-binary. That is automated evidence only; Task 14 human machine acceptance and any actual
-release remain not run. See the acceptance document for the current gate state.
+binary. That is automated evidence only. The user accepted Task 14 on the basis of live
+startup and `/kiki` smoke, and the v3.0.0 release was delivered; neither is a claim that
+every machine drill was run. Unreported live migration, provider login, dispatch,
+save/removal and rollback drills remain unverified. See the acceptance document for the
+current gate state.
 
+Reviewer-precision eval (deferred; no accepted metric cases): [`.agentic/kiki/evals/reviewer-precision/README.md`](.agentic/kiki/evals/reviewer-precision/README.md).
 Keep `KIKI_VERSION` in `src/cli/config.ts` synchronized with `package.json` on release.
 License: MIT.

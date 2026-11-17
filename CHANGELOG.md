@@ -162,6 +162,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   prompts. The command gates protect known publishing routes only; they are not
   an adversarial sandbox, and allowed local scripts can still perform network
   actions.
+- **Runtime state is local-only (repository maintenance):**
+  `.agentic/kiki/routing_log.jsonl`, `.agentic/kiki/health_log.jsonl` and
+  `.agentic/kiki/migration.json` are Git-ignored. The previously tracked routing
+  log is removed from the index while the existing local file is kept. No
+  runtime format, retention or behavior changed.
+- **Project watchdog threshold:** this repository's `.agentic/kiki/config.json`
+  sets `health.stuckThresholdMs` to 600000 ms (10 minutes) for all child
+  sessions in the project. This is project configuration only; the generated
+  default remains 5 minutes.
 
 ### Security
 

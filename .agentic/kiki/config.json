@@ -1,0 +1,5 @@
+{
+  "health": {
+    "stuckThresholdMs": 600000
+  }
+}
