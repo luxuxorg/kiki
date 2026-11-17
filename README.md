@@ -310,7 +310,8 @@ item carries `Reason` (`implementation` | `plan` | `spec` | `user-decision` |
 `environment/permission`), `Severity` (`critical` | `major` | `minor`) and
 `Evidence` (the scenario, the violated rule or requirement, and the file/line;
 for `plan` and `spec`, the faulty passage quoted plus why no implementation can
-satisfy it). Critical and major block; a minor item, or one whose evidence is
+satisfy it, or why a technically implementable choice is nonetheless unsound).
+Critical and major block; a minor item, or one whose evidence is
 incomplete, downgrades to a note whatever its Reason, so a `FAIL` stands only
 while a critical/major item with complete evidence remains. `PASS` and
 `PASS_WITH_NOTES` state their `Basis:`; non-blocking notes go in the review
@@ -357,6 +358,34 @@ behavior beyond the task, and unrelated refactors — and for guardrail
 violations. Creep in the implementation is `FAIL`/`implementation`; creep in a
 plan is `FAIL`/`plan` with the offending passage quoted; a genuine need to
 expand scope is a spec change and needs user approval.
+
+**Necessity check.** In every plan review and final review the reviewer also
+applies substantive necessity criteria to existing spec, plan and code
+substance — not to a required heading or record. Proportionally to the change,
+it asks what existing capability or source already provides the need (a claim
+that none exists cites the bounded command, lookup or search tried and what it
+returned), what happens if nothing is built and whether an existing source can
+be reused as-is or read at query time, what real tradeoff justifies duplicate
+persistence, a dependency or a new abstraction, what user-visible capability disappears without the addition, and
+what coupling or maintenance cost it creates. Small changes justify themselves
+in a sentence of existing prose; no mandatory section, per-field catalog,
+waiver format or extra review pass is added. Scrutiny is cumulative: plan
+review reassesses the spec's technical assumptions with the plan's new evidence,
+and code review rechecks plan and spec adequacy in light of the implementation
+evidence, reusing evidence rather than repeating the analysis. A `FAIL`'s
+Reason follows the flaw's root cause (`spec`, `plan` or `implementation` for a
+technical flaw) through the existing routing, so an upstream flaw is revised at
+its source and never forces the builder to satisfy faulty instructions; the
+verdicts, Reasons, severity and downgrade rules, and caps are unchanged.
+Rationale or prior approval is not proof of soundness: an implementable but
+concretely evidenced unnecessary, duplicative, insecure or disproportionately
+complex technical choice can `FAIL`, while product goals, informed explicit
+user decisions and the no-taste-veto limit still apply. The planner may choose
+and justify new technical details inside the approved requirements, scope,
+security intent and acceptance criteria; omission from the spec alone is not a
+spec change. This is prompt-level guidance — static tests prove the wording,
+not live model obedience — and ordinary `kiki update` delivers the regenerated
+prompts.
 
 **Guardrail baseline.** Every one of the eight generated agent prompts carries
 this fixed block exactly once, alongside the unchanged permission block:

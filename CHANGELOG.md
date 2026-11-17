@@ -8,6 +8,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Necessity criteria in generated prompts and workflow:** a private
+  `NECESSITY_CRITERIA` block is interpolated exactly once into the brainstormer,
+  reviewer and workflow generators under both default and custom path configs,
+  and the planner prompt gains in-boundary technical-ownership guidance.
+  Proportionally to the change, reviewers judge existing capabilities and
+  sources with bounded, observed probes for negative claims, the
+  do-nothing/reuse alternative, the real tradeoff for duplicate persistence,
+  dependencies or abstractions, unique value and coupling cost from existing
+  spec/plan/code substance — no mandatory Necessity section, record, per-field
+  catalog, waiver format or extra review phase. Scrutiny is cumulative: plan
+  review reassesses the spec with the plan's new evidence, and code review
+  rechecks plan and spec adequacy in light of implementation evidence, reusing
+  evidence rather than repeating the analysis. A `FAIL`'s Reason follows the
+  flaw's root cause through the existing `spec`/`plan`/`implementation` routing,
+  caps and downgrade rule. The reviewer may reject a technically implementable
+  but concretely evidenced unnecessary, duplicative, insecure or
+  disproportionately complex choice despite a written rationale or prior
+  approval; product goals, informed explicit user decisions, existing
+  severity/downgrade rules and the no-taste-veto limit still apply.
+  Orchestrator, implementer, gui-designer, escalation and historian prompts,
+  permission arrays, frontmatter, exported types, the workflow registry schema
+  and Superpowers remain unchanged. Static prompt and
+  install/update delivery tests cover the wording; prompt-level guidance does
+  not prove live model obedience, and no measured quality, savings or
+  equivalence is claimed. Existing installations receive the regenerated
+  prompt bodies on the next ordinary `kiki update`; no live install, update or
+  rollout was performed with this change.
 - **Opt-in lightweight usage diagnostics:** one metadata-only ledger
   (`.agentic/kiki/run_ledger.jsonl`, off by default) records declared dispatch
   task/kind/optional comparison group and observed child-session status,

@@ -98,6 +98,35 @@ describe('global installation CLI', () => {
     expect(workflow, 'workflow: fresh active alignment read').toContain(
       "reads the active project's `.agentic/kiki/alignment.json` fresh in every review",
     );
+
+    // Necessity gate delivery: one representative phrase per affected prompt
+    // and the workflow gate section.
+    const brainstormerFile = join(global, 'agents', 'kiki-brainstormer.md');
+    const brainstormer = parseAgent(
+      readFileSync(brainstormerFile, 'utf8'),
+      brainstormerFile,
+    ).prompt;
+    expect(brainstormer, 'brainstormer: necessity criteria').toContain(
+      'Existing capabilities/sources',
+    );
+    expect(brainstormer, 'brainstormer: no extra section/catalog/waiver').toContain(
+      'No extra section, catalog or waiver format is required',
+    );
+
+    const plannerFile = join(global, 'agents', 'kiki-planner.md');
+    const planner = parseAgent(readFileSync(plannerFile, 'utf8'), plannerFile).prompt;
+    expect(planner, 'planner: owns in-boundary technical details').toContain(
+      'Not being mentioned in the spec does not make a technical choice a spec change',
+    );
+
+    expect(reviewer, 'reviewer: technical rejection not limited to impossibility').toContain(
+      'Rejection is not limited to impossibility',
+    );
+
+    expect(workflow, 'workflow: necessity gate section').toContain('## Necessity Gate');
+    expect(workflow, 'workflow: standing necessity check').toContain(
+      'standing necessity check',
+    );
   });
 
   it('updates_stale_prompt_bodies_without_changing_native_settings', async () => {
@@ -166,6 +195,27 @@ describe('global installation CLI', () => {
     expect(reviewer, 'reviewer: fresh active alignment read').toContain(
       "read the active project's `.agentic/kiki/alignment.json` fresh",
     );
+    expect(reviewer, 'reviewer: technical rejection not limited to impossibility').toContain(
+      'Rejection is not limited to impossibility',
+    );
+
+    const brainstormerFile = join(global, 'agents', 'kiki-brainstormer.md');
+    const brainstormer = parseAgent(
+      readFileSync(brainstormerFile, 'utf8'),
+      brainstormerFile,
+    ).prompt;
+    expect(brainstormer, 'brainstormer: necessity criteria').toContain(
+      'Existing capabilities/sources',
+    );
+    expect(brainstormer, 'brainstormer: no extra section/catalog/waiver').toContain(
+      'No extra section, catalog or waiver format is required',
+    );
+
+    const plannerFile = join(global, 'agents', 'kiki-planner.md');
+    const planner = parseAgent(readFileSync(plannerFile, 'utf8'), plannerFile).prompt;
+    expect(planner, 'planner: owns in-boundary technical details').toContain(
+      'Not being mentioned in the spec does not make a technical choice a spec change',
+    );
 
     const orchestratorFile = join(global, 'agents', 'kiki-orchestrator.md');
     const orchestrator = parseAgent(readFileSync(orchestratorFile, 'utf8'), orchestratorFile).prompt;
@@ -179,6 +229,10 @@ describe('global installation CLI', () => {
     const workflow = readFileSync(join(global, 'kiki/agentic-workflow.md'), 'utf8');
     expect(workflow, 'workflow: fresh active alignment read').toContain(
       "reads the active project's `.agentic/kiki/alignment.json` fresh in every review",
+    );
+    expect(workflow, 'workflow: necessity gate section').toContain('## Necessity Gate');
+    expect(workflow, 'workflow: standing necessity check').toContain(
+      'standing necessity check',
     );
 
     const afterFirstUpdate = Object.fromEntries(

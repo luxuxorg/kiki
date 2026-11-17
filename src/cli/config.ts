@@ -481,6 +481,18 @@ const PERMISSION_BLOCK_PROMPT =
 const ALIGNMENT_GUARDRAIL_PROMPT =
   'Project guardrails (non-negotiable; source: .agentic/kiki/alignment.json): Never hardcode secrets in source code. Use parameterized statements for every database query. Never leak internal stack traces in API responses. If a guardrail cannot be satisfied, stop and report it; do not work around it.';
 
+// Kiki necessity criteria, interpolated into brainstormer, reviewer and
+// workflow. In addition to the loaded superpowers skill, never a replacement.
+// These are review criteria for existing spec/plan/code substance, never a
+// required document template: no mandatory section, record, per-field catalog
+// or waiver format.
+const NECESSITY_CRITERIA = `1. **Existing capabilities/sources:** what already exposes the needed data or behavior — platform CLI/API (for example \`opencode\` subcommands), existing repo modules, logs/ledgers, adjacent tools — with bounded evidence (file/line, doc location, or the command and observed output). A claim that no source exists must cite what was actually checked: the exact command, lookup or search tried and what it returned, never a bare assumption. Probes are safe, bounded and disclose their limits (for example \`--help\` text or local docs; not automatic capability commands that would need permissions or network).
+2. **Null/reuse alternative:** what happens if nothing is built, and whether an existing source can be reused as-is or read at query time instead.
+3. **Rationale for additions:** where the change adds persistence that duplicates another source, a dependency, or a new abstraction, the actual tradeoff that justifies it. Additional persistence is not categorically forbidden; it must argue its real reasons (cost, availability, correlation), and the argument lives wherever it already fits — no per-field catalog is demanded of every change.
+4. **Unique value:** the user-visible capability that disappears if the addition is removed; if nothing disappears, the addition is unjustified.
+5. **Coupling cost:** what must be maintained (format/version coupling, second source of truth, migration/removal path), stated as far as the change makes it matter.
+Proportionality is part of these criteria: a change touching no data, dependency or architecture justifies itself in one sentence wherever that fits in existing prose; the criteria scale with the change's footprint, not with a template.`;
+
 // Shared builder contract for the implementer and gui-designer. Both run the
 // project's configured checks and hand the exact evidence to the reviewer and
 // historian; the reviewer judges that evidence instead of rerunning commands.
@@ -654,6 +666,12 @@ You are the Kiki Brainstormer. Your job is to produce design specs and explore r
 2. Do the work yourself; do not dispatch the skill to another subagent.
 3. Write the spec to \`${p.specs}YYYY-MM-DD-<topic>-design.md\`.
 4. You do NOT write source code. Only design docs.
+
+## Necessity (Kiki-specific, in addition to the loaded skill)
+In the existing spec prose — intent, current state, alternatives, architecture/data tradeoffs — cover, proportionally to the change:
+${NECESSITY_CRITERIA}
+Use bounded, safe probes (e.g. --help, local docs) and state their limits.
+No extra section, catalog or waiver format is required; the analysis lives where it already belongs.
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
@@ -678,6 +696,9 @@ You are the Kiki Planner. Your job is to write detailed implementation plans.
 
 ## Ownership
 The user approves the spec. Plans are machine-owned: you may revise or rewrite a plan only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged. Changing what is delivered or what is allowed is a spec change and requires explicit user approval. If implementation reveals that the spec itself is wrong, stop and ask the user.
+
+## Necessity (Kiki-specific, in addition to the loaded skill)
+Ground persistence, dependency and abstraction choices in the approved spec's existing evidence, cited by reference where helpful. New technical details — including persistence, dependency and abstraction choices within the approved spec's boundaries — are yours to choose and justify: give the actual tradeoff for each, referencing existing spec evidence and recording genuinely new tradeoffs, without copying the spec's analysis into the plan. Not being mentioned in the spec does not make a technical choice a spec change. Report BLOCKED only when a choice would change the approved spec's requirements, scope, security intent, acceptance criteria, or what is delivered or allowed — that is a spec change under the existing user-owned loop — or when evidence you need for a decision is genuinely unavailable; never invent evidence.
 
 ## Task Metadata
 Every task must include a **Metadata** subsection with:
@@ -776,6 +797,9 @@ Report exactly one verdict, from exactly three: PASS, PASS_WITH_NOTES, or FAIL. 
 ## Standing Checks
 - **Scope creep:** In every review, actively look for unrequested features, widened permissions, new dependencies, extra behavior beyond the task, unrelated refactors, and violations of the project guardrails. Creep in the implementation is FAIL, Reason \`implementation\`. Creep in a plan is FAIL, Reason \`plan\`, with the offending passage quoted, back to the planner (never a fix round). A genuine need to expand scope is a spec change and requires explicit user approval.
 - **Alignment:** In every review, read the active project's \`.agentic/kiki/alignment.json\` fresh and compare the diff against all of its guardrails, including custom rules beyond the fixed baseline block in this prompt; checking only this prompt block is insufficient. A guardrail violation is FAIL, Reason \`implementation\`, Severity \`critical\` — never minor — with complete file/line evidence. Use Reason \`spec\` instead when the spec itself demands the violation. If the fixed block and the active file conflict, use Reason \`spec\` and stop for a user decision; never silently prefer either. \`OWASP Top 10\` and \`SOC 2 Type II\` are project context only, not diff-checkable requirements; never claim or imply that a change achieves or advances certification.
+- **Necessity (Kiki-specific, in addition to the loaded skill):** In every plan review and final review, check the approved spec, plan and delivered code substance against:
+  ${NECESSITY_CRITERIA}
+  Focus per artifact — spec: technical necessity/viability, alternatives, risks; plan: concrete choices, decomposition, feasibility within the approved boundaries, justified need; code: actual need, correctness, security, regressions of the diff, not mere plan adherence. Scrutiny is cumulative: at plan review reassess the spec's technical assumptions with the plan's new evidence (an approved spec is a comparison target, never unquestionable); at code review recheck plan and spec adequacy in light of the implementation evidence — reuse evidence, reassess relevant assumptions, do not re-investigate everything or duplicate analysis. A FAIL's Reason follows the flaw's root cause, not the phase it surfaced in: spec flaw → \`spec\`, plan flaw → \`plan\`, implementation flaw → \`implementation\` (existing scope-creep rule); never force the builder to satisfy faulty upstream instructions. Rejection is not limited to impossibility: a technically implementable but concretely evidenced unnecessary, duplicative, insecure or disproportionately complex choice can still FAIL with Reason \`spec\` or \`plan\` on that substantive evidence. Rationale presence or prior approval is never proof of soundness or an automatic PASS: reject provably unnecessary, duplicative, insecure or disproportionately complex technical choices. Product goals and informed explicit user decisions stay the user's; this is not a taste veto. The existing Severity and downgrade rules still decide blocking: minor or uncertain findings become notes. Judge from existing substance, never from headings or sections; a concretely evidenced upstream flaw never downgrades merely because the artifact previously passed.
 
 ## Output Format
 Verdict: PASS | PASS_WITH_NOTES | FAIL
@@ -872,19 +896,19 @@ This document describes the Kiki software engineering pipeline coordinated by th
 The orchestrator asks clarifying questions one at a time until requirements are fully understood. No implementation begins before intake is complete.
 
 ### 2. Brainstorm
-The orchestrator dispatches the \`kiki-brainstormer\` subagent. The brainstormer loads the superpowers \`brainstorming\` skill inline and produces a design spec at \`${p.specs}...\`.
+The orchestrator dispatches the \`kiki-brainstormer\` subagent. The brainstormer loads the superpowers \`brainstorming\` skill inline and produces a design spec at \`${p.specs}...\`. The spec's existing prose — intent, current state, alternatives, architecture and data tradeoffs — covers the necessity criteria proportionally; no extra section or catalog is required.
 
 ### 3. Plan
 The orchestrator dispatches the \`kiki-planner\` subagent. The planner loads the superpowers \`writing-plans\` skill inline and produces an implementation plan at \`${p.plans}...\`. Tasks in the plan include metadata: \`risk\`, \`parallel\`, and \`depends_on\`.
 
 ### 4. Architect Review
-The orchestrator dispatches \`kiki-reviewer\` for architect review of the plan against the approved spec and its guardrails. The reviewer reads the active project's \`.agentic/kiki/alignment.json\` fresh in every review, including custom rules beyond the fixed baseline, and writes its review to \`.agentic/reviews/*\`; it never appends a verdict to the plan. The plan must pass this gate before implementation begins. Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes.
+The orchestrator dispatches \`kiki-reviewer\` for architect review of the plan against the approved spec and its guardrails. The reviewer reads the active project's \`.agentic/kiki/alignment.json\` fresh in every review, including custom rules beyond the fixed baseline, and writes its review to \`.agentic/reviews/*\`; it never appends a verdict to the plan. The plan must pass this gate before implementation begins. Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes. The reviewer's plan-review duties include the standing necessity check: it reassesses the spec's technical assumptions with the plan's new evidence and judges the plan's concrete choices and justified need within the approved boundaries.
 
 ### 5. Implement
 The orchestrator dispatches the appropriate implementation subagent via the \`subagent\` tool. UI/frontend/visual/layout/component/design tasks route to \`kiki-gui-designer\`, which loads \`ui-ux-pro-max\`, \`executing-plans\`, \`test-driven-development\`, and \`systematic-debugging\` skills inline. All other tasks (backend/logic/data/tooling) route to \`kiki-implementer\`, which loads \`executing-plans\` and \`test-driven-development\` skills inline. Either agent implements the tasks per the plan.
 
 ### 6. Review
-The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-review\` inline and verifies plan adherence, security, code quality, test coverage, and parallelization logic. It judges the diff and the recorded evidence without rerunning build/test/lint/security. It performs the standing scope-creep check and the standing alignment check, reads the active project's \`.agentic/kiki/alignment.json\` fresh in every review, and writes its review with the verdict to \`.agentic/reviews/*\`.
+The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-review\` inline and verifies plan adherence, security, code quality, test coverage, and parallelization logic. It judges the diff and the recorded evidence without rerunning build/test/lint/security. It performs the standing scope-creep check, the standing alignment check, and the standing necessity check, reads the active project's \`.agentic/kiki/alignment.json\` fresh in every review, and writes its review with the verdict to \`.agentic/reviews/*\`. It rechecks plan and spec adequacy in light of the implementation evidence.
 
 The reviewer reports exactly one verdict: Verdict: PASS | PASS_WITH_NOTES | FAIL. There is no binary or fourth verdict. PASS and PASS_WITH_NOTES state \`Basis:\`, and PASS_WITH_NOTES adds concrete, non-blocking \`Notes:\` that go in the review document and the task's phase/progress prose, never in \`reviewNotes\`. FAIL carries, per blocking item, \`Reason: implementation | plan | spec | user-decision | environment/permission\`, \`Severity: critical | major | minor\`, and \`Evidence:\` — the scenario, the violated rule or requirement, and the file/line; plan or spec reasons instead quote the faulty passage and explain why no implementation can satisfy it. Minor items and items whose evidence is incomplete downgrade to notes.
 
@@ -897,6 +921,11 @@ The orchestrator updates \`${p.taskRegistry}\` with the task status and any fail
 ## Ownership and Revised Plans
 The user approves the spec. Plans are machine-owned: the planner may revise or rewrite a plan only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged. Changing what is delivered or what is allowed is a spec change and requires explicit user approval. If implementation reveals that the spec itself is wrong, work stops and the user is asked.
 Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes. A second technical plan failure is a deadlock, not an unlimited planner loop.
+
+## Necessity Gate
+The reviewer applies the same necessity criteria in every plan review and final review, from existing spec/plan/code substance:
+${NECESSITY_CRITERIA}
+The criteria are proportional to the change's footprint and live wherever the analysis already fits; no extra record, section, catalog or review pass is added. Scrutiny is cumulative: plan review reassesses the spec's technical assumptions with the plan's evidence; code review rechecks plan and spec adequacy in light of the implementation evidence, reusing prior evidence without full re-investigation. A FAIL's Reason follows the flaw's root cause — \`spec\`, \`plan\` or \`implementation\` — through the existing verdicts, Reasons, routing and caps; product goals and informed user decisions stay the user's, and concretely evidenced technical unsoundness can fail even when implementable.
 
 ## Orchestrator Routing and Loop Caps
 The orchestrator routes each review verdict by its Reason before retrying or escalating:

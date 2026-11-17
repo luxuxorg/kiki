@@ -980,3 +980,241 @@ describe('alignment guardrail baseline', () => {
     }
   });
 });
+
+// Exact pinned text of the shared Kiki necessity criteria. Source:
+// src/cli/config.ts NECESSITY_CRITERIA. Interpolated verbatim exactly once into
+// the brainstormer, reviewer and workflow outputs; the planner references the
+// approved evidence instead of repeating the block.
+const NECESSITY_CRITERIA = `1. **Existing capabilities/sources:** what already exposes the needed data or behavior — platform CLI/API (for example \`opencode\` subcommands), existing repo modules, logs/ledgers, adjacent tools — with bounded evidence (file/line, doc location, or the command and observed output). A claim that no source exists must cite what was actually checked: the exact command, lookup or search tried and what it returned, never a bare assumption. Probes are safe, bounded and disclose their limits (for example \`--help\` text or local docs; not automatic capability commands that would need permissions or network).
+2. **Null/reuse alternative:** what happens if nothing is built, and whether an existing source can be reused as-is or read at query time instead.
+3. **Rationale for additions:** where the change adds persistence that duplicates another source, a dependency, or a new abstraction, the actual tradeoff that justifies it. Additional persistence is not categorically forbidden; it must argue its real reasons (cost, availability, correlation), and the argument lives wherever it already fits — no per-field catalog is demanded of every change.
+4. **Unique value:** the user-visible capability that disappears if the addition is removed; if nothing disappears, the addition is unjustified.
+5. **Coupling cost:** what must be maintained (format/version coupling, second source of truth, migration/removal path), stated as far as the change makes it matter.
+Proportionality is part of these criteria: a change touching no data, dependency or architecture justifies itself in one sentence wherever that fits in existing prose; the criteria scale with the change's footprint, not with a template.`;
+
+function occurrenceCount(text: string, marker: string): number {
+  return text.split(marker).length - 1;
+}
+
+describe('necessity gate criteria and delivery boundaries', () => {
+  it('R19_criteria_shared_and_proportional', () => {
+    for (const [label, config] of CONFIGS) {
+      const consumers: Record<string, string> = {
+        brainstormer: bodyOf(generateBrainstormerTemplate(config)),
+        reviewer: bodyOf(generateReviewerTemplate(config)),
+        workflow: generateWorkflowTemplate(config),
+      };
+
+      for (const [name, text] of Object.entries(consumers)) {
+        const start = text.indexOf(NECESSITY_CRITERIA);
+        expect(start, `${label} ${name}: criteria block present`).toBeGreaterThanOrEqual(0);
+        expect(
+          text.slice(start, start + NECESSITY_CRITERIA.length),
+          `${label} ${name}: exact criteria block`,
+        ).toBe(NECESSITY_CRITERIA);
+        expect(
+          occurrenceCount(text, NECESSITY_CRITERIA),
+          `${label} ${name}: criteria block exactly once`,
+        ).toBe(1);
+      }
+
+      for (const phrase of [
+        'Existing capabilities/sources',
+        'A claim that no source exists must cite what was actually checked',
+        'the exact command, lookup or search tried and what it returned',
+        'Probes are safe, bounded and disclose their limits',
+        'Null/reuse alternative',
+        'Rationale for additions',
+        'Additional persistence is not categorically forbidden',
+        'Unique value',
+        'Coupling cost',
+        'Proportionality is part of these criteria',
+        'justifies itself in one sentence',
+      ]) {
+        expect(NECESSITY_CRITERIA, `${label}: §4 criteria phrase ${phrase}`).toContain(phrase);
+      }
+
+      const brainstormer = consumers.brainstormer;
+      expect(brainstormer, `${label}: no extra spec section required`).toContain(
+        'No extra section, catalog or waiver format is required; the analysis lives where it already belongs.',
+      );
+      expect(brainstormer, `${label}: bounded safe probes restated`).toContain(
+        'Use bounded, safe probes (e.g. --help, local docs) and state their limits.',
+      );
+
+      const planner = bodyOf(generatePlannerTemplate(config));
+      expect(planner, `${label}: planner references evidence instead of repeating criteria`).not.toContain(
+        NECESSITY_CRITERIA,
+      );
+    }
+  });
+
+  it('R19_reviewer_technical_authority', () => {
+    for (const [label, config] of CONFIGS) {
+      const body = bodyOf(generateReviewerTemplate(config));
+      const workflow = generateWorkflowTemplate(config);
+
+      expect(body, `${label}: rationale or prior approval is not proof`).toContain(
+        'Rationale presence or prior approval is never proof of soundness or an automatic PASS',
+      );
+      expect(body, `${label}: rejects evidenced unnecessary choices`).toContain(
+        'reject provably unnecessary, duplicative, insecure or disproportionately complex technical choices',
+      );
+      expect(body, `${label}: rejection is not limited to impossibility`).toContain(
+        'Rejection is not limited to impossibility',
+      );
+      expect(body, `${label}: implementable but unsound can still FAIL`).toContain(
+        'a technically implementable but concretely evidenced unnecessary, duplicative, insecure or disproportionately complex choice can still FAIL with Reason `spec` or `plan` on that substantive evidence',
+      );
+      expect(body, `${label}: product goals stay user-owned`).toContain(
+        "Product goals and informed explicit user decisions stay the user's",
+      );
+      expect(body, `${label}: not a taste veto`).toContain('this is not a taste veto');
+      expect(body, `${label}: existing severity treatment retained`).toContain(
+        'The existing Severity and downgrade rules still decide blocking: minor or uncertain findings become notes.',
+      );
+
+      expect(workflow, `${label}: workflow records implementable-but-unsound failures`).toContain(
+        'concretely evidenced technical unsoundness can fail even when implementable',
+      );
+      expect(workflow, `${label}: workflow keeps product ownership`).toContain(
+        "product goals and informed user decisions stay the user's",
+      );
+    }
+  });
+
+  it('R19_cumulative_root_cause_review', () => {
+    for (const [label, config] of CONFIGS) {
+      const body = bodyOf(generateReviewerTemplate(config));
+      const workflow = generateWorkflowTemplate(config);
+
+      for (const phrase of [
+        'Focus per artifact',
+        'spec: technical necessity/viability, alternatives, risks',
+        'plan: concrete choices, decomposition, feasibility within the approved boundaries, justified need',
+        'code: actual need, correctness, security, regressions of the diff, not mere plan adherence',
+        "at plan review reassess the spec's technical assumptions with the plan's new evidence",
+        'an approved spec is a comparison target, never unquestionable',
+        'at code review recheck plan and spec adequacy in light of the implementation evidence',
+        'reuse evidence, reassess relevant assumptions, do not re-investigate everything or duplicate analysis',
+        "A FAIL's Reason follows the flaw's root cause, not the phase it surfaced in",
+        'spec flaw → `spec`, plan flaw → `plan`, implementation flaw → `implementation`',
+        'never force the builder to satisfy faulty upstream instructions',
+        'a concretely evidenced upstream flaw never downgrades merely because the artifact previously passed',
+      ]) {
+        expect(body, `${label}: cumulative root-cause phrase ${phrase}`).toContain(phrase);
+      }
+
+      expect(workflow, `${label}: workflow documents cumulative scrutiny`).toContain(
+        'Scrutiny is cumulative',
+      );
+      expect(workflow, `${label}: workflow reuses evidence`).toContain(
+        'reusing prior evidence without full re-investigation',
+      );
+      expect(workflow, `${label}: workflow routes by root cause`).toContain(
+        "A FAIL's Reason follows the flaw's root cause",
+      );
+    }
+  });
+
+  it('R19_planner_owns_technical_details', () => {
+    for (const [label, config] of CONFIGS) {
+      const body = bodyOf(generatePlannerTemplate(config));
+
+      for (const phrase of [
+        'New technical details',
+        'are yours to choose and justify',
+        'give the actual tradeoff for each',
+        "without copying the spec's analysis into the plan",
+        'Not being mentioned in the spec does not make a technical choice a spec change',
+        "Report BLOCKED only when a choice would change the approved spec's requirements, scope, security intent, acceptance criteria",
+        'or when evidence you need for a decision is genuinely unavailable',
+        'never invent evidence',
+      ]) {
+        expect(body, `${label}: planner ownership phrase ${phrase}`).toContain(phrase);
+      }
+      expect(body, `${label}: planner does not silently treat absence as a spec change`).not.toContain(
+        'absence from the spec is a spec change',
+      );
+    }
+  });
+
+  it('R19_delivery_boundaries', () => {
+    for (const [label, config] of CONFIGS) {
+      const brainstormer = bodyOf(generateBrainstormerTemplate(config));
+      const planner = bodyOf(generatePlannerTemplate(config));
+      const reviewer = bodyOf(generateReviewerTemplate(config));
+      const workflow = generateWorkflowTemplate(config);
+
+      // §6 insertion anchors/order.
+      const brainstormerInstructions = brainstormer.indexOf('## Instructions');
+      const brainstormerNecessity = brainstormer.indexOf('## Necessity (Kiki-specific, in addition to the loaded skill)');
+      expect(brainstormerInstructions, `${label}: brainstormer instructions present`).toBeGreaterThanOrEqual(0);
+      expect(brainstormerNecessity, `${label}: brainstormer necessity heading`).toBeGreaterThan(
+        brainstormerInstructions,
+      );
+
+      const plannerOwnership = planner.indexOf('## Ownership');
+      const plannerNecessity = planner.indexOf('## Necessity (Kiki-specific, in addition to the loaded skill)');
+      const plannerMetadata = planner.indexOf('## Task Metadata');
+      expect(plannerOwnership, `${label}: planner ownership present`).toBeGreaterThanOrEqual(0);
+      expect(plannerNecessity, `${label}: planner necessity heading`).toBeGreaterThan(plannerOwnership);
+      expect(plannerMetadata, `${label}: planner necessity before task metadata`).toBeGreaterThan(
+        plannerNecessity,
+      );
+
+      const reviewerStanding = reviewer.indexOf('## Standing Checks');
+      const reviewerNecessity = reviewer.indexOf('**Necessity (Kiki-specific, in addition to the loaded skill):**');
+      const reviewerOutput = reviewer.indexOf('## Output Format');
+      expect(reviewerStanding, `${label}: reviewer standing checks present`).toBeGreaterThanOrEqual(0);
+      expect(reviewerNecessity, `${label}: reviewer necessity bullet`).toBeGreaterThan(reviewerStanding);
+      expect(reviewerOutput, `${label}: reviewer necessity before output format`).toBeGreaterThan(
+        reviewerNecessity,
+      );
+
+      const workflowOwnership = workflow.indexOf('## Ownership and Revised Plans');
+      const workflowNecessity = workflow.indexOf('## Necessity Gate');
+      const workflowRouting = workflow.indexOf('## Orchestrator Routing and Loop Caps');
+      expect(workflowOwnership, `${label}: workflow ownership section`).toBeGreaterThanOrEqual(0);
+      expect(workflowNecessity, `${label}: workflow necessity gate section`).toBeGreaterThan(workflowOwnership);
+      expect(workflowRouting, `${label}: workflow necessity gate before routing`).toBeGreaterThan(
+        workflowNecessity,
+      );
+
+      // Workflow phases name the check without repeating the criteria block.
+      const phase2 = workflow.indexOf('### 2. Brainstorm');
+      const phase4 = workflow.indexOf('### 4. Architect Review');
+      const phase6 = workflow.indexOf('### 6. Review');
+      expect(phase2, `${label}: phase 2 exists`).toBeGreaterThanOrEqual(0);
+      expect(phase4, `${label}: phase 4 exists`).toBeGreaterThan(phase2);
+      expect(phase6, `${label}: phase 6 exists`).toBeGreaterThan(phase4);
+      expect(workflow.slice(phase2, phase4), `${label}: phase 2 proportional necessity prose`).toContain(
+        'covers the necessity criteria proportionally',
+      );
+      expect(workflow.slice(phase4, phase6), `${label}: phase 4 necessity check`).toContain(
+        'standing necessity check',
+      );
+      expect(workflow.slice(phase6, workflow.indexOf('### 7. Document')), `${label}: phase 6 necessity check`).toContain(
+        'standing necessity check',
+      );
+      expect(occurrenceCount(workflow, NECESSITY_CRITERIA), `${label}: workflow criteria once`).toBe(1);
+
+      // Additive-to-skill framing, no new review pass.
+      for (const [name, text] of Object.entries({ brainstormer, planner, reviewer })) {
+        expect(text, `${label} ${name}: Kiki-specific addition framing`).toContain(
+          'in addition to the loaded skill',
+        );
+      }
+      expect(workflow, `${label}: no new review pass`).toContain(
+        'no extra record, section, catalog or review pass is added',
+      );
+
+      // Unchanged roles receive no necessity additions.
+      for (const role of ['orchestrator', 'implementer', 'guiDesigner', 'escalation', 'historian'] as const) {
+        expect(bodyOf(roleGenerators[role](config)), `${label} ${role}: untouched by necessity gate`).not.toContain(
+          'Necessity',
+        );
+      }
+    }
+  });
+});
