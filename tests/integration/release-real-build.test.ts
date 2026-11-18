@@ -110,7 +110,7 @@ function gate(results: GateResult[], name: GateResult['name']): GateResult {
 }
 
 describe.skipIf(!enabled)('opt-in real candidate build', () => {
-  it('builds and typechecks a minimal candidate with the real local TypeScript compiler', async () => {
+  it('builds a minimal candidate with one real local TypeScript compiler run', async () => {
     if (!existsSync(TYPESCRIPT_SOURCE)) {
       throw new Error(
         `release-real-build: local TypeScript is required at ${TYPESCRIPT_SOURCE}; run in the disposable installed validation copy.`,
@@ -146,9 +146,11 @@ describe.skipIf(!enabled)('opt-in real candidate build', () => {
     const root = candidate.root;
     const tsc = join(root, 'node_modules/typescript/bin/tsc');
     const eslint = join(root, 'node_modules/eslint/bin/eslint.js');
+    const compilerInvocations: string[][] = [];
 
     const runner: CommandRunner = async (file, args, options) => {
       if (file === process.execPath && (args[0] === tsc || args[0]?.endsWith('release-gate-check.mjs') === true)) {
+        compilerInvocations.push([...args]);
         return fixtureRunner(file, args, options);
       }
       if (file === process.execPath && args[0] === eslint) {
@@ -181,10 +183,18 @@ describe.skipIf(!enabled)('opt-in real candidate build', () => {
       'passed',
       'passed',
       'passed',
-      'passed',
+    ]);
+    expect(results.map((entry) => entry.name)).toEqual([
+      'build',
+      'test',
+      'lint',
+      'security',
+      'invariants',
     ]);
     expect(gate(results, 'build').detail).toContain('build: passed');
-    expect(gate(results, 'typecheck').detail).toContain('typecheck: passed (src/)');
+    expect(compilerInvocations).toHaveLength(1);
+    expect(compilerInvocations[0]).toEqual([tsc, '-p', 'tsconfig.json']);
+    expect(compilerInvocations[0]).not.toContain('--noEmit');
 
     const emitted = readFileSync(join(root, 'dist/cli/config.js'), 'utf8');
     expect(emitted).toContain(`KIKI_VERSION = '${NEXT}'`);

@@ -2,7 +2,9 @@
 
 Kiki 3.0.0 is the OpenCode 2 (OC2) release of Kiki. It installs native OC2 agent
 definitions and a package-style server/TUI plugin for the Intake → Brainstorm → Plan →
-Architect Review → Implement → Review → Document → Complete workflow. Project
+Architect Review → Implement → Review → Document → Complete workflow. Small, low-risk
+local tasks may use the shorter intake → implement → risk-appropriate review → complete
+path without persistent spec/plan files or a separate architect gate. Project
 configuration is kept separate from Kiki updates.
 
 Kiki 3.0.0 targets OpenCode V2 (validated against **2.2.6**) and is OC2-only.
@@ -325,13 +327,16 @@ Critical and major block; a minor item, or one whose evidence is
 incomplete, downgrades to a note whatever its Reason, so a `FAIL` stands only
 while a critical/major item with complete evidence remains. `PASS` and
 `PASS_WITH_NOTES` state their `Basis:`; non-blocking notes go in the review
-document and the task's phase/progress prose, never in `reviewNotes` (reserved
-for unresolved issues).
+document, while the task's phase/progress prose keeps only a short reference to
+that document — the notes are not duplicated there and never go in `reviewNotes`
+(reserved for unresolved issues).
 
 **Routing.** `FAIL` + `implementation` earns exactly one fix round with the
 original builder, then re-review. `FAIL` + `plan` sends the plan back to the
-planner with no fix round, and every revised plan passes the reviewer loop
-before implementation resumes. `FAIL` + `spec` or `user-decision` stops and asks
+planner with no fix round, and every substantial revised plan passes the reviewer
+loop before implementation resumes; a mechanical revision (typos, formatting or
+wording that does not change requirements, scope or technical choices) needs no
+new review. `FAIL` + `spec` or `user-decision` stops and asks
 the user directly. `FAIL` + `environment/permission` is terminal: no retry and
 no workaround. A second failure on the same task is classified before spending
 escalation: `user-decision` and `environment/permission` are user-only and stop
@@ -355,12 +360,22 @@ prompt-level restrictions, with the review-directory edit grant as the one
 mechanical limit. The orchestrator presents the recommendation to the user;
 nothing is rewritten automatically.
 
-**Check ownership.** The implementer and gui-designer run the configured
-build/test/lint/security commands and report the exact command output (including
-failure output); the reviewer judges the diff and recorded evidence without
-rerunning them, and the orchestrator runs no project checks. A builder that
-cannot proceed reports the explicit `BLOCKED` form (`Blocker:`, `Tried:`,
-`Need:`) and stops; silent retry and workaround are forbidden.
+**Check ownership.** The implementer and gui-designer choose the checks the change
+actually affects and report each one's exact command, scope, exit status and
+relevant results; failure output is included in full, while a success is a short
+summary. Focused tests are the default; a broad or full run is justified when the
+change radius is unclear or the change crosses shared infrastructure — permissions,
+publishing boundaries, generation/installation, or build/test configuration — not
+merely because a named path was touched. Each check is stated honestly as failed,
+passed, skipped or not run, and a relevant check that was not run gets one sentence
+of rationale; a test exit status alone never becomes a broader integration claim.
+For a proven-irrelevant docs, version or prompt delta, the last recorded PASS may be
+cited as an earlier PASS at the named work state, never as fresh evidence. The
+reviewer judges the diff and recorded evidence, including whether the chosen scope
+fits the change, without rerunning them, and the orchestrator runs no project
+checks. A builder that cannot proceed reports the explicit `BLOCKED` form
+(`Blocker:`, `Tried:`, `Need:`) and stops; silent retry and workaround are
+forbidden.
 
 **Standing checks.** In every review the reviewer also looks for silent scope
 creep — unrequested features, widened permissions, new dependencies, extra
@@ -369,16 +384,19 @@ violations. Creep in the implementation is `FAIL`/`implementation`; creep in a
 plan is `FAIL`/`plan` with the offending passage quoted; a genuine need to
 expand scope is a spec change and needs user approval.
 
-**Necessity check.** In every plan review and final review the reviewer also
-applies substantive necessity criteria to existing spec, plan and code
-substance — not to a required heading or record. Proportionally to the change,
-it asks what existing capability or source already provides the need (a claim
+**Necessity check.** In every plan review and final review the reviewer applies
+the substantive necessity criteria to existing spec, plan and code substance —
+not to a required heading or record — when the change adds a dependency,
+persistence, a new abstraction or scope growth; the normal review always checks
+the smallest sufficient change, and a change that adds none of these justifies
+itself in one sentence of existing prose. Proportionally to the change, it asks
+what existing capability or source already provides the need (a claim
 that none exists cites the bounded command, lookup or search tried and what it
 returned), what happens if nothing is built and whether an existing source can
 be reused as-is or read at query time, what real tradeoff justifies duplicate
-persistence, a dependency or a new abstraction, what user-visible capability disappears without the addition, and
-what coupling or maintenance cost it creates. Small changes justify themselves
-in a sentence of existing prose; no mandatory section, per-field catalog,
+persistence, a dependency or a new abstraction, what user-visible capability
+disappears without the addition, and what coupling or maintenance cost it
+creates. No mandatory section, per-field catalog,
 waiver format or extra review pass is added. Scrutiny is cumulative: plan
 review reassesses the spec's technical assumptions with the plan's new evidence,
 and code review rechecks plan and spec adequacy in light of the implementation
@@ -414,6 +432,12 @@ and a conflict between the fixed block and the active file stops for a user
 decision. Per-project dynamic prompt injection is deferred, not rejected. The
 block is guidance: tests prove the wording is present in each prompt, not that a
 model obeys it.
+
+**Documentation.** Documentation follows the change: the historian updates
+existing docs only when they are actually stale, otherwise
+`documentation.status` is `not_required` with a concrete reason. There is no
+separate mandatory documentation completion gate, and the registry keeps state
+and references rather than duplicated report prose.
 
 **Caps and recording.** Prompt-level: at most one dispatch retry (only for a
 non-`BLOCKED` empty or failed result), at most two review rounds per task with
@@ -583,18 +607,24 @@ kiki release --security-exception <reason>  # approve high/critical findings
 kiki release --help
 ```
 
-The default is a dry run. `--apply` is required for any checkout write and additionally
-requires a clean working tree. The candidate tree is built outside the checkout from
+The default is a dry run, but a prior dry run is only an optional preview:
+`--apply` creates and validates its own fresh candidate. `--apply` is required
+for any checkout write and additionally requires a clean working tree. The candidate tree is built outside the checkout from
 tracked working-tree files only; untracked and ignored files are not part of the release.
 The local `node_modules` tree is byte-copied separately so gates run without touching or
 symlinking source dependencies; npm cache/log/tmp state is redirected to run-owned
 temporary paths. Local development dependencies must already be installed — gates never
 use `npx` or download tooling.
 
-Every gate runs against that candidate: `tsc` build, the Vitest test suite, a separate
-source-only `tsc --noEmit` typecheck, source-only ESLint, a full-tree `npm audit`
-including dev/optional/peer dependencies, and release invariants (version fields,
-generated plugin version, changelog headings, allowlisted changed files). The audit is
+Five gates run against that candidate: the candidate's own `tsc` build, the Vitest
+test suite, source-only ESLint, a full-tree `npm audit` including
+dev/optional/peer dependencies, and release invariants (version fields, generated
+plugin version, changelog headings, allowlisted changed files). There is no
+separate typecheck gate: under Kiki's `tsconfig.json` the build runs the same
+candidate-owned compiler with the same config and already typechecks every file it
+emits (tests are excluded), so the retired gate was that same invocation plus
+`--noEmit`. That equivalence is specific to Kiki's compiler and configuration;
+other projects may need their own typecheck gate. The audit is
 the only network query. It fails closed with
 `security: INCOMPLETE — npm audit unavailable (<reason>)` when the registry or advisory
 data is unavailable, the audit output is malformed, or the audit subprocess fails;
@@ -613,7 +643,8 @@ apply to Kiki 3.0.0. The final fresh audit on the actual `@opencode/plugin@2.2.6
 reported **0 high, 0 critical, 32 moderate, 0 low, 0 info** with no exception. The 32
 moderate findings are non-blocking under the existing gate policy and are reported
 honestly; no routine approval is added. The synthetic 2.4.0→3.0.0 **RELEASE_REHEARSAL**
-passed with all six gates and no `--apply`. The user subsequently authorized the 3.0.0
+passed with all six gates and no `--apply` (the historical run predates the
+current five-gate contract). The user subsequently authorized the 3.0.0
 commit, tag, push and GitHub Release. Because the development tree is already 3.0.0,
 that release uses fresh validation of the current version rather than running an
 additional version bump or copying the synthetic rehearsal back.
@@ -696,16 +727,18 @@ Node 21 and 23 are excluded. The lint packages are development-only.
 npm test
 npm run lint
 npm run build
-# Source-only typecheck, separate from lint (tsconfig excludes tests):
+# Optional standalone source typecheck; `npm run build` already typechecks the
+# files it emits (tsconfig excludes tests):
 node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
 # Optional integration tests against an installed OpenCode 2.x binary
 # (the opt-in real-binary suites require OPENCODE_TEST_BINARY):
 OPENCODE_TEST_BINARY=/absolute/path/to/opencode npm test
 ```
 
-`npm run lint` runs `eslint "src/**/*.ts"` and `npm run build` compiles `src/`. Lint and
-typecheck cover source only; tests are covered by Vitest, not by the lint or typecheck
-gates.
+`npm run lint` runs `eslint "src/**/*.ts"` and `npm run build` compiles and
+typechecks `src/` with the project `tsconfig.json`. Lint and the optional
+standalone typecheck cover source only; tests are covered by Vitest. The release
+candidate has no separate typecheck gate for the same reason.
 
 The optional native tests use disposable HOME and all XDG roots plus an explicit
 `OPENCODE_CONFIG_DIR`; child processes receive a whitelisted environment and never

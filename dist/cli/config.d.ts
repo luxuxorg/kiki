@@ -52,7 +52,7 @@ export declare function sanitizeDiagnostics(raw: unknown): KikiDiagnosticsConfig
  * installed CLI cannot read its own package.json at runtime — this const is the
  * runtime source of truth for version checks and release transforms.
  */
-export declare const KIKI_VERSION = "3.1.0";
+export declare const KIKI_VERSION = "3.1.1";
 export declare const DEFAULT_CONFIG: KikiConfig;
 export declare const DEFAULT_ALIGNMENT: {
     guardrails: string[];

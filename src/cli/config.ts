@@ -93,7 +93,7 @@ export function sanitizeDiagnostics(raw: unknown): KikiDiagnosticsConfig {
  * installed CLI cannot read its own package.json at runtime — this const is the
  * runtime source of truth for version checks and release transforms.
  */
-export const KIKI_VERSION = '3.1.0';
+export const KIKI_VERSION = '3.1.1';
 
 export const DEFAULT_CONFIG: KikiConfig = {
   projectName: 'my-project',
@@ -491,21 +491,21 @@ const NECESSITY_CRITERIA = `1. **Existing capabilities/sources:** what already e
 3. **Rationale for additions:** where the change adds persistence that duplicates another source, a dependency, or a new abstraction, the actual tradeoff that justifies it. Additional persistence is not categorically forbidden; it must argue its real reasons (cost, availability, correlation), and the argument lives wherever it already fits — no per-field catalog is demanded of every change.
 4. **Unique value:** the user-visible capability that disappears if the addition is removed; if nothing disappears, the addition is unjustified.
 5. **Coupling cost:** what must be maintained (format/version coupling, second source of truth, migration/removal path), stated as far as the change makes it matter.
-Proportionality is part of these criteria: a change touching no data, dependency or architecture justifies itself in one sentence wherever that fits in existing prose; the criteria scale with the change's footprint, not with a template.`;
+Apply these criteria when the change adds a dependency, persistence, a new abstraction, or scope growth; a change that adds none of these justifies itself in one sentence wherever that fits in existing prose, and the normal review always checks the smallest sufficient change. Proportionality is part of these criteria: the criteria scale with the change's footprint, not with a template.`;
 
-// Shared builder contract for the implementer and gui-designer. Both run the
-// project's configured checks and hand the exact evidence to the reviewer and
-// historian; the reviewer judges that evidence instead of rerunning commands.
-// Blocking is explicit and terminal: no silent retry or workaround, and no
-// unilateral spec/plan edits.
+// Shared builder contract for the implementer and gui-designer. Both choose
+// the project's configured checks that the change actually affects, state each
+// honestly, and hand the evidence to the reviewer and historian; the reviewer
+// judges that evidence instead of rerunning commands. Blocking is explicit and
+// terminal: no silent retry or workaround, and no unilateral spec/plan edits.
 function buildBuilderHandoffPrompt(commands: KikiConfig['commands']): string {
   return `## Verification and Handoff
-Run all four configured checks and record the exact command, exit status, and complete output (stdout and stderr), including failure output, in the handoff to the reviewer and historian:
+Choose the configured checks affected by the change's delta, shared infrastructure, existing focused tests and remaining uncertainty. The configured commands are options, not a fixed four-check checklist:
 - Build: \`${commands.build}\`
 - Test: \`${commands.test}\`
 - Lint: \`${commands.lint}\`
 - Security: \`${commands.security}\`
-Never claim a check passed without its recorded output. When done, append the Implementation Summary and changed files to the handoff for the reviewer and historian.
+For each check you run, record the exact command, its scope, its exit status and the relevant results in the handoff to the reviewer and historian. Include failure output in full; for a success report only a short summary. Prefer focused tests; run the broad or full suite when the change radius is unclear or the change crosses shared infrastructure (permissions, publishing boundaries, generation/installation infrastructure, build/test configuration), not merely because a path was touched. State each check honestly as failed, passed, skipped or not run, and give one sentence explaining why any relevant check was not run — do not derive a broader integration claim from a test exit status alone. Never claim a check passed without its recorded evidence. For a change proven irrelevant to recorded evidence (docs, version or prompt text), cite the last recorded PASS as an earlier PASS at the named work state — never present it as fresh evidence. When done, append the Implementation Summary and changed files to the handoff for the reviewer and historian.
 
 ## Explicit Blocking
 If you cannot proceed, stop and report BLOCKED:
@@ -562,7 +562,7 @@ Dispatch the correct subagent via the \`subagent\` tool. Do not write code, impl
 - Design/spec phase → @kiki-brainstormer
 - Planning phase → @kiki-planner
 - Review phase → @kiki-reviewer
-- Documentation decision required → dispatch @kiki-historian unless the registry explicitly records \`documentation.status: "not_required"\` with a concrete reason.
+- Documentation decision required → dispatch @kiki-historian only when existing documentation is actually stale, unless the registry explicitly records \`documentation.status: "not_required"\` with a concrete reason.
 - Failure diagnosis → @kiki-escalation, only for a technical deadlock.
 
 ## Dispatch Labels and Requested Comparisons
@@ -581,15 +581,18 @@ Dispatch the correct subagent via the \`subagent\` tool. Do not write code, impl
 7. **Document:** Dispatch \`kiki-historian\` to update \`${p.readme}\`, \`${p.changelog}\`, and project docs.
 8. **Complete:** Update \`${p.taskRegistry}\` with the task status and any failure metrics.
 
+## Proportional Flow
+For a small, low-risk local task, the lightweight flow is intake → implement → risk-appropriate review → complete: no persistent spec or plan file and no separate architect gate are required; the existing conversation/handoff plus a concise registry state is enough. Larger or higher-risk changes keep the brainstorm, plan and architect-review phases. Normal code diffs and semantically relevant prompt diffs get a risk-appropriate final diff review; pure editorial changes (docs, version, prose that cannot change behavior) need no separate agent run.
+
 ## Ownership
 The user approves the spec. Plans are machine-owned: you may accept a revised plan, or dispatch the planner to revise one, only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged. Changing what is delivered or what is allowed is a spec change and requires explicit user approval. If implementation reveals that the spec itself is wrong, stop and ask the user.
-Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes.
+Every substantial revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes. A mechanical revision (typos, formatting or wording that does not change requirements, scope or technical choices) needs no new review; record it and continue.
 
 ## Routing Review Verdicts
 Route by the reviewer's Reason before retrying or escalating:
-- **PASS** / **PASS_WITH_NOTES** → accept; record the notes in the review document and the task's phase/progress prose (never \`reviewNotes\`); no follow-up.
+- **PASS** / **PASS_WITH_NOTES** → accept; keep the notes in the review document and add only a short reference to the review document in the task's phase/progress prose (never \`reviewNotes\`); do not duplicate the notes themselves; no follow-up.
 - **FAIL + Reason \`implementation\`** → exactly one fix round: dispatch the original builder (implementer or gui-designer) with the FAIL evidence, then dispatch \`kiki-reviewer\` to re-review. The fix round increments the task's numeric \`failures\` field.
-- **FAIL + Reason \`plan\`** → no fix round. Dispatch \`kiki-planner\` to revise the plan, then the reviewer loop; implementation resumes only after the revised plan passes. A second technical plan failure is a deadlock, not an unlimited planner loop.
+- **FAIL + Reason \`plan\`** → no fix round. Dispatch \`kiki-planner\` to revise the plan; a substantial revision then passes the reviewer loop before implementation resumes. A second technical plan failure is a deadlock, not an unlimited planner loop.
 - **FAIL + Reason \`spec\`** → stop and ask the user. The spec is user-owned; a spec change requires explicit user approval.
 - **FAIL + Reason \`user-decision\`** → stop and ask the user directly. Do not dispatch escalation.
 - **FAIL + Reason \`environment/permission\`** → terminal: no retry, no workaround. Keep the \`PERMISSION_BLOCKED\` no-retry override; a missing credential or unreachable service stops for the user.
@@ -616,14 +619,14 @@ Terminal dispatch outcomes are never retried with the same prompt:
 ## BLOCKED Routing
 When a builder reports BLOCKED with \`Blocker:\`, \`Tried:\`, \`Need:\`, route by type; never blindly resend the same BLOCKED prompt:
 - Missing context → supply it.
-- Plan ambiguity or plan bug → dispatch \`kiki-planner\`, then the reviewer loop.
+- Plan ambiguity or plan bug → dispatch \`kiki-planner\`, then the reviewer loop. A mechanical revision needs no new review.
 - Permission, credential, or product decision → stop and ask the user.
 - Technical deadlock → the one-escalation limit above.
 
 ## Escalation Recommendations
 Present the escalation recommendation to the user before doing anything; nothing is rewritten automatically. Once accepted:
 - **Fix with guidance** → proceed with the fix; no plan or spec change.
-- **Rewrite plan** → dispatch \`kiki-planner\`; the revised plan passes the reviewer loop before implementation resumes.
+- **Rewrite plan** → dispatch \`kiki-planner\`; the substantial revised plan passes the reviewer loop before implementation resumes.
 - **Rewrite spec** → dispatch \`kiki-brainstormer\`; the revised spec requires explicit user approval.
 - **Split** → the user decides, then dispatch \`kiki-planner\`.
 - **Stop-needs-user** → the user decides.
@@ -667,6 +670,8 @@ You are the Kiki Brainstormer. Your job is to produce design specs and explore r
 3. Write the spec to \`${p.specs}YYYY-MM-DD-<topic>-design.md\`.
 4. You do NOT write source code. Only design docs.
 
+A small, low-risk local change may proceed without a persistent spec file: the existing conversation and handoff are sufficient, and the loaded skill's artifact requirement yields to that proportionality. A larger or higher-risk change still gets a written spec.
+
 ## Necessity (Kiki-specific, in addition to the loaded skill)
 In the existing spec prose — intent, current state, alternatives, architecture/data tradeoffs — cover, proportionally to the change:
 ${NECESSITY_CRITERIA}
@@ -693,6 +698,8 @@ You are the Kiki Planner. Your job is to write detailed implementation plans.
 2. Do the work yourself; do not dispatch the skill to another subagent.
 3. Write the plan to \`${p.plans}YYYY-MM-DD-<topic>-plan.md\`.
 4. You do NOT write source code. Only plans.
+
+A small, low-risk local change may proceed without a persistent plan file and with no separate architect gate: the existing conversation and handoff plus a risk-appropriate review are sufficient, and the loaded skill's artifact requirement yields to that proportionality. A larger or higher-risk change still gets a written plan and the full review path.
 
 ## Ownership
 The user approves the spec. Plans are machine-owned: you may revise or rewrite a plan only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged. Changing what is delivered or what is allowed is a spec change and requires explicit user approval. If implementation reveals that the spec itself is wrong, stop and ask the user.
@@ -781,18 +788,17 @@ You are the Kiki Reviewer. Review code against the approved plan and spec.
 2. Do the work yourself; do not dispatch the skill to another subagent.
 3. You do NOT write code.
 4. **Read the actual code diff or plan**, not just the Implementation Summary. For a plan review, compare the plan against the approved spec and quote the plan passages your verdict depends on. For a code review, compare the actual diff against the plan and spec.
-5. Judge the diff or plan plus the recorded evidence. Do not rerun build, test, lint, or security checks; judge the exact command output the implementer recorded. Missing or unverifiable evidence follows the downgrade rule below.
+5. Judge the diff or plan plus the recorded evidence. Do not rerun build, test, lint, or security checks; judge the exact command output the implementer recorded. Missing or unverifiable evidence follows the downgrade rule below. Normal code diffs and semantically relevant prompt diffs get a risk-appropriate final diff review; pure editorial changes need no separate agent run.
 6. Write the review document to \`.agentic/reviews/*\` in the active project and return its path with the verdict. Do not edit the plan or spec, and do not append verdicts to the plan; you have no plan edit grant.
 
 ## Review Contract
 Report exactly one verdict, from exactly three: PASS, PASS_WITH_NOTES, or FAIL. There is no fourth verdict and no separate plan-bug verdict; anything else the reviewer wants to say is a field of a FAIL.
 
 ## Checklist
-- **Build:** The implementer must have run \`commands.build\` and recorded the exact command, exit status, and complete output. A failing build blocks.
-- **Tests:** The implementer must have run \`commands.test\` and recorded the exact command, exit status, and complete output, including failure output. Failing tests block.
-- **Security scan:** The implementer must have run \`commands.security\` and recorded the exact command, exit status, and complete output, fixing or reporting high/critical findings.
-- **Linting compliance:** The implementer must have run \`commands.lint\` and recorded the exact command, exit status, and complete output. No lint warnings or errors remain in changed files.
-- **Parallelization logic:** No circular \`depends_on\` chains, all references exist, parallel tasks do not modify the same files, sequential tasks are correctly ordered.
+- **Affected checks:** Judge whether the implementer ran the checks the change actually affects, with the exact command, scope, exit status and relevant results. A missing, unverifiable or dishonestly reported check blocks; a check not run for a concretely irrelevant delta is a note, not a blocker.
+- **Test status:** Distinguish failed, passed, skipped and not run. Do not accept a broader integration claim derived from a test exit status alone.
+- **Evidence reuse:** Accept a cited earlier PASS at the named work state for a proven-irrelevant docs, version or prompt delta; it is not fresh evidence.
+- **Parallelization logic (only when tasks are parallelized):** No circular \`depends_on\` chains, all references exist, parallel tasks do not modify the same files, sequential tasks are correctly ordered. When no tasks are parallel, there is nothing to check.
 
 ## Standing Checks
 - **Scope creep:** In every review, actively look for unrequested features, widened permissions, new dependencies, extra behavior beyond the task, unrelated refactors, and violations of the project guardrails. Creep in the implementation is FAIL, Reason \`implementation\`. Creep in a plan is FAIL, Reason \`plan\`, with the offending passage quoted, back to the planner (never a fix round). A genuine need to expand scope is a spec change and requires explicit user approval.
@@ -805,7 +811,7 @@ Report exactly one verdict, from exactly three: PASS, PASS_WITH_NOTES, or FAIL. 
 Verdict: PASS | PASS_WITH_NOTES | FAIL
 
 - **PASS** states \`Basis:\` — what was checked, against what.
-- **PASS_WITH_NOTES** states \`Basis:\` plus \`Notes:\` — concrete, non-blocking findings. Notes go in the review document and the task's phase/progress prose, never in \`reviewNotes\` (reserved for unresolved issues only).
+- **PASS_WITH_NOTES** states \`Basis:\` plus \`Notes:\` — concrete, non-blocking findings. Notes go in the review document; the task's phase/progress prose keeps only a short reference to the review document, never in \`reviewNotes\` (reserved for unresolved issues only); do not duplicate the notes themselves.
 - **FAIL** carries, per blocking item:
   - \`Reason: implementation | plan | spec | user-decision | environment/permission\`
   - \`Severity: critical | major | minor\`
@@ -828,7 +834,7 @@ ${renderPermissions(perms)}
 You are the Kiki Escalation Agent. Diagnose why the pipeline failed. You are dispatched at most once per task, only for a technical deadlock.
 
 ## Inputs
-Read both review reports (plan review and code review), the actual diff, and the implementer's recorded build/test/lint/security evidence. On request, you may also read the task registry, health log, and routing log.
+Read both review reports (plan review and code review), the actual diff, and the implementer's recorded proportional check evidence. On request, you may also read the task registry, health log, and routing log.
 
 ## Instructions
 1. **Load the \`systematic-debugging\` superpowers skill** and follow it **inline**.
@@ -873,6 +879,7 @@ ${responsibilities}
 - You do NOT write source code. You do NOT edit \`${p.source}*\` or \`${p.tests}*\`.
 - You do NOT create plans or specs.
 - Use the **Implementation Summary** from the implementer as your primary input. Read changed files only if needed.
+- Only update documentation that is actually stale because of the change; do not create reports or restate the handoff.
 - When updating CHANGELOG, follow Keep a Changelog format (Added, Changed, Fixed, Removed, Security).
 ${PERMISSION_BLOCK_PROMPT}
 
@@ -890,6 +897,9 @@ export function generateWorkflowTemplate(config: KikiConfig): string {
 
 This document describes the Kiki software engineering pipeline coordinated by the orchestrator agent. These loop controls are prompt-level guidance carried by the generated agent prompts: apart from the unchanged permission arrays they are not mechanically enforced, and the transcript remains the backstop.
 
+## Proportional Flow
+A small, low-risk local task runs as intake → implement → risk-appropriate review → complete: no persistent spec or plan file and no separate architect gate are required; the existing conversation/handoff plus a concise registry state is enough. Larger or higher-risk changes keep the brainstorm, plan and architect-review phases. Normal code diffs and semantically relevant prompt diffs get a risk-appropriate final diff review; pure editorial changes (docs, version, prose that cannot change behavior) need no separate agent run.
+
 ## Pipeline Phases
 
 ### 1. Intake
@@ -902,7 +912,7 @@ The orchestrator dispatches the \`kiki-brainstormer\` subagent. The brainstormer
 The orchestrator dispatches the \`kiki-planner\` subagent. The planner loads the superpowers \`writing-plans\` skill inline and produces an implementation plan at \`${p.plans}...\`. Tasks in the plan include metadata: \`risk\`, \`parallel\`, and \`depends_on\`.
 
 ### 4. Architect Review
-The orchestrator dispatches \`kiki-reviewer\` for architect review of the plan against the approved spec and its guardrails. The reviewer reads the active project's \`.agentic/kiki/alignment.json\` fresh in every review, including custom rules beyond the fixed baseline, and writes its review to \`.agentic/reviews/*\`; it never appends a verdict to the plan. The plan must pass this gate before implementation begins. Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes. The reviewer's plan-review duties include the standing necessity check: it reassesses the spec's technical assumptions with the plan's new evidence and judges the plan's concrete choices and justified need within the approved boundaries.
+The orchestrator dispatches \`kiki-reviewer\` for architect review of the plan against the approved spec and its guardrails. The reviewer reads the active project's \`.agentic/kiki/alignment.json\` fresh in every review, including custom rules beyond the fixed baseline, and writes its review to \`.agentic/reviews/*\`; it never appends a verdict to the plan. The plan must pass this gate before implementation begins. Every substantial revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes. A mechanical revision (typos, formatting or wording that does not change requirements, scope or technical choices) needs no new review. The reviewer's plan-review duties include the standing necessity check: it reassesses the spec's technical assumptions with the plan's new evidence and judges the plan's concrete choices and justified need within the approved boundaries.
 
 ### 5. Implement
 The orchestrator dispatches the appropriate implementation subagent via the \`subagent\` tool. UI/frontend/visual/layout/component/design tasks route to \`kiki-gui-designer\`, which loads \`ui-ux-pro-max\`, \`executing-plans\`, \`test-driven-development\`, and \`systematic-debugging\` skills inline. All other tasks (backend/logic/data/tooling) route to \`kiki-implementer\`, which loads \`executing-plans\` and \`test-driven-development\` skills inline. Either agent implements the tasks per the plan.
@@ -913,14 +923,14 @@ The \`kiki-reviewer\` loads \`receiving-code-review\` or \`requesting-code-revie
 The reviewer reports exactly one verdict: Verdict: PASS | PASS_WITH_NOTES | FAIL. There is no binary or fourth verdict. PASS and PASS_WITH_NOTES state \`Basis:\`, and PASS_WITH_NOTES adds concrete, non-blocking \`Notes:\` that go in the review document and the task's phase/progress prose, never in \`reviewNotes\`. FAIL carries, per blocking item, \`Reason: implementation | plan | spec | user-decision | environment/permission\`, \`Severity: critical | major | minor\`, and \`Evidence:\` — the scenario, the violated rule or requirement, and the file/line; plan or spec reasons instead quote the faulty passage and explain why no implementation can satisfy it. Minor items and items whose evidence is incomplete downgrade to notes.
 
 ### 7. Document
-The orchestrator dispatches the \`kiki-historian\` subagent to update \`${p.readme}\`, \`${p.changelog}\`, and any project docs in \`${p.docs}*\` (excluding \`${p.superpowers}*\`)${docExtraStr}.
+The orchestrator dispatches the \`kiki-historian\` subagent only when existing documentation is actually stale because of the change, to update \`${p.readme}\`, \`${p.changelog}\`, and any project docs in \`${p.docs}*\` (excluding \`${p.superpowers}*\`)${docExtraStr}; otherwise \`documentation.status\` is \`not_required\` with a concrete reason and no historian run. There is no separate documentation gate as a mandatory step.
 
 ### 8. Complete
 The orchestrator updates \`${p.taskRegistry}\` with the task status and any failure metrics.
 
 ## Ownership and Revised Plans
 The user approves the spec. Plans are machine-owned: the planner may revise or rewrite a plan only while the spec's requirements, scope, security intent, and acceptance criteria are unchanged. Changing what is delivered or what is allowed is a spec change and requires explicit user approval. If implementation reveals that the spec itself is wrong, work stops and the user is asked.
-Every revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes. A second technical plan failure is a deadlock, not an unlimited planner loop.
+Every substantial revised plan — from a FAIL/\`plan\`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes. A mechanical revision (typos, formatting or wording that does not change requirements, scope or technical choices) needs no new review. A second technical plan failure is a deadlock, not an unlimited planner loop.
 
 ## Necessity Gate
 The reviewer applies the same necessity criteria in every plan review and final review, from existing spec/plan/code substance:
@@ -929,9 +939,9 @@ The criteria are proportional to the change's footprint and live wherever the an
 
 ## Orchestrator Routing and Loop Caps
 The orchestrator routes each review verdict by its Reason before retrying or escalating:
-- PASS / PASS_WITH_NOTES → accept and record notes; no follow-up.
+- PASS / PASS_WITH_NOTES → accept and keep notes in the review document; the task's phase/progress prose keeps only a short reference to the review document; do not duplicate the notes themselves; no follow-up.
 - FAIL/\`implementation\` → exactly one fix round with the original builder, then re-review.
-- FAIL/\`plan\` → the planner revises; no fix round.
+- FAIL/\`plan\` → the planner revises; a substantial revision passes the reviewer loop before implementation resumes; no fix round.
 - FAIL/\`spec\` or FAIL/\`user-decision\` → stop and ask the user.
 - FAIL/\`environment/permission\` → terminal: no retry, no workaround.
 
@@ -942,13 +952,13 @@ Terminal dispatch outcomes are never retried with the same prompt: a \`BLOCKED\`
 Caps: at most one eligible dispatch retry, at most two review rounds per task with the one implementation fix round between them, one escalation per task, and the same failure twice stops. Dispatch retries and fix rounds increment the existing numeric \`failures\` counter; review rounds, escalation use, and notes are summarized in the task's phase/progress prose. No new registry counters or schema fields are added. The 30-minute dispatch timeout and watchdog thresholds remain the wall-clock backstop; a token/wall-clock budget engine is deferred, not rejected.
 
 ## BLOCKED Routing
-When a builder reports \`BLOCKED\` with \`Blocker:\`, \`Tried:\`, and \`Need:\`, the orchestrator routes by type and never blindly resends the same BLOCKED prompt: missing context is supplied; plan ambiguity or a plan bug goes to the planner and the reviewer loop; a permission, credential, or product decision stops for the user; a technical deadlock follows the one-escalation limit.
+When a builder reports \`BLOCKED\` with \`Blocker:\`, \`Tried:\`, and \`Need:\`, the orchestrator routes by type and never blindly resends the same BLOCKED prompt: missing context is supplied; plan ambiguity or a plan bug goes to the planner and the reviewer loop for a substantial revision; a mechanical revision needs no new review; a permission, credential, or product decision stops for the user; a technical deadlock follows the one-escalation limit.
 
 ## Who Runs Checks
-The implementer and gui-designer run build, test, lint, and the security scan, and report the exact command output in their handoff. The reviewer does not rerun them; it judges the diff plus the recorded evidence. Escalation may reproduce a repeated technical failure within its contract. The orchestrator runs no project checks; it coordinates and passes the recorded evidence to the reviewer and escalation.
+The implementer and gui-designer choose the checks affected by the change and report the exact command, scope, exit status and relevant results in their handoff, including failure output in full and only a short success summary. Focused tests are the default; a broad or full run is justified when the change radius is unclear or the change crosses shared infrastructure — permissions, publishing boundaries, generation/installation, or build/test configuration — not merely because a named path was touched. Each check is stated honestly as failed, passed, skipped or not run, and a check not run for a concretely irrelevant delta is explained in one sentence; a test exit status alone never becomes a broader integration claim. A proven-irrelevant docs, version or prompt delta may cite the last recorded PASS as an earlier PASS at the named work state, never as fresh evidence. The reviewer does not rerun them; it judges the diff plus the recorded evidence and whether the chosen scope fits the change. Escalation may reproduce a repeated technical failure within its contract. The orchestrator runs no project checks; it coordinates and passes the recorded evidence to the reviewer and escalation.
 
 ## Escalation
-Escalation is dispatched at most once per task, only for a technical deadlock. It returns exactly one recommendation: Fix with guidance, Rewrite plan, Rewrite spec, Split, or Stop-needs-user. A rewrite recommendation quotes the faulty plan or spec passage and why no implementation can satisfy it. The orchestrator presents the recommendation to the user before acting; nothing is rewritten automatically. Rewrite plan goes to the planner and the reviewer loop; Rewrite spec goes to the brainstormer and requires explicit user approval; Split is decided by the user, then the planner; Stop-needs-user is decided by the user. Escalation writes one report and at most one optional unapplied patch to \`.agentic/reviews/*\`; it does not edit source, publish, perform remote writes, or change permissions.
+Escalation is dispatched at most once per task, only for a technical deadlock. It returns exactly one recommendation: Fix with guidance, Rewrite plan, Rewrite spec, Split, or Stop-needs-user. A rewrite recommendation quotes the faulty plan or spec passage and why no implementation can satisfy it. The orchestrator presents the recommendation to the user before acting; nothing is rewritten automatically. Rewrite plan goes to the planner and, for a substantial revision, the reviewer loop; a mechanical revision needs no new review; Rewrite spec goes to the brainstormer and requires explicit user approval; Split is decided by the user, then the planner; Stop-needs-user is decided by the user. Escalation writes one report and at most one optional unapplied patch to \`.agentic/reviews/*\`; it does not edit source, publish, perform remote writes, or change permissions.
 
 ## Task Registry Schema
 
@@ -976,9 +986,9 @@ TASK_REGISTRY entries use the descriptive schema:
 
 Do not use \`name\`, \`created_at\`, \`phases\`, or \`failure_count\`. \`reviewNotes\` is an array of unresolved issue strings only; remove fixed findings instead of preserving them as history.
 
-## Documentation Completion Gate
+## Documentation
 
-Every task begins with \`documentation.status\` set to \`pending\`. The \`not_required\` status is allowed only for a local internal change and requires a concrete reason recorded in the registry. In all other cases, dispatch \`kiki-historian\` to update the documentation. When the historian returns, set \`documentation.status\` to \`completed\` and record the updated files in \`updatedFiles\`, or an empty list if no files changed. Completion is forbidden while documentation.status is \`pending\`.
+Documentation is proportional: dispatch \`kiki-historian\` only when existing documentation is actually stale because of the change; otherwise record \`documentation.status: "not_required"\` with a concrete reason. There is no separate documentation gate as its own mandatory step, and the registry records state and references, not duplicated report prose. When the historian updates files, set \`documentation.status\` to \`completed\` and list them in \`updatedFiles\`. Completion is forbidden while documentation.status is \`pending\`.
 
 ## Role-Level Model Routing
 

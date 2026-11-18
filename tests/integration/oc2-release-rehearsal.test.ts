@@ -46,7 +46,7 @@ const NORMALIZATION_INPUTS = [
   'src/cli/config.ts',
   'CHANGELOG.md',
 ] as const;
-const GATE_NAMES = ['build', 'test', 'typecheck', 'lint', 'security', 'invariants'] as const;
+const GATE_NAMES = ['build', 'test', 'lint', 'security', 'invariants'] as const;
 const SECRET_BASENAME =
   /^(?:\.env(?:\..*)?|\.npmrc|\.netrc|\.git-credentials|id_rsa(?:\.pub)?|id_ed25519(?:\.pub)?|.*\.(?:pem|key|p12|pfx)|credentials(?:\.json)?|secrets?)$/i;
 const LIVE_CONFIG_BASENAMES = new Set([
@@ -667,7 +667,7 @@ describe.skipIf(!ENABLED)('isolated 2.4.0 to 3.0.0 OC2 release rehearsal', () =>
         expect(testCall).toBeDefined();
         expect(auditCall).toBeDefined();
         // npm audit legitimately exits 1 when it reports non-blocking
-        // advisories; the gate parser accepts 0/1 and all six gates passed.
+        // advisories; the gate parser accepts 0/1 and all five gates passed.
         expect(
           calls
             .filter((call) => !(call.file === 'npm' && call.args[0] === 'audit'))

@@ -655,13 +655,11 @@ describe('successful dry-run command', () => {
     expect(result.gates.map((gate) => gate.name)).toEqual([
       'build',
       'test',
-      'typecheck',
       'lint',
       'security',
       'invariants',
     ]);
     expect(result.gates.map((gate) => gate.status)).toEqual([
-      'passed',
       'passed',
       'passed',
       'passed',
@@ -677,6 +675,7 @@ describe('successful dry-run command', () => {
     for (const gate of result.gates) {
       expectLog(logs, new RegExp(`${gate.name}: ${gate.status}`, 'i'));
     }
+    expect(logs.some((line) => line.includes('typecheck:'))).toBe(false);
     expectLog(logs, /Candidate changed files:/i);
     expectLog(logs, /package\.json: [0-9a-f]{12} -> [0-9a-f]{12}/);
     expectLog(logs, /dist\/index\.js: \(absent\) -> [0-9a-f]{12}/);
@@ -721,14 +720,14 @@ describe('successful dry-run command', () => {
       (call) => call.file === process.execPath && isEslint(call.args[0] ?? ''),
     );
     // Task 7 removed the V1 generated-plugin gate (`release-gate-check.mjs`)
-    // together with the retired generated-plugin machinery, so the six current
-    // gates spawn only build/test/typecheck/lint/security subprocesses. Assert
+    // together with the retired generated-plugin machinery, so the five current
+    // gates spawn only build/test/lint/security subprocesses. Assert
     // the retired gate is never invoked (and never silently restored).
     const retiredPluginGateCalls = calls.filter(
       (call) => call.file === process.execPath && (call.args[0] ?? '').endsWith('release-gate-check.mjs'),
     );
     expect(buildCalls).toHaveLength(1);
-    expect(typecheckCalls).toHaveLength(1);
+    expect(typecheckCalls).toHaveLength(0);
     expect(lintCalls).toHaveLength(1);
     expect(retiredPluginGateCalls).toHaveLength(0);
 
@@ -1040,7 +1039,7 @@ describe('apply command', () => {
     await addEmptyCommit('fix: correct release output');
     fixture.makeApplyClean();
     const logs: string[] = [];
-    const { runner } = createRunner({ next: '2.3.0' });
+    const { runner, calls } = createRunner({ next: '2.3.0' });
     const sentinelBefore = checkoutState();
     const gitBefore = snapshotEntries(join(fixture.checkout, '.git'));
     const dependenciesBefore = snapshotEntries(join(fixture.checkout, 'node_modules'));
@@ -1053,6 +1052,29 @@ describe('apply command', () => {
     );
 
     expect(result.applied).toBe(true);
+    expect(result.gates.map((gate) => gate.name)).toEqual([
+      'build',
+      'test',
+      'lint',
+      'security',
+      'invariants',
+    ]);
+    expect(result.gates.map((gate) => gate.status)).toEqual([
+      'passed',
+      'passed',
+      'passed',
+      'passed',
+      'passed',
+    ]);
+    const compilerCalls = calls.filter(
+      (call) => call.file === process.execPath && isTsc(call.args[0] ?? ''),
+    );
+    expect(compilerCalls).toHaveLength(1);
+    expect(compilerCalls[0].args.slice(1)).toEqual(['-p', 'tsconfig.json']);
+    expect(compilerCalls[0].args).not.toContain('--noEmit');
+    const applyTestCalls = calls.filter((call) => call.file === 'npm' && call.args[0] === 'test');
+    expect(applyTestCalls).toHaveLength(1);
+    expect(applyTestCalls[0].args).toEqual(['test']);
     expect(JSON.parse(fixture.read('package.json').toString()).version).toBe('2.3.0');
     expect(JSON.parse(fixture.read('package-lock.json').toString()).version).toBe('2.3.0');
     expect(JSON.parse(fixture.read('package-lock.json').toString()).packages[''].version).toBe('2.3.0');

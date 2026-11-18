@@ -127,6 +127,40 @@ describe('global installation CLI', () => {
     expect(workflow, 'workflow: standing necessity check').toContain(
       'standing necessity check',
     );
+
+    const implementerFile = join(global, 'agents', 'kiki-implementer.md');
+    const implementer = parseAgent(
+      readFileSync(implementerFile, 'utf8'),
+      implementerFile,
+    ).prompt;
+    expect(implementer, 'implementer: configured checks are options').toContain(
+      'options, not a fixed four-check checklist',
+    );
+    expect(implementer, 'implementer: honest check statuses').toContain(
+      'failed, passed, skipped or not run',
+    );
+    expect(implementer, 'implementer: prior PASS is named').toContain(
+      'earlier PASS at the named work state',
+    );
+
+    const orchestratorFile = join(global, 'agents', 'kiki-orchestrator.md');
+    const orchestrator = parseAgent(
+      readFileSync(orchestratorFile, 'utf8'),
+      orchestratorFile,
+    ).prompt;
+    expect(orchestrator, 'orchestrator: small task flow').toContain(
+      'no persistent spec or plan file',
+    );
+
+    expect(reviewer, 'reviewer: parallelization only when parallelized').toContain(
+      'only when tasks are parallelized',
+    );
+    expect(workflow, 'workflow: proportional check scope').toContain(
+      'not merely because a named path was touched',
+    );
+    expect(workflow, 'workflow: historian only for stale docs').toContain(
+      'only when existing documentation is actually stale',
+    );
   });
 
   it('updates_stale_prompt_bodies_without_changing_native_settings', async () => {
@@ -233,6 +267,21 @@ describe('global installation CLI', () => {
     expect(workflow, 'workflow: necessity gate section').toContain('## Necessity Gate');
     expect(workflow, 'workflow: standing necessity check').toContain(
       'standing necessity check',
+    );
+
+    const implementerFile = join(global, 'agents', 'kiki-implementer.md');
+    const implementer = parseAgent(
+      readFileSync(implementerFile, 'utf8'),
+      implementerFile,
+    ).prompt;
+    expect(implementer, 'implementer: honest check statuses after update').toContain(
+      'failed, passed, skipped or not run',
+    );
+    expect(orchestrator, 'orchestrator: small task flow after update').toContain(
+      'no persistent spec or plan file',
+    );
+    expect(workflow, 'workflow: proportional plan revisions after update').toContain(
+      'mechanical revision',
     );
 
     const afterFirstUpdate = Object.fromEntries(

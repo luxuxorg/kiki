@@ -1,6 +1,129 @@
 {
   "tasks": [
     {
+      "id": "release-3.1.1",
+      "description": "User-authorized patch release of the approved workflow and release-gate fixes: verify once, set3.1.1 consistently, commit, annotate v3.1.1 and push without npm publication.",
+      "status": "in_progress",
+      "phase": "delivery",
+      "startedAt": "2026-11-17",
+      "authorization": "User confirms: 'Ja, mach das' to3.1.1 version, commit, tag and push, explicitly without npm publication.",
+      "progress": "After user-authorized direct search: real /home/lutz/.opencode/bin/opencode v2.3.0, no redirects. Only previously failing security file rerun with command-local OPENCODE_TEST_BINARY:5/5passed in151.66s; original broad run remains758pass/4setupfail/16skip, not relabeled a fresh green suite. npm run lint and npm run build EXIT0. Fresh package/lock/source/dist3.1.1, unchanged graph, changelog, five built gates and generic template invariants PASS; task diff-check EXIT0. Independent review PASS_WITH_NOTES no blockers. Authorized delivery now; this snapshot does not assert commit/tag/push success.",
+      "finalReview": {
+        "status": "PASS_WITH_NOTES",
+        "sessionID": "ses_e1258f00dffeNV242LLxbJ3OEj",
+        "notes": "No blockers. No single fresh fullsuite PASS asserted;16skips remain. Source/test tree unchanged since recorded verification. Selective task-only commit permitted, opencode.jsonc excluded."
+      },
+      "delivery": {
+        "branch": "main",
+        "remote": "origin",
+        "tag": "v3.1.1",
+        "authorization": "User approved commit, annotated tag and push without npm publication.",
+        "snapshot": "Pre-delivery administrative snapshot, not a claim of remote success. Actual success checked from git/remote refs and reported to user; no extra bookkeeping commit or self-referential final SHA.",
+        "resume": "Before any retry inspect HEAD, local tag and remote main/peeled tag; do not repeat completed tests, create duplicate commits, overwrite tags or force push."
+      },
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e14f3931affe1Iow1gb56PSZRY",
+        "paths": ["CHANGELOG.md"],
+        "verification": "Historian moved existing approved fix prose verbatim under3.1.1 dated2026-11-17, retained empty Unreleased; doc diff-check EXIT0. Parent read confirms heading/content. No overall validation or publication claimed."
+      },
+      "failures": 0
+    },
+    {
+      "id": "release-gate-simplification",
+      "description": "Implement approved concrete Kiki release-gate simplification independently of generic workflow changes: remove redundant typecheck gate, preserve fresh candidate and apply protections, clarify optional dry-run.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-18",
+      "startedAt": "2026-11-17",
+      "spec": "docs/superpowers/specs/2026-11-17-kiki-release-gate-simplification-design.md",
+      "designApproval": "User: 'OK, klingen jetzt beide gut und können beide umgesetzt werden.' Both split specs explicitly approved for implementation.",
+      "progress": "Builder ses_e158e45b0ffet3fzXMOctTmfJ5 implemented five-gate contract; focused RED EXIT1 4fail/105pass, GREEN EXIT0 149pass; real candidate compiler opt-in EXIT0 1pass proves one tsc invocation and emitted dist in temporary candidate. Rehearsal explicitly skipped1, not passed. Source release command/apply/candidate protections unchanged; checkout dist untouched. Historian cumulative docs now, then one shared final suite/lint/build and independent review.",
+      "plan": "docs/superpowers/plans/2026-11-17-kiki-release-gate-simplification-plan.md",
+      "finalReview": {
+        "status": "PASS",
+        "sessionID": "ses_e1258f00dffeNV242LLxbJ3OEj",
+        "notes": "Exactly five gates; original candidate/apply/permission safeguards preserved. Final lint/build and version invariants passed; release delivery tracked separately."
+      },
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e158ac17cffet5xmMpruyZiwww",
+        "paths": ["README.md", "CHANGELOG.md"],
+        "verification": "Historian doc-only diff --check EXIT0; final cumulative review PASS, prior workflow documentation blocker resolved. No documentation or runtime publication claim beyond recorded evidence."
+      },
+      "failures": 0
+    },
+    {
+      "id": "proportional-tests-and-artifacts",
+      "description": "Simplify Kiki test and artifact requirements: match verification scope to change impact, avoid repeated full integration runs without relevant changes, and reduce mandatory artifacts.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-18",
+      "startedAt": "2026-11-17",
+      "scope": "Implement approved generic workflow spec and focused tests, cumulative documentation and shared final verification; concrete release gates are separate. User subsequently authorizes3.1.1 commit/tag/push, no npm or live update.",
+      "splitAuthorization": "User requests splitting existing draft into independently approvable generic workflow and concrete release-optimization specs, review both, and report when ready. Drafting/review only; no implementation, tests, builds, rollout or additional report artifacts.",
+      "designApproval": "User: 'OK, klingen jetzt beide gut und können beide umgesetzt werden.' Generic workflow spec approved for implementation; concrete release spec tracked separately as release-gate-simplification.",
+      "plan": "docs/superpowers/plans/2026-11-17-proportional-tests-and-artifacts-plan.md",
+      "finalReview": {
+        "status": "PASS_WITH_NOTES",
+        "sessionID": "ses_e1258f00dffeNV242LLxbJ3OEj",
+        "notes": "No blockers. Minor: reviewer default-config assertion coverage shifted; one new assertion block lacked clean semantic RED, disclosed honestly. No follow-up fix/review for optional notes. Documentation complete, release delivery tracked separately."
+      },
+      "progress": "Builder ses_e15efa808ffew1k8ZM6aEIxG9E changed config.ts, loop-controls.test.ts and install.test.ts only. Focused RED EXIT1 8fail/33pass (one assertion initially scope ReferenceError, corrected), GREEN EXIT0 41pass. No build/lint/audit/fullsuite/dist; cumulative final verification/review and historian pending. User explicitly approved replacing .opencode/docs/agentic-workflow.md with retirement notice via question answer 'Ja, Datei ersetzen'; no permission widening authorized.",
+      "splitDesigns": {
+        "status": "user_approved",
+        "workflow": "docs/superpowers/specs/2026-11-17-proportional-tests-and-artifacts-design.md",
+        "release": "docs/superpowers/specs/2026-11-17-kiki-release-gate-simplification-design.md",
+        "progress": "Independent review ses_e160bcd07ffeWwthXdDnHHscmJ: both PASS_WITH_NOTES, no blockers or follow-up review. Boundaries independently implementable with no required dependency. Notes for planning: distinguish each deliverable's approval/task identity; keep local operating history outside scope; explicitly test five remaining gate names/count; verify dry-run advice needs documentation only, not unnecessary sequencing code. No extra review file, checks or rollout. Both draft headers read and confirmed pending separate user approval."
+      },
+      "approachApproval": "User: 'oh ja bitte. auch die transkripte des kimi escalation als quelle mit berücksichtigen'. Accepts expanded small-default-workflow approach and requests escalation transcripts as design sources. Design preparation authorized, not implementation.",
+      "designClarification": "Completed by brainstormer in the existing draft: generic workflow uses each project's configured commands and risks; OPENCODE_TEST_BINARY applies only to specific Kiki-repo OpenCode tests, not all integrations; Kiki release gate cleanup is repo-specific. No new requirements for other projects, tests or implementation.",
+      "installationAssessment": {
+        "status": "disk_state_inspected",
+        "authorization": "After blocked child reads, user explicitly requested direct work, then approved removal of obsolete launcher redirects and inspection of regular global installation.",
+        "findings": "Launcher and regular global plugin both reference this checkout (dist version3.1.0). Regular global Kiki agent/workflow files inspected; no OpenCode-test-binary, Vitest/tsc or release-gate-specific repo details found in prompt search. Files contain older pipeline/reviewer contracts and unsafe legacy rollback instruction at ~/.config/opencode/agents/kiki-implementer.md:81. Global rules were not rewritten; live merged runtime not verified.",
+        "launcher": "Removed only five OPENCODE_CONFIG_DIR/XDG_* redirects to ~/.opencode2 from /home/lutz/.local/bin/kiki. Preserved shebang and checkout exec. Exact-content assertion failed before and passed after; executable bit retained and sh -n EXIT0. CLI not invoked; no install/update/reload or repo suite.",
+        "next": "User subsequently ran kiki update; direct reread confirmed updated safe rollback/BLOCKED implementer rules. No additional live update/launcher work belongs to release deliverable."
+      },
+      "design": {
+        "status": "approved",
+        "path": "docs/superpowers/specs/2026-11-17-proportional-tests-and-artifacts-design.md",
+        "sessionID": "ses_e1728e23bffeaBM7HnpSKBIhzW",
+        "source": "Brainstormer reports read-only bounded access to final escalation transcript answer and session metadata; agent kiki-escalation, model moonshotai/kimi-k3.1-pro verified in local session storage. No transcript copy made.",
+        "verification": "Orchestrator read the 133-line draft; no implementation, tests, builds or commits performed in design phase."
+      },
+      "assessmentAuthorization": "User explicitly requests kiki-escalation to critically review proposals A/B/C, necessity of existing checks and gates, and overlooked simplification opportunities; continue with assessment, not implementation.",
+      "assessmentRepeatAuthorization": "User identified and corrected a local escalation-model override and explicitly requests a fresh escalation assessment with Kimi. New session uses corrected native agent configuration, no guessed model override; previous assessment is not a dispatch failure.",
+      "repeatAssessment": {
+        "sessionID": "ses_e171b7427ffeSVH0RC9JpQdwrX",
+        "status": "completed",
+        "summary": "Recommends broader simplification: no persistent spec/plan or architect gate for clear small low-risk tasks; targeted final review and historian; remove prose-pinning tests of obsolete obligations, complete output dumps, duplicated registry/README narratives; apply necessity/parallelism scrutiny only when relevant. Retain fresh normal candidate build/test/lint/security/invariants and apply/permission safeguards, remove duplicate release typecheck.",
+        "corrections": "Cross-candidate path-based evidence reuse rejected; rehearsal recursion already prevented; full suite integration coverage depends on environment. Release3.1.0 handoff explicitly records no repeated fullsuite or candidate gates, not proof about earlier preparation rounds.",
+        "limits": "Static inspection only, no tests/builds/files from agent. No approved design or implementation authorization; broader artifact cleanup remains proposed.",
+        "next": "Present expanded minimal-workflow approach and obtain user scope selection before short design."
+      },
+      "escalationAssessment": {
+        "sessionID": "ses_e17218bb9ffeUAs7xeCFKgZrh4",
+        "status": "completed",
+        "summary": "A/C retained with broader simplification; B cross-candidate evidence reuse rejected. Nested rehearsal assumption corrected: environment gating prevents recursion. Additional levers: complete-output dumps, mechanical plan re-reviews, duplicate release typecheck, per-round audit and duplicate dry-run/apply candidate checks.",
+        "limits": "Historical 3.1.0 dry-run/apply sequence not verified. Proposed release typecheck removal conditional on current identical compiler/config semantics; preserve fresh candidate build/test/security/invariants. No implementation, tests or report files.",
+        "recommendation": "Proportional builder checks and fewer artifacts first; separately remove demonstrated duplicate typecheck and clarify release invocation costs; defer optional candidate test-scope configuration. Await user scope selection."
+      },
+      "brainstorm": {
+        "sessionID": "ses_e1728e23bffeaBM7HnpSKBIhzW",
+        "status": "approaches_returned",
+        "findings": "Builder handoff mandates all configured checks each round; release gates independently invoke full chain; workflow requires multiple persistent phase artifacts.",
+        "proposals": "A proportional builder checks and valid evidence reuse; B separate release-gate reuse; C reduce mandatory workflow artifacts. No tests or files written by brainstormer."
+      },
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e158ac17cffet5xmMpruyZiwww",
+        "paths": ["README.md", "CHANGELOG.md", ".opencode/docs/agentic-workflow.md"],
+        "progress": "README/CHANGELOG historian diff-check EXIT0. After explicit user switch to build agent and single-file instruction, the user-approved legacy workflow retirement edit succeeded directly; file readback and single-file diff-check passed. Permission blocker resolved, no permission config modified. Pending shared verification and independent review."
+      },
+      "failures": 0
+    },
+    {
       "id": "cleanup-and-push",
       "description": "User-authorized repository cleanup: accept the two intentional OC2 report deletions, reconcile pending authored artifacts and local/runtime data, merge outstanding worktrees where needed, create one cleanup commit and push main without force. Preserve local data and do not publish/tag 3.1.0 as part of this cleanup.",
       "status": "completed",

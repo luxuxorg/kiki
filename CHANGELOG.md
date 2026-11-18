@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.1.1] — 2026-11-17
+
+### Changed
+
+- **Proportional generated workflow:** generated prompts and the workflow
+  template now choose only the configured checks the change actually affects and
+  report each check's exact command, scope, exit status and relevant results,
+  with failure output in full and a short success summary. Status is stated
+  honestly as failed, passed, skipped or not run, and an earlier PASS is cited
+  only as an earlier PASS at the named work state, never as fresh evidence.
+  Small, low-risk local tasks may run without persistent spec/plan files, a
+  separate architect gate or a separate PASS report; normal code diffs and
+  semantically relevant prompt diffs get a risk-appropriate final review, while
+  pure editorial changes need no separate agent run. Plan re-review, the
+  necessity catalog and parallelization checks apply only to substantial
+  revisions, additions (dependency, persistence, abstraction or scope growth)
+  and actual parallel work; the historian runs only for genuinely stale
+  documentation. Pre-change inventory, user-file protection, permission and
+  publishing boundaries, loop caps and escalation rules are unchanged. Existing
+  installations receive the regenerated prompt bodies on the next ordinary
+  `kiki update`; no live update or rollout was performed.
+- **Five-gate Kiki release candidate:** the separate `typecheck` gate is removed
+  because the build runs the same candidate-owned TypeScript compiler with the
+  same `tsconfig.json` and already typechecks the files it emits; tests remain
+  excluded. This equivalence is specific to Kiki's configuration. `build`,
+  `test`, `lint`, `security` and `invariants` remain, and apply validation, byte
+  verification and rollback are unchanged. A prior dry run is an optional
+  preview; `--apply` creates and validates its own fresh candidate.
+
+### Removed
+
+- **Mandatory four-check/full-output contract and documentation gate:** the
+  generated builder no longer requires all four configured checks with complete
+  output, and there is no separate mandatory documentation completion step. The
+  release gate type and execution no longer include `typecheck`.
+
 ## [3.1.0] — 2026-11-17
 
 ### Added

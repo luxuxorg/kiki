@@ -501,7 +501,6 @@ describe('runCandidateGates invocation contract', () => {
     expect(results.map((entry) => entry.name)).toEqual([
       'build',
       'test',
-      'typecheck',
       'lint',
       'security',
       'invariants',
@@ -512,21 +511,21 @@ describe('runCandidateGates invocation contract', () => {
       'passed',
       'passed',
       'passed',
-      'passed',
     ]);
-    expect(gate(results, 'typecheck').detail).toContain('typecheck: passed (src/)');
+    expect(gate(results, 'build').detail).toContain('build: passed (dist/)');
     expect(gate(results, 'lint').detail).toContain('lint: passed (src/)');
     expect(gate(results, 'test').detail).not.toContain('typecheck');
     expect(gate(results, 'test').detail).not.toContain('lint');
 
-    const buildCall = calls.find((call) => call.file === process.execPath && call.args[0] === tools.tsc && !call.args.includes('--noEmit'));
-    expect(buildCall).toBeDefined();
-    expect(buildCall?.args).toEqual([tools.tsc, '-p', 'tsconfig.json']);
-    expect(buildCall?.options.cwd).toBe(candidate.root);
-    expect(buildCall?.options.env.npm_config_cache).toBe(join(candidate.runRoot, 'cache'));
-
-    const typecheckCall = calls.find((call) => call.file === process.execPath && call.args[0] === tools.tsc && call.args.includes('--noEmit'));
-    expect(typecheckCall?.args).toEqual([tools.tsc, '-p', 'tsconfig.json', '--noEmit']);
+    const compilerCalls = calls.filter(
+      (call) => call.file === process.execPath && call.args[0] === tools.tsc,
+    );
+    expect(compilerCalls).toHaveLength(1);
+    const buildCall = compilerCalls[0];
+    expect(buildCall.args).toEqual([tools.tsc, '-p', 'tsconfig.json']);
+    expect(buildCall.args).not.toContain('--noEmit');
+    expect(buildCall.options.cwd).toBe(candidate.root);
+    expect(buildCall.options.env.npm_config_cache).toBe(join(candidate.runRoot, 'cache'));
 
     const lintCall = calls.find((call) => call.file === process.execPath && call.args[0] === tools.eslint);
     expect(lintCall?.args).toEqual([tools.eslint, 'src/**/*.ts']);
@@ -567,8 +566,13 @@ describe('runCandidateGates invocation contract', () => {
 
     expect(gate(results, 'build').status).toBe('failed');
     expect(gate(results, 'build').detail).toMatch(/missing local TypeScript compiler/);
-    expect(gate(results, 'typecheck').status).toBe('failed');
-    expect(gate(results, 'typecheck').detail).toMatch(/missing local TypeScript compiler/);
+    expect(results.map((entry) => entry.name)).toEqual([
+      'build',
+      'test',
+      'lint',
+      'security',
+      'invariants',
+    ]);
     expect(gate(results, 'lint').status).toBe('failed');
     expect(gate(results, 'lint').detail).toMatch(/missing local ESLint/);
     expect(calls.some((call) => call.file === process.execPath)).toBe(false);

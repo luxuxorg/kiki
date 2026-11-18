@@ -23,7 +23,7 @@ import {
 import { prepareChangelog, transformVersions } from './release-policy.js';
 
 export interface GateResult {
-  name: 'build' | 'test' | 'typecheck' | 'lint' | 'security' | 'invariants';
+  name: 'build' | 'test' | 'lint' | 'security' | 'invariants';
   status: 'passed' | 'failed' | 'incomplete';
   detail: string;
 }
@@ -843,6 +843,12 @@ export async function runCandidateGates(
           'build: passed (dist/)',
         );
 
+  // No separate typecheck gate: this build runs the candidate's own TypeScript
+  // compiler with the candidate tsconfig, so it already typechecks every file
+  // it emits. The retired gate was the same invocation plus `--noEmit`.
+  // That equivalence is specific to Kiki's tsconfig.json, which includes
+  // `src/**/*` and excludes `tests`; other projects may need their own gate.
+
   const test = await runCommandGate(
     'test',
     'npm',
@@ -851,17 +857,6 @@ export async function runCandidateGates(
     runner,
     'test: passed',
   );
-
-  const typecheck = 'error' in ts
-    ? failed('typecheck', `failed (${ts.error})`)
-    : await runCommandGate(
-        'typecheck',
-        process.execPath,
-        [ts.realPath, '-p', 'tsconfig.json', '--noEmit'],
-        { cwd: candidateRoot, env: candidate.npmEnv },
-        runner,
-        'typecheck: passed (src/)',
-      );
 
   const lint = 'error' in eslint
     ? failed('lint', `failed (${eslint.error})`)
@@ -883,7 +878,7 @@ export async function runCandidateGates(
     distResetError,
   );
 
-  return [build, test, typecheck, lint, security, invariants];
+  return [build, test, lint, security, invariants];
 }
 
 export async function validateCandidate(

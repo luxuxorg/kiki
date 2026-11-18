@@ -1,6 +1,6 @@
 import { type Candidate, type CommandRunner } from './release-candidate.js';
 export interface GateResult {
-    name: 'build' | 'test' | 'typecheck' | 'lint' | 'security' | 'invariants';
+    name: 'build' | 'test' | 'lint' | 'security' | 'invariants';
     status: 'passed' | 'failed' | 'incomplete';
     detail: string;
 }

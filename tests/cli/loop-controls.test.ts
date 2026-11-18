@@ -307,7 +307,7 @@ describe('planner ownership', () => {
 describe('builder evidence handoff and explicit blocking', () => {
   const builderRoles = ['implementer', 'guiDesigner'] as const;
 
-  it('R10_builders_report_exact_output_reviewer_does_not_rerun', () => {
+  it('builders_report_proportional_check_evidence', () => {
     for (const [label, config] of CONFIGS) {
       const expectedCommands = [
         config.commands.build,
@@ -324,11 +324,22 @@ describe('builder evidence handoff and explicit blocking', () => {
             `\`${command}\``,
           );
         }
-        expect(body, `${label} ${role}: exact command`).toContain('exact command');
-        expect(body, `${label} ${role}: complete output`).toContain(
-          'complete output (stdout and stderr), including failure output',
+        expect(body, `${label} ${role}: configured commands are options`).toContain(
+          'options, not a fixed four-check checklist',
         );
+        expect(body, `${label} ${role}: exact command`).toContain('exact command');
+        expect(body, `${label} ${role}: scope`).toContain('its scope');
         expect(body, `${label} ${role}: exit status`).toContain('exit status');
+        expect(body, `${label} ${role}: relevant results`).toContain('relevant results');
+        expect(body, `${label} ${role}: full failure output`).toContain(
+          'failure output in full',
+        );
+        expect(body, `${label} ${role}: success is a short summary`).toContain(
+          'short summary',
+        );
+        expect(body, `${label} ${role}: one-sentence skip rationale`).toContain(
+          'one sentence explaining why any relevant check was not run',
+        );
         expect(body, `${label} ${role}: handoff to reviewer and historian`).toContain(
           'handoff to the reviewer and historian',
         );
@@ -336,28 +347,71 @@ describe('builder evidence handoff and explicit blocking', () => {
           'Implementation Summary',
         );
         expect(body, `${label} ${role}: changed files`).toContain('changed files');
-      }
-
-      const reviewer = bodyOf(generateReviewerTemplate(config));
-      expect(reviewer, `${label}: reviewer does not rerun checks`).toContain(
-        'Do not rerun build, test, lint, or security checks',
-      );
-      expect(reviewer, `${label}: reviewer judges the diff and recorded evidence`).toContain(
-        'Judge the diff or plan plus the recorded evidence.',
-      );
-      expect(reviewer, `${label}: reviewer uses the recorded command output`).toContain(
-        'judge the exact command output the implementer recorded',
-      );
-      for (const placeholder of [
-        'commands.build',
-        'commands.test',
-        'commands.lint',
-        'commands.security',
-      ]) {
-        expect(reviewer, `${label}: reviewer checklist names ${placeholder}`).toContain(
-          placeholder,
+        expect(body, `${label} ${role}: old complete-output mandate removed`).not.toContain(
+          'complete output (stdout and stderr)',
         );
       }
+    }
+
+    // A project with its own commands proves configuration pass-through and the
+    // absence of a hardcoded Kiki tool or candidate policy.
+    const pythonConfig: KikiConfig = {
+      ...DEFAULT_CONFIG,
+      projectName: 'python-project',
+      commands: {
+        build: 'python -m build',
+        test: 'python -m pytest',
+        lint: 'ruff check .',
+        security: 'pip-audit',
+      },
+    };
+    for (const role of builderRoles) {
+      const body = bodyOf(roleGenerators[role](pythonConfig));
+      for (const command of Object.values(pythonConfig.commands)) {
+        expect(body, `${role}: project command ${command}`).toContain(`\`${command}\``);
+      }
+      for (const kikiTool of ['vitest', 'tsc', 'OPENCODE_TEST_BINARY', 'candidate']) {
+        expect(body, `${role}: no hardcoded Kiki policy ${kikiTool}`).not.toContain(kikiTool);
+      }
+    }
+
+    const reviewer = bodyOf(generateReviewerTemplate(DEFAULT_CONFIG));
+    expect(reviewer, 'reviewer does not rerun checks').toContain(
+      'Do not rerun build, test, lint, or security checks',
+    );
+    expect(reviewer, 'reviewer judges the diff and recorded evidence').toContain(
+      'Judge the diff or plan plus the recorded evidence.',
+    );
+    expect(reviewer, 'reviewer uses the recorded command output').toContain(
+      'judge the exact command output the implementer recorded',
+    );
+  });
+
+  it('check_status_and_prior_pass_are_honest', () => {
+    for (const [label, config] of CONFIGS) {
+      for (const role of builderRoles) {
+        const body = bodyOf(roleGenerators[role](config));
+        expect(body, `${label} ${role}: four honest statuses`).toContain(
+          'failed, passed, skipped or not run',
+        );
+        expect(body, `${label} ${role}: no integration claim from exit status`).toContain(
+          'not derive a broader integration claim from a test exit status',
+        );
+        expect(body, `${label} ${role}: prior PASS names its work state`).toContain(
+          'earlier PASS at the named work state',
+        );
+        expect(body, `${label} ${role}: prior PASS is never fresh`).toContain(
+          'never present it as fresh evidence',
+        );
+      }
+
+      const workflow = generateWorkflowTemplate(config);
+      expect(workflow, `${label}: workflow honest four statuses`).toContain(
+        'failed, passed, skipped or not run',
+      );
+      expect(workflow, `${label}: workflow prior PASS names its work state`).toContain(
+        'earlier PASS at the named work state',
+      );
     }
   });
 
@@ -421,6 +475,196 @@ describe('builder evidence handoff and explicit blocking', () => {
         );
         expect(body, `${label} ${role}: pre-change inventory retained`).toContain(
           'pre-change inventory',
+        );
+      }
+    }
+  });
+});
+
+describe('proportional workflow contracts', () => {
+  const builderRoles = ['implementer', 'guiDesigner'] as const;
+
+  it('small_tasks_and_semantic_prompt_reviews', () => {
+    for (const [label, config] of CONFIGS) {
+      const orchestrator = bodyOf(generateOrchestratorTemplate(config));
+      const brainstormer = bodyOf(generateBrainstormerTemplate(config));
+      const planner = bodyOf(generatePlannerTemplate(config));
+      const reviewer = bodyOf(generateReviewerTemplate(config));
+      const workflow = generateWorkflowTemplate(config);
+
+      expect(orchestrator, `${label}: small task flow`).toContain(
+        'small, low-risk local task',
+      );
+      expect(orchestrator, `${label}: no persistent spec/plan file`).toContain(
+        'no persistent spec or plan file',
+      );
+      expect(orchestrator, `${label}: no separate architect gate`).toContain(
+        'no separate architect gate',
+      );
+      expect(orchestrator, `${label}: conversation plus registry state suffices`).toContain(
+        'existing conversation/handoff plus a concise registry state is enough',
+      );
+      expect(orchestrator, `${label}: semantic prompt diffs reviewed`).toContain(
+        'semantically relevant prompt diffs',
+      );
+      expect(orchestrator, `${label}: editorial changes need no agent run`).toContain(
+        'pure editorial changes',
+      );
+
+      for (const [name, body] of Object.entries({ brainstormer, planner })) {
+        expect(body, `${label} ${name}: small task artifact exception`).toContain(
+          'small, low-risk local change',
+        );
+        expect(body, `${label} ${name}: skill artifact requirement yields`).toContain(
+          'artifact requirement yields to that proportionality',
+        );
+      }
+      expect(planner, `${label}: no architect gate for small tasks`).toContain(
+        'no separate architect gate',
+      );
+
+      expect(workflow, `${label}: workflow small task flow`).toContain(
+        'small, low-risk local task',
+      );
+      expect(workflow, `${label}: workflow no persistent spec/plan file`).toContain(
+        'no persistent spec or plan file',
+      );
+      expect(workflow, `${label}: workflow editorial changes need no agent run`).toContain(
+        'pure editorial changes',
+      );
+      expect(reviewer, `${label}: reviewer semantic prompt diff review`).toContain(
+        'semantically relevant prompt diffs',
+      );
+    }
+  });
+
+  it('check_scope_uses_radius_and_uncertainty', () => {
+    for (const [label, config] of CONFIGS) {
+      for (const role of builderRoles) {
+        const body = bodyOf(roleGenerators[role](config));
+        expect(body, `${label} ${role}: focused tests are the default`).toContain(
+          'Prefer focused tests',
+        );
+        expect(body, `${label} ${role}: unclear radius needs the broad run`).toContain(
+          'change radius is unclear',
+        );
+        expect(body, `${label} ${role}: shared infrastructure needs the broad run`).toContain(
+          'shared infrastructure',
+        );
+        expect(body, `${label} ${role}: no automatic full suite by path name`).toContain(
+          'not merely because a path was touched',
+        );
+      }
+
+      const workflow = generateWorkflowTemplate(config);
+      expect(workflow, `${label}: workflow focused tests are the default`).toContain(
+        'Focused tests are the default',
+      );
+      expect(workflow, `${label}: workflow broad fallback on uncertainty`).toContain(
+        'change radius is unclear',
+      );
+      expect(workflow, `${label}: workflow names build/test configuration`).toContain(
+        'build/test configuration',
+      );
+      expect(workflow, `${label}: workflow no automatic full suite by path name`).toContain(
+        'not merely because a named path was touched',
+      );
+      expect(workflow, `${label}: old blanket check mandate removed`).not.toContain(
+        'Run all four configured checks',
+      );
+    }
+  });
+
+  it('reviews_docs_and_registry_are_proportional', () => {
+    for (const [label, config] of CONFIGS) {
+      const orchestrator = bodyOf(generateOrchestratorTemplate(config));
+      const brainstormer = bodyOf(generateBrainstormerTemplate(config));
+      const planner = bodyOf(generatePlannerTemplate(config));
+      const reviewer = bodyOf(generateReviewerTemplate(config));
+      const workflow = generateWorkflowTemplate(config);
+
+      for (const [name, text] of Object.entries({ orchestrator, workflow })) {
+        expect(text, `${label} ${name}: substantial revisions are re-reviewed`).toContain(
+          'substantial revised plan',
+        );
+        expect(text, `${label} ${name}: substantial revisions pass the reviewer loop`).toContain(
+          'passes the reviewer loop before implementation resumes',
+        );
+        expect(text, `${label} ${name}: mechanical revisions need no review`).toContain(
+          'mechanical revision',
+        );
+        expect(text, `${label} ${name}: mechanical revision definition`).toContain(
+          'does not change requirements, scope or technical choices',
+        );
+        expect(text, `${label} ${name}: mechanical revisions need no new review`).toContain(
+          'needs no new review',
+        );
+      }
+
+      expect(reviewer, `${label}: parallelization checked only when parallelized`).toContain(
+        'only when tasks are parallelized',
+      );
+      expect(reviewer, `${label}: no parallel tasks means nothing to check`).toContain(
+        'there is nothing to check',
+      );
+
+      for (const [name, text] of Object.entries({ brainstormer, reviewer, workflow })) {
+        expect(
+          occurrenceCount(text, '1. **Existing capabilities/sources:**'),
+          `${label} ${name}: criteria block once`,
+        ).toBe(1);
+        expect(text, `${label} ${name}: necessity applies only to additions`).toContain(
+          'when the change adds a dependency, persistence, a new abstraction, or scope growth',
+        );
+        expect(text, `${label} ${name}: smallest sufficient change always checked`).toContain(
+          'smallest sufficient change',
+        );
+      }
+      expect(
+        planner,
+        `${label}: planner references criteria without repeating the block`,
+      ).not.toContain('1. **Existing capabilities/sources:**');
+      for (const phrase of [
+        'A claim that no source exists must cite what was actually checked',
+        'the exact command, lookup or search tried and what it returned',
+        'Probes are safe, bounded and disclose their limits',
+        'Null/reuse alternative',
+        'Rationale for additions',
+        'Additional persistence is not categorically forbidden',
+        'Unique value',
+        'Coupling cost',
+        'Proportionality is part of these criteria',
+        'justifies itself in one sentence',
+      ]) {
+        expect(workflow, `${label}: criteria phrase ${phrase}`).toContain(phrase);
+      }
+      expect(brainstormer, `${label}: no extra necessity section`).toContain(
+        'No extra section, catalog or waiver format is required; the analysis lives where it already belongs.',
+      );
+      expect(brainstormer, `${label}: bounded probes`).toContain(
+        'Use bounded, safe probes (e.g. --help, local docs) and state their limits.',
+      );
+
+      expect(orchestrator, `${label}: historian only for stale docs`).toContain(
+        'only when existing documentation is actually stale',
+      );
+      expect(workflow, `${label}: historian only for stale docs`).toContain(
+        'only when existing documentation is actually stale',
+      );
+      expect(workflow, `${label}: no separate documentation gate`).toContain(
+        'no separate documentation gate',
+      );
+      expect(
+        workflow,
+        `${label}: registry status still prevents pending completion`,
+      ).toContain('Completion is forbidden while documentation.status is `pending`');
+
+      for (const [name, text] of Object.entries({ orchestrator, reviewer })) {
+        expect(text, `${label} ${name}: registry references the review document`).toContain(
+          'short reference to the review document',
+        );
+        expect(text, `${label} ${name}: notes are not duplicated`).toContain(
+          'do not duplicate',
         );
       }
     }
@@ -568,25 +812,6 @@ describe('orchestrator routing, ownership, and caps', () => {
     }
   });
 
-  it('R7_R8_ownership_and_every_revised_plan_review', () => {
-    const ownership = [
-      'The user approves the spec. Plans are machine-owned',
-      'Changing what is delivered or what is allowed is a spec change and requires explicit user approval.',
-      'Every revised plan — from a FAIL/`plan`, an escalation recommendation, or a planner-initiated improvement — passes the reviewer loop before implementation resumes.',
-      'A second technical plan failure is a deadlock, not an unlimited planner loop.',
-    ];
-
-    for (const [label, config] of CONFIGS) {
-      const orchestrator = bodyOf(generateOrchestratorTemplate(config));
-      const workflow = generateWorkflowTemplate(config);
-
-      for (const phrase of ownership) {
-        expect(orchestrator, `${label} orchestrator: ${phrase}`).toContain(phrase);
-        expect(workflow, `${label} workflow: ${phrase}`).toContain(phrase);
-      }
-    }
-  });
-
   it('R10_orchestrator_coordinates_without_project_checks', () => {
     for (const [label, config] of CONFIGS) {
       const body = bodyOf(generateOrchestratorTemplate(config));
@@ -689,7 +914,7 @@ describe('escalation contract and presentation', () => {
       );
       expect(body, `${label}: actual diff is input`).toContain('the actual diff');
       expect(body, `${label}: recorded builder evidence is input`).toContain(
-        'recorded build/test/lint/security evidence',
+        'recorded proportional check evidence',
       );
       expect(body, `${label}: registry/health/routing logs on request`).toContain(
         'task registry, health log, and routing log',
@@ -981,74 +1206,11 @@ describe('alignment guardrail baseline', () => {
   });
 });
 
-// Exact pinned text of the shared Kiki necessity criteria. Source:
-// src/cli/config.ts NECESSITY_CRITERIA. Interpolated verbatim exactly once into
-// the brainstormer, reviewer and workflow outputs; the planner references the
-// approved evidence instead of repeating the block.
-const NECESSITY_CRITERIA = `1. **Existing capabilities/sources:** what already exposes the needed data or behavior — platform CLI/API (for example \`opencode\` subcommands), existing repo modules, logs/ledgers, adjacent tools — with bounded evidence (file/line, doc location, or the command and observed output). A claim that no source exists must cite what was actually checked: the exact command, lookup or search tried and what it returned, never a bare assumption. Probes are safe, bounded and disclose their limits (for example \`--help\` text or local docs; not automatic capability commands that would need permissions or network).
-2. **Null/reuse alternative:** what happens if nothing is built, and whether an existing source can be reused as-is or read at query time instead.
-3. **Rationale for additions:** where the change adds persistence that duplicates another source, a dependency, or a new abstraction, the actual tradeoff that justifies it. Additional persistence is not categorically forbidden; it must argue its real reasons (cost, availability, correlation), and the argument lives wherever it already fits — no per-field catalog is demanded of every change.
-4. **Unique value:** the user-visible capability that disappears if the addition is removed; if nothing disappears, the addition is unjustified.
-5. **Coupling cost:** what must be maintained (format/version coupling, second source of truth, migration/removal path), stated as far as the change makes it matter.
-Proportionality is part of these criteria: a change touching no data, dependency or architecture justifies itself in one sentence wherever that fits in existing prose; the criteria scale with the change's footprint, not with a template.`;
-
 function occurrenceCount(text: string, marker: string): number {
   return text.split(marker).length - 1;
 }
 
 describe('necessity gate criteria and delivery boundaries', () => {
-  it('R19_criteria_shared_and_proportional', () => {
-    for (const [label, config] of CONFIGS) {
-      const consumers: Record<string, string> = {
-        brainstormer: bodyOf(generateBrainstormerTemplate(config)),
-        reviewer: bodyOf(generateReviewerTemplate(config)),
-        workflow: generateWorkflowTemplate(config),
-      };
-
-      for (const [name, text] of Object.entries(consumers)) {
-        const start = text.indexOf(NECESSITY_CRITERIA);
-        expect(start, `${label} ${name}: criteria block present`).toBeGreaterThanOrEqual(0);
-        expect(
-          text.slice(start, start + NECESSITY_CRITERIA.length),
-          `${label} ${name}: exact criteria block`,
-        ).toBe(NECESSITY_CRITERIA);
-        expect(
-          occurrenceCount(text, NECESSITY_CRITERIA),
-          `${label} ${name}: criteria block exactly once`,
-        ).toBe(1);
-      }
-
-      for (const phrase of [
-        'Existing capabilities/sources',
-        'A claim that no source exists must cite what was actually checked',
-        'the exact command, lookup or search tried and what it returned',
-        'Probes are safe, bounded and disclose their limits',
-        'Null/reuse alternative',
-        'Rationale for additions',
-        'Additional persistence is not categorically forbidden',
-        'Unique value',
-        'Coupling cost',
-        'Proportionality is part of these criteria',
-        'justifies itself in one sentence',
-      ]) {
-        expect(NECESSITY_CRITERIA, `${label}: §4 criteria phrase ${phrase}`).toContain(phrase);
-      }
-
-      const brainstormer = consumers.brainstormer;
-      expect(brainstormer, `${label}: no extra spec section required`).toContain(
-        'No extra section, catalog or waiver format is required; the analysis lives where it already belongs.',
-      );
-      expect(brainstormer, `${label}: bounded safe probes restated`).toContain(
-        'Use bounded, safe probes (e.g. --help, local docs) and state their limits.',
-      );
-
-      const planner = bodyOf(generatePlannerTemplate(config));
-      expect(planner, `${label}: planner references evidence instead of repeating criteria`).not.toContain(
-        NECESSITY_CRITERIA,
-      );
-    }
-  });
-
   it('R19_reviewer_technical_authority', () => {
     for (const [label, config] of CONFIGS) {
       const body = bodyOf(generateReviewerTemplate(config));
@@ -1197,7 +1359,10 @@ describe('necessity gate criteria and delivery boundaries', () => {
       expect(workflow.slice(phase6, workflow.indexOf('### 7. Document')), `${label}: phase 6 necessity check`).toContain(
         'standing necessity check',
       );
-      expect(occurrenceCount(workflow, NECESSITY_CRITERIA), `${label}: workflow criteria once`).toBe(1);
+      expect(
+        occurrenceCount(workflow, '1. **Existing capabilities/sources:**'),
+        `${label}: workflow criteria once`,
+      ).toBe(1);
 
       // Additive-to-skill framing, no new review pass.
       for (const [name, text] of Object.entries({ brainstormer, planner, reviewer })) {
