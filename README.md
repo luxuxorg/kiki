@@ -1,14 +1,24 @@
 # Kiki — OpenCode 2 Agent Orchestration
 
-Kiki 3.0.0 is the OpenCode 2 (OC2) release of Kiki. It installs native OC2 agent
+Kiki 3.1.1 is the current OpenCode 2 (OC2) release of Kiki. It installs native OC2 agent
 definitions and a package-style server/TUI plugin for the Intake → Brainstorm → Plan →
 Architect Review → Implement → Review → Document → Complete workflow. Small, low-risk
 local tasks may use the shorter intake → implement → risk-appropriate review → complete
 path without persistent spec/plan files or a separate architect gate. Project
 configuration is kept separate from Kiki updates.
 
-Kiki 3.0.0 targets OpenCode V2 (validated against **2.2.6**) and is OC2-only.
-OpenCode 1 is deprecated; there is no parallel V1/V2 setup.
+Kiki 3.1.1 targets OpenCode V2 and is OC2-only. Its OC2 security-boundary
+integration suite passed against OpenCode **2.3.2** during 3.1.1 verification;
+the 3.0.0 baseline was **2.2.6**. OpenCode 1 is deprecated; there is no parallel
+V1/V2 setup.
+
+## Who Kiki is for
+
+Kiki is for people who own the product but not every implementation detail —
+product owners, designers, and solo builders. You decide what gets built and
+approve the result; a structured team of agents plans, implements, reviews, and
+documents it. If you're comfortable with OpenCode, you will be comfortable with
+Kiki.
 
 **Status:** 3.0.0 accepted for release by the user on 2026-11-10, after live OC2/V1
 startup and `/kiki` smoke checks. Automated **ACTUAL_V3_VALIDATION** and the synthetic
@@ -36,7 +46,9 @@ remaining approval/wait scenario.
 
 - Runtime Node `>=18.0.0`.
 - OpenCode V2 for the Kiki server and TUI entrypoints. Kiki 3.0.0 was validated
-  against `2.2.6`; newer V2 releases are not gated by `kiki doctor`.
+  against `2.2.6`; the 3.1.1 verification run additionally passed the OC2
+  security-boundary integration suite against `2.3.2`. That focused run does not
+  certify every V2 hook path. Newer V2 releases are not gated by `kiki doctor`.
 - Runtime dependency `@opencode/plugin@2.2.6` (exact pin). The package exports
   `./server`, `./tui` and `.` and ships `dist/`.
 - `experimental.subagent_depth: 1` and `update: "disable"` in the global
