@@ -5,6 +5,7 @@ import { Plugin } from '@opencode/plugin/tui';
 import { listAgentModels, readOpenCodeSettings, removeAgentModel, removeAllProjectModels, setAgentModel, } from '../cli/opencode-config.js';
 import { assertOC2Target, canonicalPath, pathsOverlap, resolveOC2Roots } from '../cli/oc2-paths.js';
 import { registerKikiMenu } from './model-menu.js';
+import { resolveTuiLanguage, tuiStrings } from './strings.js';
 /** The host has not supplied a V2 location yet; the menu delays instead of writing. */
 export class LocationNotReadyError extends Error {
     constructor() {
@@ -12,7 +13,8 @@ export class LocationNotReadyError extends Error {
         this.name = 'LocationNotReadyError';
     }
 }
-export const SETUP_ERROR_MESSAGE = 'Kiki konnte nicht gestartet werden: OpenCode-2-Konfiguration ist überlappend, ungültig oder nicht beschreibbar. Konfiguration und Zugriffsrechte prüfen.';
+/** German setup copy, kept for callers that referenced the previous constant. */
+export const SETUP_ERROR_MESSAGE = tuiStrings('de').setupError;
 /**
  * A target is writable when it is a directory (or does not exist yet and its
  * nearest existing ancestor is a writable directory). This mirrors the atomic
@@ -67,6 +69,9 @@ export function buildModelContext(ctx, env = process.env, home = homedir()) {
  * host reports both location and model/provider collections.
  */
 export function setup(ctx, env = process.env, home = homedir()) {
+    // Resolved once at setup: no manual configuration and no live switching.
+    const language = resolveTuiLanguage(env);
+    const strings = tuiStrings(language);
     let current;
     try {
         current = buildModelContext(ctx, env, home);
@@ -74,7 +79,7 @@ export function setup(ctx, env = process.env, home = homedir()) {
     catch (error) {
         if (!(error instanceof LocationNotReadyError)) {
             // Never print a path, config value, parser detail or stack trace.
-            ctx.ui.toast.show({ variant: 'error', message: SETUP_ERROR_MESSAGE });
+            ctx.ui.toast.show({ variant: 'error', message: strings.setupError });
             return undefined;
         }
     }
@@ -88,7 +93,7 @@ export function setup(ctx, env = process.env, home = homedir()) {
         remove: (scope, agent) => Promise.resolve(removeAgentModel(scope, agent, modelContext())),
         removeAllProject: () => Promise.resolve(removeAllProjectModels(modelContext())),
     };
-    return registerKikiMenu(ctx, settings);
+    return registerKikiMenu(ctx, settings, language);
 }
 const plugin = Plugin.define({ id: 'kiki', setup });
 export default plugin;

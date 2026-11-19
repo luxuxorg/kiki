@@ -21,7 +21,9 @@ type SelectOptions = Parameters<Plugin.Context['ui']['dialog']['select']>[0];
 type ToastOptions = Parameters<Plugin.Context['ui']['toast']['show']>[0];
 
 const SETUP_ERROR = 'Kiki konnte nicht gestartet werden: OpenCode-2-Konfiguration ist überlappend, ungültig oder nicht beschreibbar. Konfiguration und Zugriffsrechte prüfen.';
+const SETUP_ERROR_EN = 'Kiki failed to start: OpenCode 2 configuration is overlapping, invalid, or not writable. Check configuration and access permissions.';
 const LOADING = 'OpenCode lädt noch. /kiki gleich erneut öffnen.';
+const LOADING_EN = 'OpenCode is still loading. Open /kiki again shortly.';
 
 interface Fixture {
   root: string;
@@ -40,6 +42,7 @@ function isolate(overrides: NodeJS.ProcessEnv = {}): Fixture {
   mkdirSync(project);
   const env: NodeJS.ProcessEnv = {
     HOME: root,
+    LANG: 'de_DE.UTF-8',
     XDG_CONFIG_HOME: join(root, 'config'),
     XDG_DATA_HOME: data,
     XDG_CACHE_HOME: join(root, 'cache'),
@@ -210,6 +213,25 @@ describe('OpenCode 2 TUI setup', () => {
     expect(setup(second.ctx, alias.env, alias.root)).toBeUndefined();
     expect(second.registered).toBe(false);
     expect(second.toast).toHaveBeenCalledWith({ variant: 'error', message: SETUP_ERROR });
+  });
+
+  it('shows English setup and loading copy when the environment resolves to English', async () => {
+    const f = fixture({ LC_ALL: 'C' });
+    f.env.OPENCODE_CONFIG_DIR = join(f.data, 'opencode');
+    const c = context({ location: { directory: f.project } as unknown as Location });
+    const cleanup = setup(c.ctx, f.env, f.root);
+    expect(c.registered).toBe(false);
+    expect(c.toast).toHaveBeenCalledWith({ variant: 'error', message: SETUP_ERROR_EN });
+    expect(cleanup).toBeUndefined();
+
+    const delayed = fixture({ LC_ALL: 'C' });
+    const loading = context({ location: null });
+    const loadingCleanup = setup(loading.ctx, delayed.env, delayed.root);
+    expect(loading.registered).toBe(true);
+    await loading.command.run?.();
+    expect(loading.select).not.toHaveBeenCalled();
+    expect(loading.toast).toHaveBeenCalledWith({ variant: 'info', message: LOADING_EN });
+    loadingCleanup?.();
   });
 
   it('does not depend on the retired V1 state.path or lifecycle API', () => {

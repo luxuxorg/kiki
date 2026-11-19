@@ -35,6 +35,44 @@ ENTER = "\r"
 DOWN = "\x1b[B"
 
 
+def expected_language(environ=os.environ):
+    """Mirror the plugin's LC_ALL > LC_MESSAGES > LANG, first non-empty rule."""
+    for name in ("LC_ALL", "LC_MESSAGES", "LANG"):
+        value = environ.get(name, "").strip()
+        if value:
+            base = re.split(r"[.@]", value.lower(), maxsplit=1)[0]
+            return "de" if base == "de" or base.startswith(("de_", "de-")) else "en"
+    return "en"
+
+
+TEXT = {
+    "de": {
+        "menu_global": "Modell ändern — global",
+        "agents_global": "Kiki-Agent auswählen — global",
+        "agents_project": "Kiki-Agent auswählen — dieses Projekt",
+        "models_global": "Modell (global)",
+        "models_project": "Modell (dieses Projekt)",
+        "inherit": "Globales Modell",
+        "delete_all": "Alle lokalen",
+        "delete_all_title": "Alle lokalen Modell-Zuordnungen löschen?",
+        "saved": "gespeichert",
+        "reset": "zurückgesetzt",
+    },
+    "en": {
+        "menu_global": "Change model — global",
+        "agents_global": "Select Kiki agent — global",
+        "agents_project": "Select Kiki agent — this project",
+        "models_global": "Model (global)",
+        "models_project": "Model (this project)",
+        "inherit": "Use global model",
+        "delete_all": "Delete all local",
+        "delete_all_title": "Delete all local model assignments?",
+        "saved": "saved",
+        "reset": "reset",
+    },
+}[expected_language()]
+
+
 def pump(timeout=0.2):
     global capture
     if not select.select([fd], [], [], timeout)[0]:
@@ -89,7 +127,7 @@ def open_menu(project_scope=False):
     send("/kiki")
     pump_for(0.6)
     send(ENTER)
-    wait_for(["Modell ändern — global"])
+    wait_for([TEXT["menu_global"]])
     if project_scope:
         send(DOWN)
         pump_for(0.25)
@@ -103,31 +141,31 @@ try:
 
     # Global save through the native slash command and value-returning dialogs.
     open_menu()
-    wait_for(["Kiki-Agent auswählen — global"])
+    wait_for([TEXT["agents_global"]])
     choose("kiki-reviewer")
-    wait_for(["Modell (global)"])
+    wait_for([TEXT["models_global"]])
     choose("Kiki Fixture Model")
-    wait_for(["gespeichert"])
+    wait_for([TEXT["saved"]])
     print("PASS: /kiki global save")
     pump_for(0.4)
 
     # Project scope: remove only the local override through the inherit entry.
     open_menu(project_scope=True)
-    wait_for(["Kiki-Agent auswählen — dieses Projekt"])
+    wait_for([TEXT["agents_project"]])
     choose("kiki-reviewer")
-    wait_for(["Modell (dieses Projekt)"])
-    choose("Globales Modell")
-    wait_for(["zurückgesetzt"])
+    wait_for([TEXT["models_project"]])
+    choose(TEXT["inherit"])
+    wait_for([TEXT["reset"]])
     print("PASS: /kiki project override removal")
     pump_for(0.4)
 
     # Remove-all is guarded by the native confirmation dialog.
     open_menu(project_scope=True)
-    wait_for(["Kiki-Agent auswählen — dieses Projekt"])
-    choose("Alle lokalen")
-    wait_for(["Alle lokalen Modell-Zuordnungen löschen?"])
+    wait_for([TEXT["agents_project"]])
+    choose(TEXT["delete_all"])
+    wait_for([TEXT["delete_all_title"]])
     send(ENTER)
-    wait_for(["zurückgesetzt"])
+    wait_for([TEXT["reset"]])
     print("PASS: /kiki remove-all confirmation")
 except Exception as error:
     # Only fixture terminal output: no user's config or real credentials are loaded.

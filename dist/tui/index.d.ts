@@ -4,7 +4,8 @@ import { type ModelContext } from '../cli/opencode-config.js';
 export declare class LocationNotReadyError extends Error {
     constructor();
 }
-export declare const SETUP_ERROR_MESSAGE = "Kiki konnte nicht gestartet werden: OpenCode-2-Konfiguration ist \u00FCberlappend, ung\u00FCltig oder nicht beschreibbar. Konfiguration und Zugriffsrechte pr\u00FCfen.";
+/** German setup copy, kept for callers that referenced the previous constant. */
+export declare const SETUP_ERROR_MESSAGE: string;
 /**
  * Build the ModelContext used by the shared Task 3 model functions. The global
  * config comes from the same XDG/OPENCODE_CONFIG_DIR resolution as the CLI; the

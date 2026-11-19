@@ -101,18 +101,38 @@ design, planning, implementation, review and documentation.
 
 To change a Kiki agent's model, use the native terminal menu:
 
+The menu copy follows the locale resolved once when OpenCode loads the Kiki TUI plugin:
+the first non-empty `LC_ALL`, `LC_MESSAGES` or `LANG` selects German for
+`de`/`de_*`/`de-*` and English for everything else, including unset, `C` and `POSIX`.
+There is no manual language setting and no live switching; restart OpenCode after
+changing the locale.
+
 ```text
 /kiki
-  → Modell ändern — global           (default)
+  → Modell ändern — global / Change model — global   (default)
     → Select the agent
       → Search and select a model
         → Saved; restart OpenCode
 ```
 
-Choose **Modell ändern — dieses Projekt** instead for a project-specific model.
-The agent list shows current assignments and marks inherited models. The picker uses
-OpenCode's native searchable selection dialog and provider/model data. It sends no LLM
-request and does not change the active chat's model.
+Choose **Modell ändern — dieses Projekt** / **Change model — this project** instead for a
+project-specific model. The scope, agent and model selection dialogs open at the host's
+default dialog width (60), subject to the terminal's own size clamp. Agent names appear
+in full, including a `kiki-` prefix; that full ID is used in the agent-list header,
+dialog titles and toasts, while saved IDs and configuration keys are unchanged. The
+agent list uses each agent name as a non-selectable category header and shows the
+current model, or the localized OpenCode default, on the next line; only that model line
+is highlighted, and a blank line separates the groups. A bare scope-specific footer
+appears at the right where it applies: `Project` in English or `Projekt` in German for a
+global assignment that a project-local override replaces, and `Global` in both languages
+for a project assignment that inherits the global model, marking the value as inherited
+from the global scope. The footer never stacks and has no parentheses or exclamation
+mark; a global row without a project override shows none. The agent list uses OpenCode's
+built-in fuzzy search over agent name and model; the model and scope dialogs keep their
+existing search behavior. The project scope's delete-all entry remains an ordinary,
+ungrouped action. Long model names may still clip; the menu does not wrap them. The
+picker uses OpenCode's native searchable selection dialog and provider/model data. It
+sends no LLM request and does not change the active chat's model.
 
 Only the selected `agents.<name>.model` object is saved. Permissions, prompts, other
 settings and JSONC comments remain intact. A global change keeps existing project
@@ -122,13 +142,15 @@ conservative no-op: no model write occurs and the existing toast text is unchang
 behavior is documented and is not an urgent decision; it can be observed during the
 Task 14 save/removal drill.
 
-To remove a project-local override, open **Modell ändern — dieses Projekt**, pick an
-agent that has one, and choose **Globales Modell (<model>) verwenden** at the top of the
-model list. The project agent list also ends with **Alle lokalen
-Modell-Zuordnungen löschen**, which removes every local Kiki model override after a
-confirmation. Both delete only the local `model` key — permissions, prompts, other
-settings and comments stay intact — and the global model applies again. No delete is
-offered in the global scope, since global values are the defaults themselves.
+To remove a project-local override, open **Modell ändern — dieses Projekt** /
+**Change model — this project**, pick an agent that has one, and choose
+**Globales Modell (<model>) verwenden** / **Use global model (<model>)** at the top of
+the model list. The project agent list also ends with **Alle lokalen
+Modell-Zuordnungen löschen** / **Delete all local model assignments**, which removes
+every local Kiki model override after a confirmation. Both delete only the local `model`
+key — permissions, prompts, other settings and comments stay intact — and the global
+model applies again. No delete is offered in the global scope, since global values are
+the defaults themselves.
 
 The menu is registered globally through the OC2 `cli.json` plugin list by
 `kiki install` / `kiki update` and requires an OpenCode restart. It is tested against
@@ -747,8 +769,8 @@ OpenCode 2.x binary and records the exact version it observed for the test evide
 rejects V1, malformed and future-major binaries. That is a test gate, not a runtime
 requirement.
 The `/kiki` integration test also requires Python 3 and a POSIX pseudo-terminal; it opens
-the real TUI, exercises the menu with the German copy, and asserts zero provider
-requests.
+the real TUI, exercises the menu with the copy for the active locale (German or English),
+and asserts zero provider requests.
 
 The final Task 13 snapshot recorded 24/24 required real-binary integration tests with zero
 skips, and 632 passed / 2 by-design opt-in skips / 0 failed in the full suite with the

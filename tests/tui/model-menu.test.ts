@@ -4,6 +4,7 @@ import type {
   AgentModelRow, ModelRemoveAllResult, ModelRemoveResult, ModelSaveResult, ModelScope,
 } from '../../src/cli/opencode-config';
 import { registerKikiMenu, type ModelSettings } from '../../src/tui/model-menu';
+import type { TuiLanguage } from '../../src/tui/strings';
 
 type TuiContext = Plugin.Context;
 type Location = NonNullable<TuiContext['location']>;
@@ -56,6 +57,7 @@ function fixture(options: {
   providers?: ProviderList;
   models?: ModelList;
   rows?: Record<ModelScope, AgentModelRow[]>;
+  language?: TuiLanguage;
 } = {}) {
   const location = { directory: '/fixture/project' } as unknown as Location;
   const state = {
@@ -79,9 +81,16 @@ function fixture(options: {
   };
 
   const pending: { resolve(value: string | undefined): void }[] = [];
-  const select = vi.fn((_options: SelectOptions): Promise<string | undefined> => new Promise(resolve => {
-    pending.push({ resolve });
-  }));
+  const events: string[] = [];
+  const select = vi.fn((options: SelectOptions): Promise<string | undefined> => {
+    events.push(`select:${options.title}`);
+    return new Promise(resolve => {
+      pending.push({ resolve });
+    });
+  });
+  const set = vi.fn((options: Parameters<TuiContext['ui']['dialog']['set']>[0]) => {
+    events.push(`set:${options.size ?? ''}`);
+  });
   const confirm = vi.fn((_options: ConfirmOptions): Promise<boolean | undefined> => Promise.resolve(undefined));
   const toast = vi.fn((_options: ToastOptions) => {});
   const clear = vi.fn();
@@ -130,17 +139,17 @@ function fixture(options: {
     },
     keymap: { layer },
     ui: {
-      dialog: { select, confirm, clear, alert: vi.fn(), prompt: vi.fn(), show: vi.fn(), set: vi.fn() },
+      dialog: { select, confirm, clear, alert: vi.fn(), prompt: vi.fn(), show: vi.fn(), set },
       toast: { show: toast },
       model: chatModel,
     },
     client,
   } as unknown as TuiContext;
 
-  const cleanup = registerKikiMenu(context, settings);
+  const cleanup = registerKikiMenu(context, settings, options.language ?? 'de');
 
   return {
-    state, settings, layer, select, confirm, toast, clear, list, save, remove, removeAllProject,
+    state, settings, layer, select, confirm, toast, clear, set, events, list, save, remove, removeAllProject,
     get layerMode(): string | undefined { return layerMode; },
     get command(): MenuCommand {
       if (!command) throw new Error('Menu command was not registered');
@@ -182,12 +191,142 @@ describe('/kiki model menu (OpenCode 2 native TUI)', () => {
     f.dispose();
   });
 
+  it('renders the whole menu in English when the resolved language is English', async () => {
+    const f = fixture({ language: 'en' });
+    f.start(); await tick();
+    expect(f.view.title).toBe('Kiki');
+    expect(f.view.options.map(row => row.title)).toEqual([
+      'Change model — global', 'Change model — this project',
+    ]);
+    await f.selectDialog('global');
+    expect(f.view.title).toBe('Select Kiki agent — global');
+    expect(f.view.placeholder).toBe('Search agent');
+    expect(f.view.search).toBeUndefined();
+    expect(f.view.options.find(row => row.value === 'kiki-planner')).toMatchObject({
+      category: 'kiki-planner', title: 'provider/alpha',
+    });
+    expect(f.view.options.find(row => row.value === 'kiki-planner')?.description).toBeUndefined();
+    await f.selectDialog('kiki-reviewer');
+    expect(f.view.title).toBe('kiki-reviewer — Model (global)');
+    expect(f.view.placeholder).toBe('Search model or provider');
+    expect(typeof f.view.search).toBe('function');
+    await f.selectDialog('provider/alpha');
+    expect(f.toast).toHaveBeenCalledWith(expect.objectContaining({
+      variant: 'success',
+      title: 'Kiki model saved',
+      message: 'kiki-reviewer: provider/alpha (global). Restart OpenCode.',
+      duration: 8_000,
+    }));
+  });
+
+  it('keeps the host default width and leaves the agent search callback absent', async () => {
+    const f = fixture();
+    f.start(); await tick();
+    expect(f.pending).toBe(1);
+    expect(f.set).not.toHaveBeenCalled();
+    expect(f.events).toEqual(['select:Kiki']);
+
+    await f.selectDialog('global');
+    expect(f.pending).toBe(1);
+    expect(f.set).not.toHaveBeenCalled();
+    expect(f.events).toEqual(['select:Kiki', 'select:Kiki-Agent auswählen — global']);
+    expect(f.view.search).toBeUndefined();
+
+    await f.selectDialog('kiki-reviewer');
+    expect(f.pending).toBe(1);
+    expect(f.set).not.toHaveBeenCalled();
+    expect(f.events).toEqual([
+      'select:Kiki', 'select:Kiki-Agent auswählen — global', 'select:kiki-reviewer — Modell (global)',
+    ]);
+    expect(typeof f.view.search).toBe('function');
+    f.dispose();
+  });
+
+  it('shows full agent identifiers as group headers while saving the full ID', async () => {
+    const f = fixture({
+      rows: {
+        global: [
+          { name: 'kiki-planner', model: 'provider/alpha', inherited: false },
+          { name: 'plain-agent', model: 'provider/beta', inherited: false },
+          { name: 'kikifoo', model: 'provider/alpha', inherited: false },
+          { name: 'agent-kiki-nested', model: 'provider/beta', inherited: false },
+        ],
+        project: [],
+      },
+    });
+    f.start(); await tick(); await f.selectDialog('global');
+    expect(f.view.search).toBeUndefined();
+    expect(f.view.options.map(row => [row.value, row.category, row.title])).toEqual([
+      ['kiki-planner', 'kiki-planner', 'provider/alpha'],
+      ['plain-agent', 'plain-agent', 'provider/beta'],
+      ['kikifoo', 'kikifoo', 'provider/alpha'],
+      ['agent-kiki-nested', 'agent-kiki-nested', 'provider/beta'],
+    ]);
+    expect(f.view.options.every(row => row.description === undefined)).toBe(true);
+    await f.selectDialog('kiki-planner');
+    expect(f.view.title).toBe('kiki-planner — Modell (global)');
+    await f.selectDialog('provider/beta');
+    expect(f.settings.save).toHaveBeenCalledWith(
+      'global', 'kiki-planner', 'provider/beta', ['provider/alpha', 'provider/beta'],
+    );
+    expect(f.toast).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'kiki-planner: provider/beta (global). OpenCode neu starten.',
+    }));
+
+    f.start(); await tick(); await f.selectDialog('global');
+    await f.selectDialog('plain-agent');
+    expect(f.view.title).toBe('plain-agent — Modell (global)');
+    f.dispose();
+  });
+
+  it('uses the localized OpenCode default as the second-line title when no model is set', async () => {
+    const de = fixture({
+      rows: { global: [{ name: 'kiki-empty', model: '', inherited: false }], project: [] },
+    });
+    de.start(); await tick(); await de.selectDialog('global');
+    expect(de.view.options[0]).toMatchObject({
+      category: 'kiki-empty', title: 'OpenCode-Standard', value: 'kiki-empty',
+    });
+    de.dispose();
+
+    const en = fixture({
+      language: 'en',
+      rows: { global: [{ name: 'kiki-empty', model: '', inherited: false }], project: [] },
+    });
+    en.start(); await tick(); await en.selectDialog('global');
+    expect(en.view.options[0]).toMatchObject({
+      category: 'kiki-empty', title: 'OpenCode default', value: 'kiki-empty',
+    });
+    en.dispose();
+  });
+
+  it('shows English loading and configuration copy without leaking details', async () => {
+    const loading = fixture({ language: 'en', location: false });
+    await loading.run();
+    expect(loading.toast).toHaveBeenCalledWith({
+      variant: 'info', message: 'OpenCode is still loading. Open /kiki again shortly.',
+    });
+
+    const broken = fixture({ language: 'en' });
+    broken.settings.list = vi.fn(() => { throw new Error('sensitive-fixture-details'); });
+    broken.start(); await tick(); await broken.selectDialog('global');
+    expect(broken.toast).toHaveBeenCalledWith({
+      variant: 'error',
+      message: 'Kiki configuration could not be read. Check configuration and access permissions.',
+    });
+    expect(JSON.stringify(broken.toast.mock.calls)).not.toContain('sensitive-fixture-details');
+  });
+
   it('saves globally using host model/provider collections without touching chat or client state', async () => {
     const f = fixture();
     f.start(); await tick();
     await f.selectDialog('global');
-    expect(f.view.options.find(row => row.value === 'kiki-planner')?.description).toContain('geerbt');
+    expect(f.view.options.find(row => row.value === 'kiki-planner')).toMatchObject({
+      category: 'kiki-planner', title: 'provider/alpha',
+    });
+    expect(f.view.options.find(row => row.value === 'kiki-planner')?.footer).toBeUndefined();
     await f.selectDialog('kiki-reviewer');
+    expect(f.view.title).toBe('kiki-reviewer — Modell (global)');
     expect(f.view.current).toBe('provider/beta');
     expect(f.view.placeholder).toBe('Modell oder Provider suchen');
     expect(f.view.options.map(row => row.value)).toEqual(['provider/alpha', 'provider/beta']);
@@ -210,11 +349,93 @@ describe('/kiki model menu (OpenCode 2 native TUI)', () => {
   it('uses the explicit project scope when selected', async () => {
     const f = fixture();
     f.start(); await tick(); await f.selectDialog('project');
+    expect(f.view.options.find(row => row.value === 'kiki-planner')).toMatchObject({
+      category: 'kiki-planner', title: 'provider/alpha', footer: 'Global',
+    });
+    expect(f.view.options.find(row => row.value === 'kiki-reviewer')?.footer).toBeUndefined();
     await f.selectDialog('kiki-planner'); await f.selectDialog('provider/beta');
     expect(f.settings.save).toHaveBeenCalledWith('project', 'kiki-planner', 'provider/beta', expect.any(Array));
     expect(f.toast).toHaveBeenCalledWith(expect.objectContaining({
       message: 'kiki-planner: provider/beta (dieses Projekt). OpenCode neu starten.',
     }));
+  });
+
+  it('puts only the scoped status in the footer without stacking global inherited', async () => {
+    const f = fixture({
+      rows: {
+        global: [
+          { name: 'kiki-planner', model: 'provider/alpha', inherited: true, projectOverride: 'provider/alpha' },
+          { name: 'kiki-reviewer', model: 'provider/beta', inherited: false, projectOverride: 'provider/project' },
+          { name: 'kiki-builder', model: 'provider/beta', inherited: true },
+        ],
+        project: [
+          { name: 'kiki-reviewer', model: 'provider/local', inherited: false, projectOverride: 'provider/local' },
+          { name: 'kiki-builder', model: 'provider/alpha', inherited: true, projectOverride: 'provider/alpha' },
+        ],
+      },
+    });
+    f.start(); await tick(); await f.selectDialog('global');
+    const global = Object.fromEntries(f.view.options.map(row => [row.value, row]));
+    expect(global['kiki-planner']).toMatchObject({
+      category: 'kiki-planner', title: 'provider/alpha', footer: 'Projekt',
+    });
+    expect(global['kiki-reviewer']).toMatchObject({
+      category: 'kiki-reviewer', title: 'provider/beta', footer: 'Projekt',
+    });
+    expect(global['kiki-builder']).toMatchObject({
+      category: 'kiki-builder', title: 'provider/beta',
+    });
+    expect(global['kiki-builder'].footer).toBeUndefined();
+    expect(global['kiki-planner'].footer).not.toContain('Global');
+    expect(f.view.options.every(row => row.description === undefined)).toBe(true);
+
+    await f.selectDialog(undefined);
+    f.start(); await tick(); await f.selectDialog('project');
+    expect(f.view.title).toBe('Kiki-Agent auswählen — dieses Projekt');
+    const project = Object.fromEntries(f.view.options.map(row => [row.value, row]));
+    expect(project['kiki-reviewer']).toMatchObject({
+      category: 'kiki-reviewer', title: 'provider/local',
+    });
+    expect(project['kiki-reviewer'].footer).toBeUndefined();
+    expect(project['kiki-builder']).toMatchObject({
+      category: 'kiki-builder', title: 'provider/alpha', footer: 'Global',
+    });
+    expect(project['__all__']).toMatchObject({
+      title: 'Alle lokalen Modell-Zuordnungen löschen',
+      value: '__all__',
+      description: 'Globale Modelle greifen wieder',
+    });
+    expect(project['__all__'].category).toBeUndefined();
+    expect(project['__all__'].footer).toBeUndefined();
+    f.dispose();
+  });
+
+  it('uses the English status wording', async () => {
+    const f = fixture({
+      language: 'en',
+      rows: {
+        global: [
+          { name: 'kiki-reviewer', model: 'provider/beta', inherited: true, projectOverride: 'provider/project' },
+          { name: 'kiki-builder', model: 'provider/beta', inherited: true },
+        ],
+        project: [{ name: 'kiki-reviewer', model: 'provider/beta', inherited: true }],
+      },
+    });
+    f.start(); await tick(); await f.selectDialog('global');
+    expect(f.view.options[0]).toMatchObject({
+      category: 'kiki-reviewer', title: 'provider/beta', footer: 'Project',
+    });
+    expect(f.view.options[1]).toMatchObject({
+      category: 'kiki-builder', title: 'provider/beta',
+    });
+    expect(f.view.options[1].footer).toBeUndefined();
+
+    await f.selectDialog(undefined);
+    f.start(); await tick(); await f.selectDialog('project');
+    expect(f.view.options[0]).toMatchObject({
+      category: 'kiki-reviewer', title: 'provider/beta', footer: 'Global',
+    });
+    f.dispose();
   });
 
   it('reports an existing project override after a global change', async () => {
@@ -392,9 +613,20 @@ describe('/kiki model menu (OpenCode 2 native TUI)', () => {
     expect(f.toast).toHaveBeenCalledWith(expect.objectContaining({
       variant: 'success',
       title: 'Kiki-Modell zurückgesetzt',
-      message: expect.stringMatching(/provider\/local.*provider\/beta.*OpenCode.*neu starten/),
+      message: expect.stringMatching(/^kiki-reviewer: lokales Modell provider\/local.*provider\/beta.*OpenCode.*neu starten/),
       duration: 8_000,
     }));
+  });
+
+  it('shows the full agent name when no local model remains', async () => {
+    const f = fixture();
+    f.remove.mockResolvedValueOnce({ file: '/fixture/config', removed: '', effective: 'provider/beta' });
+    f.start(); await tick(); await f.selectDialog('project'); await f.selectDialog('kiki-reviewer');
+    await f.selectDialog('__inherit__');
+    expect(f.toast).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'kiki-reviewer: kein lokales Modell vorhanden. OpenCode neu starten.',
+    }));
+    f.dispose();
   });
 
   it('shows no inherit entry for inherited agents or in global scope', async () => {
@@ -423,8 +655,12 @@ describe('/kiki model menu (OpenCode 2 native TUI)', () => {
     f.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     f.start(); await tick(); await f.selectDialog('project');
     expect(f.view.options.at(-1)).toMatchObject({
-      title: 'Alle lokalen Modell-Zuordnungen löschen', value: '__all__',
+      title: 'Alle lokalen Modell-Zuordnungen löschen',
+      value: '__all__',
+      description: 'Globale Modelle greifen wieder',
     });
+    expect(f.view.options.at(-1)?.category).toBeUndefined();
+    expect(f.view.options.at(-1)?.footer).toBeUndefined();
     await f.selectDialog('__all__');
     expect(f.confirm).toHaveBeenCalledWith({
       title: 'Alle lokalen Modell-Zuordnungen löschen?',
@@ -456,6 +692,7 @@ describe('/kiki model menu (OpenCode 2 native TUI)', () => {
     const f = fixture();
     f.start(); await tick(); await f.selectDialog('global');
     expect(f.view.options.map(row => row.value)).toEqual(['kiki-planner', 'kiki-reviewer']);
+    expect(f.view.options.map(row => row.category)).toEqual(['kiki-planner', 'kiki-reviewer']);
     f.dispose();
   });
 

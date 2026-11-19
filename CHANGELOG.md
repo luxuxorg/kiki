@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **German/English Kiki TUI copy and scoped status footers:** all visible `/kiki`
+  menu, dialog, toast and error text now comes from a typed German/English
+  dictionary. The language is resolved once at startup from the first non-empty
+  `LC_ALL`, `LC_MESSAGES` or `LANG`; `de`/`de_*`/`de-*` selects German, and
+  everything else — including unset, `C` and `POSIX` — selects English. There is
+  no manual setting or live switching; restart OpenCode to change the locale.
+  Agent rows show at most one bare, scope-specific footer at the right:
+  `Project` in English or `Projekt` in German for a global assignment that a
+  project-local override replaces, and `Global` in both languages for a project
+  assignment that inherits the global model, marking the value as inherited from
+  the global scope. The footer never stacks, carries no parentheses or
+  exclamation mark, and a global row without a project override has none. CLI
+  and server logs, identifiers and error names are unchanged.
+
+### Changed
+
+- **Grouped two-line TUI agent rows with full agent IDs:** the scope, agent and
+  model selection dialogs use the host's default width (60), subject to the
+  terminal's size clamp. Full agent IDs, including the `kiki-` prefix, appear in
+  the agent-list headers, dialog titles and toasts; stored IDs and configuration
+  keys are unchanged. Each agent is a non-selectable category header whose second
+  line shows the current model or the localized OpenCode default, with the
+  scope-specific bare footer at the right; only the model line is highlighted and
+  a blank line separates the groups. The agent list uses OpenCode's built-in fuzzy
+  search over agent name and model, while the model and scope dialogs keep their
+  existing search behavior; the project-scope delete-all entry stays an ordinary,
+  ungrouped action. Long model names may still clip; no wrapping is provided.
+
 ## [3.1.1] — 2026-11-17
 
 ### Changed

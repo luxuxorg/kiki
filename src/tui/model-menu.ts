@@ -1,5 +1,6 @@
 import type { Plugin } from '@opencode/plugin/tui';
 import type { AgentModelRow, ModelRemoveAllResult, ModelRemoveResult, ModelScope, ModelSaveResult } from '../cli/opencode-config.js';
+import { resolveTuiLanguage, tuiStrings, type TuiLanguage, type TuiStrings } from './strings.js';
 
 export interface ModelSettings {
   list(scope: ModelScope): AgentModelRow[];
@@ -10,8 +11,6 @@ export interface ModelSettings {
 
 const INHERIT = '__inherit__';
 const REMOVE_ALL = '__all__';
-const LOADING_MESSAGE = 'OpenCode lädt noch. /kiki gleich erneut öffnen.';
-const CONFIG_READ_ERROR = 'Kiki-Konfiguration konnte nicht gelesen werden. Konfiguration und Zugriffsrechte prüfen.';
 
 type TuiModel = NonNullable<ReturnType<Plugin.Context['data']['location']['model']['list']>>[number];
 type TuiProvider = NonNullable<ReturnType<Plugin.Context['data']['location']['provider']['list']>>[number];
@@ -29,8 +28,15 @@ interface SearchableOption<Value> {
   readonly category?: string;
 }
 
-function label(scope: ModelScope): string {
-  return scope === 'global' ? 'global' : 'dieses Projekt';
+function label(strings: TuiStrings, scope: ModelScope): string {
+  return scope === 'global' ? strings.scopeGlobal : strings.scopeProject;
+}
+
+/** The only status shown per scope: global override or project inheritance. */
+function agentStatus(strings: TuiStrings, row: AgentModelRow, scope: ModelScope): string | undefined {
+  if (scope === 'global' && row.projectOverride !== undefined) return strings.projectOverrideMarker;
+  if (scope === 'project' && row.inherited) return strings.inheritedMarker;
+  return undefined;
 }
 
 function hostReady(ctx: Plugin.Context): boolean {
@@ -62,30 +68,34 @@ function modelOptions(ctx: Plugin.Context): ModelOption[] | undefined {
 
 /** Keep the existing searchable title/provider/model behavior in the native dialog. */
 function searchOptions<Value>(
-  query: string, options: readonly SearchableOption<Value>[],
+  language: TuiLanguage, query: string, options: readonly SearchableOption<Value>[],
 ): readonly SearchableOption<Value>[] {
-  const needle = query.trim().toLocaleLowerCase('de');
+  const needle = query.trim().toLocaleLowerCase(language);
   if (!needle) return options;
   return options.filter(option => [
     option.title,
     option.description ?? '',
     option.category ?? '',
     String(option.value),
-  ].some(value => value.toLocaleLowerCase('de').includes(needle)));
+  ].some(value => value.toLocaleLowerCase(language).includes(needle)));
 }
 
-export function registerKikiMenu(ctx: Plugin.Context, settings: ModelSettings): () => void {
+export function registerKikiMenu(
+  ctx: Plugin.Context,
+  settings: ModelSettings,
+  language: TuiLanguage = resolveTuiLanguage(process.env),
+): () => void {
+  const strings = tuiStrings(language);
   let generation = 0;
   let disposed = false;
   let busy = false;
   const active = (token: number) => !disposed && token === generation;
 
   function savedToast(scope: ModelScope, agent: string, model: string, projectOverride?: string): void {
-    const override = projectOverride ? ` Projektzuordnung ${projectOverride} bleibt aktiv.` : '';
     ctx.ui.toast.show({
       variant: 'success',
-      title: 'Kiki-Modell gespeichert',
-      message: `${agent}: ${model} (${label(scope)}).${override} OpenCode neu starten.`,
+      title: strings.savedTitle,
+      message: strings.savedMessage(agent, model, label(strings, scope), projectOverride),
       duration: 8_000,
     });
   }
@@ -101,7 +111,7 @@ export function registerKikiMenu(ctx: Plugin.Context, settings: ModelSettings): 
       if (active(token)) {
         ctx.ui.toast.show({
           variant: 'error',
-          message: 'Modellzuordnung konnte nicht gespeichert werden. Konfiguration und Schreibrechte prüfen; anschließend erneut auswählen.',
+          message: strings.saveFailed,
         });
       }
     }
@@ -113,17 +123,17 @@ export function registerKikiMenu(ctx: Plugin.Context, settings: ModelSettings): 
       if (!active(token)) return;
       ctx.ui.toast.show({
         variant: 'success',
-        title: 'Kiki-Modell zurückgesetzt',
+        title: strings.resetTitle,
         message: result.removed
-          ? `${agent}: lokales Modell ${result.removed} entfernt; ${result.effective || 'OpenCode-Standard'} (global) greift. OpenCode neu starten.`
-          : `${agent}: kein lokales Modell vorhanden. OpenCode neu starten.`,
+          ? strings.removedMessage(agent, result.removed, result.effective || strings.openCodeDefault)
+          : strings.noLocalModelMessage(agent),
         duration: 8_000,
       });
     } catch {
       if (active(token)) {
         ctx.ui.toast.show({
           variant: 'error',
-          message: 'Modell-Zuordnung konnte nicht entfernt werden. Konfiguration und Schreibrechte prüfen; anschließend erneut auswählen.',
+          message: strings.removeFailed,
         });
       }
     }
@@ -134,32 +144,32 @@ export function registerKikiMenu(ctx: Plugin.Context, settings: ModelSettings): 
     if (!row) return;
     const available = modelOptions(ctx);
     if (!available) {
-      ctx.ui.toast.show({ variant: 'info', message: LOADING_MESSAGE });
+      ctx.ui.toast.show({ variant: 'info', message: strings.loading });
       return;
     }
     const globalModel = scope === 'project'
-      ? settings.list('global').find(item => item.name === agent)?.model || 'OpenCode-Standard'
+      ? settings.list('global').find(item => item.name === agent)?.model || strings.openCodeDefault
       : '';
     const inherit = scope === 'project' && row.projectOverride !== undefined
       ? [{
-          title: `Globales Modell (${globalModel}) verwenden`,
+          title: strings.inheritTitle(globalModel),
           value: INHERIT,
         }]
       : [];
     if (!available.length && !inherit.length) {
       ctx.ui.toast.show({
         variant: 'info',
-        message: 'Keine verfügbaren Modelle. Zuerst einen Provider in OpenCode verbinden.',
+        message: strings.noModels,
       });
       return;
     }
     const options = [...inherit, ...available];
     const selected = await ctx.ui.dialog.select<string>({
-      title: `${agent} — Modell (${label(scope)})`,
-      placeholder: 'Modell oder Provider suchen',
+      title: strings.modelDialogTitle(agent, label(strings, scope)),
+      placeholder: strings.modelSearchPlaceholder,
       options,
       current: row.model,
-      search: searchOptions,
+      search: (query, searchable) => searchOptions(language, query, searchable),
     });
     if (!active(token) || selected === undefined) return;
     if (!options.some(option => option.value === selected)) return;
@@ -175,14 +185,14 @@ export function registerKikiMenu(ctx: Plugin.Context, settings: ModelSettings): 
       if (active(token)) {
         ctx.ui.toast.show({
           variant: 'error',
-          message: 'Dieses Modell ist nicht mehr verfügbar. Modellauswahl erneut öffnen.',
+          message: strings.modelUnavailable,
         });
       }
       return;
     }
     const freshRow = settings.list(scope).find(item => item.name === agent);
     if (!freshRow) {
-      if (active(token)) ctx.ui.toast.show({ variant: 'error', message: CONFIG_READ_ERROR });
+      if (active(token)) ctx.ui.toast.show({ variant: 'error', message: strings.configReadError });
       return;
     }
     // Selecting the already-effective string ID is a no-op. Saving the same
@@ -197,9 +207,9 @@ export function registerKikiMenu(ctx: Plugin.Context, settings: ModelSettings): 
 
   async function removeAll(token: number): Promise<void> {
     const confirmed = await ctx.ui.dialog.confirm({
-      title: 'Alle lokalen Modell-Zuordnungen löschen?',
-      message: 'Globale Modelle greifen wieder.',
-      label: { confirm: 'Ja, alle löschen', cancel: 'Abbrechen' },
+      title: strings.deleteAllTitle,
+      message: strings.deleteAllMessage,
+      label: { confirm: strings.deleteAllConfirm, cancel: strings.deleteAllCancel },
     });
     if (!active(token) || confirmed === undefined) return;
     if (!confirmed) {
@@ -211,41 +221,49 @@ export function registerKikiMenu(ctx: Plugin.Context, settings: ModelSettings): 
       if (!active(token)) return;
       ctx.ui.toast.show({
         variant: 'success',
-        title: 'Kiki-Modelle zurückgesetzt',
+        title: strings.modelsResetTitle,
         message: result.removed.length
-          ? `${result.removed.length} lokale Modell-Zuordnung(en) entfernt; globale Modelle greifen. OpenCode neu starten.`
-          : 'Keine lokalen Modell-Zuordnungen vorhanden. OpenCode neu starten.',
+          ? strings.removedAllMessage(result.removed.length)
+          : strings.noLocalAssignments,
         duration: 8_000,
       });
     } catch {
       if (active(token)) {
         ctx.ui.toast.show({
           variant: 'error',
-          message: 'Lokale Modell-Zuordnungen konnten nicht entfernt werden. Konfiguration und Schreibrechte prüfen; anschließend erneut auswählen.',
+          message: strings.removeAllFailed,
         });
       }
     }
   }
 
   async function agentFlow(token: number, scope: ModelScope): Promise<void> {
-    const options: { title: string; value: string; description: string }[] = settings.list(scope)
-      .map(row => ({
-        title: row.name,
+    const options: {
+      title: string;
+      value: string;
+      description?: string;
+      category?: string;
+      footer?: string;
+    }[] = settings.list(scope).map(row => {
+      const footer = agentStatus(strings, row, scope);
+      return {
+        category: row.name,
+        title: row.model || strings.openCodeDefault,
         value: row.name,
-        description: `${row.model || 'OpenCode-Standard'}${row.inherited ? ' (geerbt)' : ''}`,
-      }));
+        ...(footer ? { footer } : {}),
+      };
+    });
     if (scope === 'project') {
       options.push({
-        title: 'Alle lokalen Modell-Zuordnungen löschen',
+        title: strings.deleteAllOption,
         value: REMOVE_ALL,
-        description: 'Globale Modelle greifen wieder',
+        description: strings.deleteAllOptionDescription,
       });
     }
     const agent = await ctx.ui.dialog.select<string>({
-      title: `Kiki-Agent auswählen — ${label(scope)}`,
-      placeholder: 'Agent suchen',
+      title: strings.agentDialogTitle(label(strings, scope)),
+      placeholder: strings.agentSearchPlaceholder,
       options,
-      search: searchOptions,
     });
     if (!active(token) || agent === undefined) return;
     if (!options.some(option => option.value === agent)) return;
@@ -259,25 +277,25 @@ export function registerKikiMenu(ctx: Plugin.Context, settings: ModelSettings): 
   async function run(): Promise<void> {
     if (disposed || busy) return;
     if (!hostReady(ctx)) {
-      ctx.ui.toast.show({ variant: 'info', message: LOADING_MESSAGE });
+      ctx.ui.toast.show({ variant: 'info', message: strings.loading });
       return;
     }
     const token = ++generation;
     busy = true;
     try {
       const scope = await ctx.ui.dialog.select<ModelScope>({
-        title: 'Kiki',
+        title: strings.scopeDialogTitle,
         current: 'global',
         options: [
-          { title: 'Modell ändern — global', value: 'global' },
-          { title: 'Modell ändern — dieses Projekt', value: 'project' },
+          { title: strings.changeModelGlobal, value: 'global' },
+          { title: strings.changeModelProject, value: 'project' },
         ],
       });
       if (!active(token) || scope === undefined) return;
       if (scope !== 'global' && scope !== 'project') return;
       await agentFlow(token, scope);
     } catch {
-      if (active(token)) ctx.ui.toast.show({ variant: 'error', message: CONFIG_READ_ERROR });
+      if (active(token)) ctx.ui.toast.show({ variant: 'error', message: strings.configReadError });
     } finally {
       busy = false;
     }
