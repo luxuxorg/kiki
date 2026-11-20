@@ -1,3 +1,4 @@
+import type { PermissionRule } from './opencode-config.js';
 export interface KikiPaths {
     source: string;
     tests: string;
@@ -59,6 +60,13 @@ export declare const DEFAULT_ALIGNMENT: {
     compliance: string[];
 };
 export declare function loadConfig(targetPath: string): KikiConfig;
+export declare const SECRET_GLOBS: readonly string[];
+/**
+ * The canonical, ordered permission arrays for every Kiki agent. This is the
+ * single source of truth: generated markdown is prompt-only, and installers
+ * persist these arrays under `agents.<name>.permissions` in the global config.
+ */
+export declare function generateAgentPermissions(config?: KikiConfig): Record<string, PermissionRule[]>;
 export declare function generateOrchestratorTemplate(config: KikiConfig): string;
 export declare function generateBrainstormerTemplate(config: KikiConfig): string;
 export declare function generatePlannerTemplate(config: KikiConfig): string;

@@ -11,7 +11,8 @@ import { AGENT_NAMES } from './opencode-config.js';
 import type { ModelSelection, PermissionRule, Settings } from './opencode-config.js';
 import { assertNotOC1Config, canonicalPath, pathsOverlap } from './oc2-paths.js';
 import { projectPermissionRules, translatePermissions } from './oc2-permissions.js';
-import { KIKI_VERSION } from './config.js';
+import { KIKI_VERSION, DEFAULT_CONFIG, generateAgentPermissions } from './config.js';
+import { splitSecretTail } from './permission-consolidation.js';
 
 export interface MigrationOptions {
   from?: string;
@@ -528,6 +529,31 @@ function assertDirectory(path: string, label: string): void {
   if (!existsSync(path) || !statSync(path).isDirectory()) throw new Error(`${label} directory does not exist: ${path}`);
 }
 
+/**
+ * Converge migrated global permissions to the canonical single-source baseline
+ * plus validated file/folder additions. V1 rules that exactly match a canonical
+ * rule are generated copies and dropped; remaining non-file rules (shell,
+ * routes, delegation) are unsafe legacy forms and halt instead of silently
+ * broadening or narrowing policy.
+ */
+function convergeGlobalPermissions(
+  agent: string,
+  source: PermissionRule[],
+): { ok: true; rules: PermissionRule[] } | { ok: false; reason: string } {
+  const canonical = generateAgentPermissions(DEFAULT_CONFIG)[agent];
+  const canonicalKeys = new Set(canonical.map(rule => rulesKey([rule])));
+  const remaining = source.filter(rule => !canonicalKeys.has(rulesKey([rule])));
+  const unsafe = remaining.find(rule => !['read', 'edit', 'external_directory'].includes(rule.action));
+  if (unsafe) {
+    return { ok: false, reason: `Unsupported legacy permission action: ${unsafe.action}` };
+  }
+  const validated = projectPermissionRules(remaining, canonical);
+  if (!validated.ok) return validated;
+  if (!validated.rules.length) return { ok: true, rules: canonical };
+  const { prefix } = splitSecretTail(canonical);
+  return { ok: true, rules: [...prefix, ...validated.rules] };
+}
+
 function globalMigration(options: MigrationOptions): MigrationReport {
   const sourceDir = resolve(options.from || oc1GlobalDirectory());
   const destinationDir = resolve(options.destination);
@@ -585,12 +611,17 @@ function globalMigration(options: MigrationOptions): MigrationReport {
       if (existing.model === undefined) patch.model = normalized.value.model;
     }
     if (normalized.value.permissions !== undefined) {
+      const converged = convergeGlobalPermissions(name, normalized.value.permissions);
+      if (!converged.ok) {
+        rejected.push({ agent: name, reason: converged.reason });
+        continue;
+      }
       if (existing.permissions !== undefined
-        && rulesKey(existing.permissions) !== rulesKey(normalized.value.permissions)) {
+        && rulesKey(existing.permissions) !== rulesKey(converged.rules)) {
         rejected.push({ agent: name, reason: 'Conflicting destination permissions.' });
         continue;
       }
-      if (existing.permissions === undefined) patch.permissions = normalized.value.permissions;
+      if (existing.permissions === undefined) patch.permissions = converged.rules;
     }
     if (legacyNode !== undefined && nativeNode === undefined && Object.keys(patch).length) {
       rejected.push({ agent: name, reason: 'Legacy destination definition cannot be extended safely.' });
@@ -833,7 +864,12 @@ function projectMigration(options: MigrationOptions): MigrationReport {
           inherited = translated.rules;
         }
       }
-      local.permissions = projectPermissionRules(local.permissions, inherited);
+      const validated = projectPermissionRules(local.permissions, inherited);
+      if (!validated.ok) {
+        rejected.push({ agent: name, reason: validated.reason });
+        continue;
+      }
+      local.permissions = validated.rules;
     }
 
     const patch: Settings = {};

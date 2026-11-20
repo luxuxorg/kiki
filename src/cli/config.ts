@@ -224,10 +224,11 @@ const FORCE_PUSH_DENIES: readonly string[] = [
 
 /**
  * Shell order: allow everything routine, then ask the publishing routes, then
- * deny the force-push taboos. Denies are last-match wins, so they survive the
- * baseline allow.
+ * the optional read-only Git grants, then deny the force-push taboos. Denies
+ * are last-match wins, so they survive the baseline allow and every narrower
+ * allow that precedes them.
  */
-function shellRules(): PermissionRule[] {
+function shellRules(options: { readOnlyGit?: boolean } = {}): PermissionRule[] {
   const asks: PermissionRule[] = PUBLISH_ASK_PATTERNS.map(resource => ({
     action: 'shell',
     resource,
@@ -236,21 +237,49 @@ function shellRules(): PermissionRule[] {
   return [
     allow('shell', '*'),
     ...asks,
+    ...(options.readOnlyGit ? readOnlyGitRules() : []),
     ...FORCE_PUSH_DENIES.map(resource => deny('shell', resource)),
   ];
 }
 
+// Narrow read-only Git inspection commands. They are appended after the broad
+// shell baseline so an inherited `shell *` ask cannot block routine repository
+// inspection. Only the read-only `worktree list` subcommand is granted: the
+// writable `git worktree *` family (add/remove/move/prune/lock/unlock) is
+// deliberately absent, as are all other new write routes.
+const READ_ONLY_GIT_PATTERNS: readonly string[] = [
+  'git status *',
+  'git rev-parse *',
+  'git worktree list *',
+];
+
+function readOnlyGitRules(): PermissionRule[] {
+  return READ_ONLY_GIT_PATTERNS.map(resource => allow('shell', resource));
+}
+
+export const SECRET_GLOBS: readonly string[] = [
+  '.env*',
+  '**/.env*',
+  '**/*secret*',
+  '**/*credential*',
+  '**/*.pem',
+  '**/*.key',
+  '**/id_rsa*',
+];
+
+function secretDenies(action: string): PermissionRule[] {
+  return SECRET_GLOBS.map(resource => deny(action, resource));
+}
+
 function buildBroadReadPermissions(): PermissionRule[] {
-  return [
-    allow('read', '*'),
-    deny('read', '.env*'),
-    deny('read', '**/.env*'),
-    deny('read', '**/*secret*'),
-    deny('read', '**/*credential*'),
-    deny('read', '**/*.pem'),
-    deny('read', '**/*.key'),
-    deny('read', '**/id_rsa*'),
-  ];
+  return [allow('read', '*'), ...secretDenies('read')];
+}
+
+// Secret paths stay uneditable even when a broader role grant (for example the
+// implementer's `src/**` allow) would otherwise match. Callers append these
+// last so the last-match-wins rule keeps the denial authoritative.
+function secretEditDenies(): PermissionRule[] {
+  return secretDenies('edit');
 }
 
 // The superpowers SDD workspace is git-ignored scratch shared by the
@@ -328,8 +357,9 @@ function buildBrainstormerPermissions(p: KikiPaths): PermissionRule[] {
     ...worktreeGlobs(sw).map(resource => allow('edit', resource)),
     ...worktreeGlobs(plans).map(resource => allow('edit', resource)),
     ...worktreeGlobs(specs).map(resource => allow('edit', resource)),
-    ...shellRules(),
+    ...shellRules({ readOnlyGit: true }),
     ...routeRules({ research: true }),
+    ...secretEditDenies(),
   ];
 }
 
@@ -360,8 +390,9 @@ function buildImplementerPermissions(
     allow('edit', '/tmp/**'),
     allow('edit', 'tmp/**'),
     allow('edit', SDD_WORKSPACE_GLOB),
-    ...shellRules(),
+    ...shellRules({ readOnlyGit: true }),
     ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
+    ...secretEditDenies(),
   ];
 }
 
@@ -376,8 +407,9 @@ function buildReviewerPermissions(): PermissionRule[] {
     allow('edit', '.opencode/docs/reviews/*'),
     ...worktreeGlobs('.agentic/reviews/*').map(resource => allow('edit', resource)),
     ...worktreeGlobs('.opencode/docs/reviews/*').map(resource => allow('edit', resource)),
-    ...shellRules(),
+    ...shellRules({ readOnlyGit: true }),
     ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
+    ...secretEditDenies(),
   ];
 }
 
@@ -389,8 +421,9 @@ function buildEscalationPermissions(): PermissionRule[] {
     allow('edit', '.opencode/docs/reviews/*'),
     ...worktreeGlobs('.agentic/reviews/*').map(resource => allow('edit', resource)),
     ...worktreeGlobs('.opencode/docs/reviews/*').map(resource => allow('edit', resource)),
-    ...shellRules(),
+    ...shellRules({ readOnlyGit: true }),
     ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
+    ...secretEditDenies(),
   ];
 }
 
@@ -435,8 +468,9 @@ function buildHistorianPermissions(p: KikiPaths): PermissionRule[] {
   rules.push(...worktreeGlobs(src).map(resource => deny('edit', resource)));
   rules.push(...worktreeGlobs(tst).map(resource => deny('edit', resource)));
 
-  rules.push(...shellRules());
+  rules.push(...shellRules({ readOnlyGit: true }));
   rules.push(...routeRules({ research: false }));
+  rules.push(...secretEditDenies());
   return rules;
 }
 
@@ -453,19 +487,29 @@ function buildOrchestratorPermissions(p: KikiPaths): PermissionRule[] {
     allow('edit', SDD_WORKSPACE_GLOB),
     ...shellRules(),
     ...routeRules({ research: false, orchestrator: true }),
+    ...secretEditDenies(),
   ];
 }
 
-function renderPermissions(rules: PermissionRule[]): string {
-  const lines = ['permissions:'];
-  for (const rule of rules) {
-    // Quote the action: the generic MCP rule uses `*_*`, which is a YAML alias
-    // if emitted bare.
-    lines.push(`  - action: ${JSON.stringify(rule.action)}`);
-    lines.push(`    resource: ${JSON.stringify(rule.resource)}`);
-    lines.push(`    effect: ${rule.effect}`);
-  }
-  return lines.join('\n');
+/**
+ * The canonical, ordered permission arrays for every Kiki agent. This is the
+ * single source of truth: generated markdown is prompt-only, and installers
+ * persist these arrays under `agents.<name>.permissions` in the global config.
+ */
+export function generateAgentPermissions(
+  config: KikiConfig = DEFAULT_CONFIG,
+): Record<string, PermissionRule[]> {
+  const p = config.paths;
+  return {
+    'kiki-orchestrator': buildOrchestratorPermissions(p),
+    'kiki-brainstormer': buildBrainstormerPermissions(p),
+    'kiki-planner': buildBrainstormerPermissions(p),
+    'kiki-implementer': buildImplementerPermissions(config, { gitignore: true }),
+    'kiki-gui-designer': buildImplementerPermissions(config),
+    'kiki-reviewer': buildReviewerPermissions(),
+    'kiki-escalation': buildEscalationPermissions(),
+    'kiki-historian': buildHistorianPermissions(p),
+  };
 }
 
 // Every generated agent prompt carries this exact no-circumvention line: the
@@ -545,11 +589,9 @@ function buildHistorianResponsibilities(p: KikiPaths): string {
 
 export function generateOrchestratorTemplate(config: KikiConfig): string {
   const p = config.paths;
-  const perms = buildOrchestratorPermissions(p);
   return `---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
-${renderPermissions(perms)}
 ---
 You are the Kiki Orchestrator. You are **COORDINATION-ONLY**.
 
@@ -655,12 +697,10 @@ ${ALIGNMENT_GUARDRAIL_PROMPT}
 }
 
 export function generateBrainstormerTemplate(config: KikiConfig): string {
-  const perms = buildBrainstormerPermissions(config.paths);
   const p = config.paths;
   return `---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
-${renderPermissions(perms)}
 ---
 You are the Kiki Brainstormer. Your job is to produce design specs and explore requirements.
 
@@ -684,12 +724,10 @@ ${ALIGNMENT_GUARDRAIL_PROMPT}
 }
 
 export function generatePlannerTemplate(config: KikiConfig): string {
-  const perms = buildBrainstormerPermissions(config.paths);
   const p = config.paths;
   return `---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
-${renderPermissions(perms)}
 ---
 You are the Kiki Planner. Your job is to write detailed implementation plans.
 
@@ -728,11 +766,9 @@ ${ALIGNMENT_GUARDRAIL_PROMPT}
 }
 
 export function generateImplementerTemplate(config: KikiConfig): string {
-  const perms = buildImplementerPermissions(config, { gitignore: true });
   return `---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
-${renderPermissions(perms)}
 ---
 You are the Kiki Implementer. Implement code strictly per the approved plan.
 
@@ -754,11 +790,9 @@ ${ALIGNMENT_GUARDRAIL_PROMPT}
 }
 
 export function generateGuiDesignerTemplate(config: KikiConfig): string {
-  const perms = buildImplementerPermissions(config);
   return `---
 description: Kiki GUI Designer — UI/UX design + implementation via superpowers skills
 mode: subagent
-${renderPermissions(perms)}
 ---
 
 You are the Kiki GUI Designer. You own UI/UX design and implementation end-to-end. Load the \`ui-ux-pro-max\` skill for design intelligence, the \`executing-plans\` skill for plan execution discipline, the \`test-driven-development\` skill for implementation, and the \`systematic-debugging\` skill for when things break. Follow all four exactly. Produce both design direction and working frontend code. Do not split visual work from implementation.
@@ -775,11 +809,9 @@ ${ALIGNMENT_GUARDRAIL_PROMPT}
 }
 
 export function generateReviewerTemplate(_config: KikiConfig): string {
-  const perms = buildReviewerPermissions();
   return `---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent
-${renderPermissions(perms)}
 ---
 You are the Kiki Reviewer. Review code against the approved plan and spec.
 
@@ -825,11 +857,9 @@ ${ALIGNMENT_GUARDRAIL_PROMPT}
 }
 
 export function generateEscalationTemplate(_config: KikiConfig): string {
-  const perms = buildEscalationPermissions();
   return `---
 description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
-${renderPermissions(perms)}
 ---
 You are the Kiki Escalation Agent. Diagnose why the pipeline failed. You are dispatched at most once per task, only for a technical deadlock.
 
@@ -862,13 +892,11 @@ ${ALIGNMENT_GUARDRAIL_PROMPT}
 }
 
 export function generateHistorianTemplate(config: KikiConfig): string {
-  const perms = buildHistorianPermissions(config.paths);
   const responsibilities = buildHistorianResponsibilities(config.paths);
   const p = config.paths;
   return `---
 description: Kiki Historian — maintains project documentation, README and CHANGELOG
 mode: subagent
-${renderPermissions(perms)}
 ---
 You are the Kiki Historian. Keep project documentation accurate and up to date.
 

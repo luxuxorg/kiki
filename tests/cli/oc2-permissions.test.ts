@@ -13,8 +13,9 @@ import {
   generateEscalationTemplate,
   generateHistorianTemplate,
   generateWorkflowTemplate,
+  generateAgentPermissions,
 } from '../../src/cli/config';
-import { baselineAgents, type PermissionRule } from '../../src/cli/opencode-config';
+import { baselineAgents, parseAgent, type PermissionRule } from '../../src/cli/opencode-config';
 import {
   translatePermissions,
   projectPermissionRules,
@@ -48,13 +49,6 @@ function bodyOf(template: string): string {
   const match = template.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/);
   if (!match) throw new Error('missing frontmatter');
   return match[2];
-}
-
-function nativeRules(template: string): Rule[] {
-  const data = frontmatter(template);
-  if (data.permissions === undefined) return [];
-  expect(Array.isArray(data.permissions)).toBe(true);
-  return data.permissions as Rule[];
 }
 
 function oldPermissionBlock(block: string): Record<string, unknown> {
@@ -141,8 +135,19 @@ function effectFor(rules: Rule[], action: string, resource: string): Effect | un
   return effect;
 }
 
+const roleToAgent: Record<string, string> = {
+  orchestrator: 'kiki-orchestrator',
+  brainstormer: 'kiki-brainstormer',
+  planner: 'kiki-planner',
+  implementer: 'kiki-implementer',
+  guiDesigner: 'kiki-gui-designer',
+  reviewer: 'kiki-reviewer',
+  escalation: 'kiki-escalation',
+  historian: 'kiki-historian',
+};
+
 function rulesForRole(config: KikiConfig, role: string): Rule[] {
-  return nativeRules(roleGenerators[role](config));
+  return generateAgentPermissions(config)[roleToAgent[role]];
 }
 
 const publishAskPatterns = [
@@ -186,6 +191,28 @@ const kikiSubagents = [
 
 // Route actions are new policy, not legacy V1 scopes. The legacy translator
 // has no concept of execute/MCP/web/skill/subagent rules.
+// Global secret edit denials are a new policy addition, not legacy V1
+// behavior; config-secret-edit.test.ts verifies them directly.
+const secretEditPatterns = new Set([
+  '.env*',
+  '**/.env*',
+  '**/*secret*',
+  '**/*credential*',
+  '**/*.pem',
+  '**/*.key',
+  '**/id_rsa*',
+]);
+
+const READ_ONLY_SPECIALISTS = [
+  'kiki-brainstormer',
+  'kiki-planner',
+  'kiki-implementer',
+  'kiki-gui-designer',
+  'kiki-reviewer',
+  'kiki-escalation',
+  'kiki-historian',
+];
+
 const routeOnlyActions = new Set([
   'execute',
   'opencode_list_mcp_resources',
@@ -309,7 +336,8 @@ describe('ordered native permission translation', () => {
         // external-directory grants still do, so they remain verified.
         const legacyActual = actual.filter(rule =>
           !rule.action.includes('*') &&
-          !(rule.action === 'external_directory' && rule.resource === '*'));
+          !(rule.action === 'external_directory' && rule.resource === '*') &&
+          !(rule.action === 'edit' && secretEditPatterns.has(rule.resource)));
         const actions = [...new Set([...legacyActual, ...expected].map(rule => rule.action))]
           .filter(action => action !== 'shell' && !routeOnlyActions.has(action));
         const oldPatterns = Object.entries(oldPermissionBlock(variant.builders[builderForRole[role]]))
@@ -335,10 +363,9 @@ describe('ordered native permission translation', () => {
       const front = frontmatter(generate(DEFAULT_CONFIG));
       expect(front.mode, role).toBe(role === 'orchestrator' ? 'primary' : 'subagent');
       expect(front, role).not.toHaveProperty('permission');
+      expect(front, role).not.toHaveProperty('permissions');
       expect(front, role).not.toHaveProperty('model');
       expect(typeof front.description, role).toBe('string');
-      // The primary orchestrator must carry native permissions too.
-      expect(Array.isArray(front.permissions), role).toBe(true);
     }
 
     const baseline = baselineAgents();
@@ -346,7 +373,39 @@ describe('ordered native permission translation', () => {
     for (const [name, agent] of Object.entries(baseline)) {
       expect(agent.settings.mode, name).toBe(name === 'kiki-orchestrator' ? 'primary' : 'subagent');
       expect(agent.settings, name).not.toHaveProperty('model');
+      // Internal consumers keep the canonical array even though markdown is
+      // prompt-only.
       expect(Array.isArray(agent.settings.permissions), name).toBe(true);
+    }
+  });
+
+  it('canonical_rules_without_markdown_permissions', () => {
+    const permissions = generateAgentPermissions();
+    for (const [role, generate] of Object.entries(roleGenerators)) {
+      const settings = parseAgent(generate(DEFAULT_CONFIG), role).settings;
+      expect(settings, role).not.toHaveProperty('permissions');
+      expect(settings, role).not.toHaveProperty('permission');
+    }
+    const baseline = baselineAgents();
+    expect(permissions['kiki-planner']).toEqual(baseline['kiki-planner'].settings.permissions);
+    expect(permissions['kiki-implementer']).toEqual(
+      baseline['kiki-implementer'].settings.permissions,
+    );
+    for (const name of READ_ONLY_SPECIALISTS) {
+      expect(
+        permissions[name].filter(rule => rule.action === 'shell' && rule.effect === 'allow'
+          && rule.resource.startsWith('git ')).map(rule => rule.resource),
+        name,
+      ).toEqual(['git status *', 'git rev-parse *', 'git worktree list *']);
+    }
+    expect(
+      permissions['kiki-orchestrator'].filter(rule => rule.action === 'shell' && rule.effect === 'allow'
+        && rule.resource.startsWith('git ')),
+    ).toEqual([]);
+    for (const name of Object.keys(permissions)) {
+      expect(permissions[name].slice(-7), name).toEqual(
+        [...secretEditPatterns].map(resource => ({ action: 'edit', resource, effect: 'deny' })),
+      );
     }
   });
 
@@ -672,30 +731,51 @@ describe('ordered native permission translation', () => {
     expect(workflow).not.toContain('"agent": {');
   });
 
-  it('project_rules_do_not_restore_inherited_grants', () => {
-    const inherited = translatedOld(fixture.permissionBuilders.implementer);
-    inherited.push(
-      { action: 'edit', resource: 'outside/**', effect: 'allow' },
+  it('project_rules_keep_only_validated_additions_and_protect_secrets', () => {
+    const inherited: Rule[] = [
+      { action: 'edit', resource: '*', effect: 'deny' },
+      { action: 'edit', resource: 'src/**', effect: 'deny' },
       { action: 'read', resource: 'protected/**', effect: 'deny' },
       { action: 'read', resource: 'maybe/**', effect: 'ask' },
-      { action: 'edit', resource: 'backend/locked.ts', effect: 'deny' },
-      // Same resource as a local allow: the inherited deny/ask must survive.
-      { action: 'edit', resource: '/tmp/**', effect: 'ask' },
-      { action: 'edit', resource: 'tmp/**', effect: 'deny' },
-    );
-    const local = translatedOld(fixture.customPermissionBuilders.implementer);
-    const project = projectPermissionRules(local, inherited);
+    ];
+    const local: Rule[] = [
+      ...inherited,
+      { action: 'edit', resource: 'backend/**', effect: 'allow' },
+      { action: 'edit', resource: 'scripts/**', effect: 'allow' },
+      { action: 'read', resource: 'docs/**', effect: 'allow' },
+    ];
+    const result = projectPermissionRules(local, inherited);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const rules = result.rules;
 
-    expect(effectFor(project, 'edit', 'outside/foo.ts')).toBe('deny');
-    expect(effectFor(project, 'read', 'protected/secret.txt')).toBe('deny');
-    expect(effectFor(project, 'read', 'maybe/x')).toBe('ask');
-    expect(effectFor(project, 'edit', 'backend/locked.ts')).toBe('deny');
-    expect(effectFor(project, 'edit', '/tmp/kiki/a')).toBe('ask');
-    expect(effectFor(project, 'edit', 'tmp/kiki/a')).toBe('deny');
-    expect(effectFor(project, 'edit', 'backend/a.ts')).toBe('allow');
-    expect(effectFor(project, 'edit', 'src/a.ts')).toBe('deny');
-    expect(effectFor(project, 'edit', 'spec/a.test.ts')).toBe('allow');
-    expect(project.some(rule =>
-      rule.action === 'edit' && rule.resource === 'outside/**' && rule.effect === 'allow')).toBe(false);
+    expect(effectFor(rules, 'edit', 'backend/a.ts')).toBe('allow');
+    expect(effectFor(rules, 'edit', 'scripts/foo.sh')).toBe('allow');
+    expect(effectFor(rules, 'read', 'docs/guide.md')).toBe('allow');
+    // The broad fallback and generated copies are never replayed.
+    expect(rules.some(rule => rule.action === 'edit' && rule.resource === '*')).toBe(false);
+    expect(rules.some(rule => rule.action === 'read' && rule.resource === 'protected/**')).toBe(false);
+    expect(rules.some(rule => rule.action === 'read' && rule.resource === 'maybe/**')).toBe(false);
+    // Secret descendants stay denied after the addition.
+    expect(effectFor(rules, 'edit', 'scripts/.env')).toBe('deny');
+    expect(effectFor(rules, 'edit', 'backend/key.pem')).toBe('deny');
+    expect(effectFor(rules, 'edit', 'backend/credentials.json')).toBe('deny');
+
+    // Role-boundary crossings, wildcard/action and non-allow forms fail closed.
+    const crossing = projectPermissionRules(
+      [{ action: 'edit', resource: 'src/special.ts', effect: 'allow' }], inherited);
+    expect(crossing.ok).toBe(false);
+    const wildcard = projectPermissionRules(
+      [{ action: 'edit', resource: 'foo/*', effect: 'allow' }], inherited);
+    expect(wildcard.ok).toBe(false);
+    const shell = projectPermissionRules(
+      [{ action: 'shell', resource: 'git push*', effect: 'allow' }], inherited);
+    expect(shell.ok).toBe(false);
+    const deny = projectPermissionRules(
+      [{ action: 'edit', resource: 'vendor/**', effect: 'deny' }], inherited);
+    expect(deny.ok).toBe(false);
+    const traversal = projectPermissionRules(
+      [{ action: 'edit', resource: '../outside/**', effect: 'allow' }], inherited);
+    expect(traversal.ok).toBe(false);
   });
 });

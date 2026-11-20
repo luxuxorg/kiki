@@ -93,6 +93,11 @@ function recordRing(entries, key, value) {
     while (entries.length > RING_SIZE)
         entries.shift();
 }
+function removeRing(entries, key) {
+    const index = entries.findIndex((entry) => entry.key === key);
+    if (index !== -1)
+        entries.splice(index, 1);
+}
 function tailAllSame(values, count) {
     if (count <= 0 || values.length < count)
         return false;
@@ -177,6 +182,14 @@ export function createWatchdog(deps) {
             if (oldest.done)
                 break;
             state.texts.delete(oldest.value);
+        }
+        if (normalize(next).length === 0) {
+            // Empty/whitespace output (for example encrypted reasoning parts)
+            // carries no content to compare. It is never loop evidence, and any
+            // earlier content for this item is cleared so it cannot reappear as a
+            // stale hash after a later replacement.
+            removeRing(state.partEntries, event.key);
+            return;
         }
         recordRing(state.partEntries, event.key, hashText(next));
     }

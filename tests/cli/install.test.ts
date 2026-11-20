@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { parse } from 'jsonc-parser';
 import { install } from '../../src/cli/commands/install';
 import { update } from '../../src/cli/commands/update';
-import { parseAgent, readOpenCodeSettings } from '../../src/cli/opencode-config';
+import { parseAgent, readOpenCodeSettings, type PermissionRule } from '../../src/cli/opencode-config';
+import { generateAgentPermissions } from '../../src/cli/config';
 import { currentPackageSpec } from '../../src/cli/oc2-registration';
 
 const AGENTS = [
@@ -46,18 +47,22 @@ describe('global installation CLI', () => {
   });
   afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
 
-  it('writes eight native agent files and registers one server and one TUI package source', async () => {
+  it('writes eight prompt-only agent files and persists canonical arrays in the global config', async () => {
     await install([]);
 
+    const canonical = generateAgentPermissions();
+    const settings = readOpenCodeSettings(global, true).agents ?? {};
     for (const name of AGENTS) {
       const file = join(global, 'agents', `${name}.md`);
       expect(existsSync(file), name).toBe(true);
-      const { settings } = parseAgent(readFileSync(file, 'utf8'), file);
-      expect(settings, name).not.toHaveProperty('model');
-      expect(Array.isArray(settings.permissions), name).toBe(true);
-      expect(settings.mode, name).toBe(name === 'kiki-orchestrator' ? 'primary' : 'subagent');
+      const { settings: markdown } = parseAgent(readFileSync(file, 'utf8'), file);
+      expect(markdown, name).not.toHaveProperty('model');
+      expect(markdown, name).not.toHaveProperty('permissions');
+      expect(markdown, name).not.toHaveProperty('permission');
+      expect(markdown.mode, name).toBe(name === 'kiki-orchestrator' ? 'primary' : 'subagent');
+      // The global config owns the canonical single-source arrays.
+      expect(settings[name].permissions, name).toEqual(canonical[name]);
     }
-    expect(readOpenCodeSettings(global, true).agents).toBeUndefined();
     expect(parse(readFileSync(join(global, 'opencode.jsonc'), 'utf8')).plugins).toEqual([currentPackageSpec()]);
     expect(parse(readFileSync(join(global, 'cli.json'), 'utf8')).plugins).toEqual([currentPackageSpec()]);
     expect(existsSync(join(global, 'kiki/prompts'))).toBe(false);
@@ -163,135 +168,32 @@ describe('global installation CLI', () => {
     );
   });
 
-  it('updates_stale_prompt_bodies_without_changing_native_settings', async () => {
-    // A deliberate native reviewer restriction and model override, as in the
-    // existing preservation fixture; update must leave both untouched.
+  it('preserves custom prompt bytes and CRLF while persisting canonical arrays', async () => {
+    mkdirSync(join(global, 'agents'), { recursive: true });
+    const customBody = '# Custom Prompt\r\n\r\nKeep this exact body.\r\n';
+    writeFileSync(join(global, 'agents', 'kiki-reviewer.md'),
+      `---\r\ndescription: custom\r\nmode: subagent\r\n---\r\n${customBody}`);
     mkdirSync(global, { recursive: true });
-    writeFileSync(join(global, 'opencode.jsonc'), `{
-  "agents": {
-    "kiki-reviewer": {
-      "model": { "providerID": "custom", "model": "reviewer-model" },
-      "permissions": [
-        { "action": "edit", "resource": "src/**", "effect": "deny" }
-      ]
-    }
-  }
-}`);
+    writeFileSync(join(global, 'opencode.jsonc'), JSON.stringify({
+      agents: {
+        'kiki-reviewer': { model: { providerID: 'custom', model: 'reviewer-model' } },
+      },
+    }));
 
     await install([]);
 
-    const nativeBefore = readOpenCodeSettings(global, true).agents['kiki-reviewer'];
-    expect(nativeBefore).toEqual({
+    const file = join(global, 'agents', 'kiki-reviewer.md');
+    const text = readFileSync(file, 'utf8');
+    const { settings, prompt } = parseAgent(text, file);
+    expect(prompt).toBe(customBody);
+    expect(prompt).toContain('Keep this exact body.');
+    expect(settings).not.toHaveProperty('permissions');
+    expect(settings.description).toBe('custom');
+    expect(settings.mode).toBe('subagent');
+    expect(readOpenCodeSettings(global, true).agents['kiki-reviewer']).toEqual({
       model: { providerID: 'custom', model: 'reviewer-model' },
-      permissions: [{ action: 'edit', resource: 'src/**', effect: 'deny' }],
+      permissions: generateAgentPermissions()['kiki-reviewer'],
     });
-
-    const recorded: Record<string, {
-      settings: Record<string, unknown>;
-      permissions: unknown;
-      mode: unknown;
-      hasModel: boolean;
-    }> = {};
-    for (const name of AGENTS) {
-      const file = join(global, 'agents', `${name}.md`);
-      const text = readFileSync(file, 'utf8');
-      const { settings } = parseAgent(text, name);
-      recorded[name] = {
-        settings,
-        permissions: settings.permissions,
-        mode: settings.mode,
-        hasModel: 'model' in settings,
-      };
-
-      const match = text.match(/^((?:---\r?\n[\s\S]*?\r?\n---\r?\n))([\s\S]*)$/);
-      expect(match, `${name}: frontmatter retained`).not.toBeNull();
-      writeFileSync(file, `${match![1]}STALE_BODY_MARKER_${name}\n`);
-    }
-
-    await update([]);
-
-    for (const name of AGENTS) {
-      const file = join(global, 'agents', `${name}.md`);
-      const { settings, prompt } = parseAgent(readFileSync(file, 'utf8'), file);
-      expect(prompt, `${name}: stale body replaced`).not.toContain(`STALE_BODY_MARKER_${name}`);
-      expect(bodyCount(prompt, GUARDRAIL_BLOCK), `${name}: guardrail block exactly once`).toBe(1);
-      expect(settings, `${name}: native settings unchanged`).toEqual(recorded[name].settings);
-      expect(settings.permissions, `${name}: permissions unchanged`).toEqual(recorded[name].permissions);
-      expect(settings.mode, `${name}: mode unchanged`).toBe(recorded[name].mode);
-      expect('model' in settings, `${name}: model presence unchanged`).toBe(recorded[name].hasModel);
-    }
-
-    expect(readOpenCodeSettings(global, true).agents['kiki-reviewer']).toEqual(nativeBefore);
-
-    const reviewerFile = join(global, 'agents', 'kiki-reviewer.md');
-    const reviewer = parseAgent(readFileSync(reviewerFile, 'utf8'), reviewerFile).prompt;
-    expect(reviewer, 'reviewer: three-verdict contract').toContain(REVIEWER_CONTRACT_LINE);
-    expect(reviewer, 'reviewer: fresh active alignment read').toContain(
-      "read the active project's `.agentic/kiki/alignment.json` fresh",
-    );
-    expect(reviewer, 'reviewer: technical rejection not limited to impossibility').toContain(
-      'Rejection is not limited to impossibility',
-    );
-
-    const brainstormerFile = join(global, 'agents', 'kiki-brainstormer.md');
-    const brainstormer = parseAgent(
-      readFileSync(brainstormerFile, 'utf8'),
-      brainstormerFile,
-    ).prompt;
-    expect(brainstormer, 'brainstormer: necessity criteria').toContain(
-      'Existing capabilities/sources',
-    );
-    expect(brainstormer, 'brainstormer: no extra section/catalog/waiver').toContain(
-      'No extra section, catalog or waiver format is required',
-    );
-
-    const plannerFile = join(global, 'agents', 'kiki-planner.md');
-    const planner = parseAgent(readFileSync(plannerFile, 'utf8'), plannerFile).prompt;
-    expect(planner, 'planner: owns in-boundary technical details').toContain(
-      'Not being mentioned in the spec does not make a technical choice a spec change',
-    );
-
-    const orchestratorFile = join(global, 'agents', 'kiki-orchestrator.md');
-    const orchestrator = parseAgent(readFileSync(orchestratorFile, 'utf8'), orchestratorFile).prompt;
-    expect(orchestrator, 'orchestrator: reason routing').toContain(
-      "Route by the reviewer's Reason before retrying or escalating",
-    );
-    expect(orchestrator, 'orchestrator: implementation fix round').toContain(
-      '**FAIL + Reason `implementation`** → exactly one fix round',
-    );
-
-    const workflow = readFileSync(join(global, 'kiki/agentic-workflow.md'), 'utf8');
-    expect(workflow, 'workflow: fresh active alignment read').toContain(
-      "reads the active project's `.agentic/kiki/alignment.json` fresh in every review",
-    );
-    expect(workflow, 'workflow: necessity gate section').toContain('## Necessity Gate');
-    expect(workflow, 'workflow: standing necessity check').toContain(
-      'standing necessity check',
-    );
-
-    const implementerFile = join(global, 'agents', 'kiki-implementer.md');
-    const implementer = parseAgent(
-      readFileSync(implementerFile, 'utf8'),
-      implementerFile,
-    ).prompt;
-    expect(implementer, 'implementer: honest check statuses after update').toContain(
-      'failed, passed, skipped or not run',
-    );
-    expect(orchestrator, 'orchestrator: small task flow after update').toContain(
-      'no persistent spec or plan file',
-    );
-    expect(workflow, 'workflow: proportional plan revisions after update').toContain(
-      'mechanical revision',
-    );
-
-    const afterFirstUpdate = Object.fromEntries(
-      filesUnder(global).map(file => [file, readFileSync(file, 'utf8')]),
-    );
-    await update([]);
-    const afterSecondUpdate = Object.fromEntries(
-      filesUnder(global).map(file => [file, readFileSync(file, 'utf8')]),
-    );
-    expect(afterSecondUpdate).toEqual(afterFirstUpdate);
   });
 
   it('accepts repeated install/update without changing files or duplicating registration', async () => {
@@ -307,7 +209,7 @@ describe('global installation CLI', () => {
       .toEqual([currentPackageSpec()]);
   });
 
-  it('preserves native permission additions, models, unrelated plugins, comments and top-level settings', async () => {
+  it('preserves safe custom additions, models, unrelated plugins, comments and top-level settings', async () => {
     mkdirSync(global, { recursive: true });
     writeFileSync(join(global, 'opencode.jsonc'), `{
   // keep this comment
@@ -317,25 +219,29 @@ describe('global installation CLI', () => {
     "kiki-implementer": {
       "model": { "providerID": "custom", "model": "model" },
       "permissions": [
-        { "action": "edit", "resource": "src/**", "effect": "allow" },
-        { "action": "read", "resource": "secret/**", "effect": "deny" }
+        { "action": "edit", "resource": "scripts/**", "effect": "allow" }
       ]
     }
   }
 }`);
-    const before = readOpenCodeSettings(global, true);
-
     await install([]);
 
     const after = readOpenCodeSettings(global, true);
-    expect(after.agents['kiki-implementer']).toEqual(before.agents['kiki-implementer']);
+    const canonical = generateAgentPermissions()['kiki-implementer'];
+    const custom: PermissionRule = { action: 'edit', resource: 'scripts/**', effect: 'allow' };
+    expect(after.agents['kiki-implementer'].model)
+      .toEqual({ providerID: 'custom', model: 'model' });
+    expect(after.agents['kiki-implementer'].permissions).toContainEqual(custom);
+    // The custom rule sits before the final secret-edit denies.
+    const rules = after.agents['kiki-implementer'].permissions as PermissionRule[];
+    expect(rules.slice(-7)).toEqual(canonical.slice(-7));
     expect(after.model).toBe('other/model');
     expect(after.plugins).toEqual(['other-plugin', currentPackageSpec()]);
     expect(after.permissions).toBeUndefined();
     expect(readFileSync(join(global, 'opencode.jsonc'), 'utf8')).toContain('// keep this comment');
   });
 
-  it('preserves deliberate permission absence on an existing native agent file', async () => {
+  it('keeps an existing prompt-only native agent file permission-free and writes the canonical arrays', async () => {
     mkdirSync(join(global, 'agents'), { recursive: true });
     writeFileSync(join(global, 'agents/kiki-implementer.md'), `---
 description: custom
@@ -351,7 +257,10 @@ Custom prompt
       'kiki-implementer',
     );
     expect(settings).not.toHaveProperty('permissions');
+    expect(settings).not.toHaveProperty('permission');
     expect(settings).not.toHaveProperty('model');
+    expect(readOpenCodeSettings(global, true).agents['kiki-implementer'].permissions)
+      .toEqual(generateAgentPermissions()['kiki-implementer']);
   });
 
   it('backs up and removes stale V1 loader, prompts and generated plugin files on update', async () => {

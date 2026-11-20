@@ -14,7 +14,7 @@ import {
 } from '../../src/cli/opencode-config';
 import { migrate } from '../../src/cli/commands/migrate';
 import { parseMigrationArgs } from '../../src/cli/args';
-import { KIKI_VERSION } from '../../src/cli/config';
+import { KIKI_VERSION, DEFAULT_CONFIG, generateAgentPermissions } from '../../src/cli/config';
 
 // Deterministic, post-backup I/O fault injection for the transaction rollback
 // tests. The real rename is always delegated unless a test installs a hook.
@@ -110,15 +110,13 @@ describe('one-time OC1 to OC2 migration', () => {
           model: 'azure-cognitive-services/gpt-4o',
           variant: 'high',
           permission: {
-            bash: { '*': 'ask', 'rm -rf *': 'deny' },
-            write: { 'src/**': 'allow' },
-            task: { 'kiki-reviewer': 'allow' },
+            write: { 'src/**': 'allow', 'scripts/**': 'allow' },
             read: { '*': 'allow' },
           },
         },
         'kiki-reviewer': {
           model: 'google-vertex-anthropic/org/claude',
-          permission: { edit: 'deny', read: { 'secret/**': 'deny' } },
+          permission: { edit: 'deny' },
         },
         scientist: { model: 'provider/private-model' },
       },
@@ -154,18 +152,11 @@ describe('one-time OC1 to OC2 migration', () => {
     expect(data.plugins).not.toContain('other-plugin@1.0.0');
     expect(data.agents['kiki-implementer'].permissions).toEqual(expect.arrayContaining([
       { action: 'read', resource: '*', effect: 'allow' },
-      { action: 'read', resource: '**/*.pem', effect: 'deny' },
-      { action: 'shell', resource: '*', effect: 'ask' },
-      { action: 'shell', resource: 'rm -rf *', effect: 'deny' },
       { action: 'edit', resource: 'src/**', effect: 'allow' },
-      { action: 'subagent', resource: 'kiki-reviewer', effect: 'allow' },
+      { action: 'edit', resource: 'scripts/**', effect: 'allow' },
     ]));
-    expect(data.agents['kiki-reviewer'].permissions).toEqual(expect.arrayContaining([
-      { action: 'edit', resource: '*', effect: 'deny' },
-      { action: 'read', resource: '*', effect: 'allow' },
-      { action: 'read', resource: '**/*.pem', effect: 'deny' },
-      { action: 'read', resource: 'secret/**', effect: 'deny' },
-    ]));
+    const reviewerPermissions = generateAgentPermissions(DEFAULT_CONFIG)['kiki-reviewer'];
+    expect(data.agents['kiki-reviewer'].permissions).toEqual(reviewerPermissions);
     expect(data.agents.scientist).toBeUndefined();
 
     expect(readFileSync(sourceFile)).toEqual(before);
@@ -197,8 +188,8 @@ describe('one-time OC1 to OC2 migration', () => {
       'kiki-escalation': 'escalation',
       'kiki-historian': 'historian',
     };
-    const agent = Object.fromEntries(Object.entries(roles).map(([name, builder]) =>
-      [name, { permission: permissionMap(fixture.permissionBuilders[builder]) }]));
+    const agent = Object.fromEntries(Object.entries(roles).map(([name]) =>
+      [name, { permission: { read: { '*': 'allow' }, write: { 'custom/**': 'allow' } } }]));
     writeJson(join(source, 'opencode.json'), { agent });
 
     const report = migrateOC1({ from: source, destination, force: false });
@@ -206,10 +197,14 @@ describe('one-time OC1 to OC2 migration', () => {
     expect(report.rejected).toEqual([]);
 
     const data = readJson(join(destination, 'opencode.jsonc'));
-    for (const [name, builder] of Object.entries(roles)) {
-      const expected = translatePermissions(permissionMap(fixture.permissionBuilders[builder]));
-      expect(expected.ok).toBe(true);
-      if (expected.ok) expect(data.agents[name].permissions).toEqual(expected.rules);
+    const custom = { action: 'edit', resource: 'custom/**', effect: 'allow' };
+    for (const name of Object.keys(roles)) {
+      const canonical = generateAgentPermissions(DEFAULT_CONFIG)[name];
+      const rules = data.agents[name].permissions;
+      expect(rules, name).toContainEqual(custom);
+      expect(rules.slice(0, canonical.length - 7), `${name}: canonical prefix`)
+        .toEqual(canonical.slice(0, -7));
+      expect(rules.slice(-7), `${name}: secret tail`).toEqual(canonical.slice(-7));
     }
   });
 
@@ -236,9 +231,8 @@ describe('one-time OC1 to OC2 migration', () => {
     const data = readJson(join(destination, 'opencode.jsonc'));
     expect(data.agents['kiki-reviewer']).toEqual({ prompt: 'keep', model: { providerID: 'dest', model: 'keep' } });
     expect(data.agents['kiki-implementer'].model).toEqual({ providerID: 'provider', model: 'implementer' });
-    expect(data.agents['kiki-implementer'].permissions).toEqual([
-      { action: 'edit', resource: 'src/**', effect: 'allow' },
-    ]);
+    expect(data.agents['kiki-implementer'].permissions)
+      .toEqual(generateAgentPermissions(DEFAULT_CONFIG)['kiki-implementer']);
     expect(readFileSync(join(destination, 'opencode.jsonc'), 'utf8')).not.toBe(destinationBefore);
     expect(existsSync(join(destination, '.agentic/kiki/migration.json'))).toBe(false);
   });
@@ -300,7 +294,7 @@ describe('one-time OC1 to OC2 migration', () => {
       agents: {
         'kiki-reviewer': {
           model: { providerID: 'provider', model: 'reviewer' },
-          permissions: [{ action: 'edit', resource: '*', effect: 'deny' }],
+          permissions: generateAgentPermissions(DEFAULT_CONFIG)['kiki-reviewer'],
           prompt: 'keep',
         },
       },
@@ -649,10 +643,12 @@ describe('one-time OC1 to OC2 migration', () => {
       expect(data.model).toBe('ancestor/default');
       expect(data.agents['kiki-implementer'].model).toEqual({ providerID: 'existing', model: 'choice' });
       expect(data.agents['kiki-implementer'].permissions).toEqual(expect.arrayContaining([
-        { action: 'edit', resource: '*', effect: 'deny' },
         { action: 'edit', resource: 'backend/**', effect: 'allow' },
-        { action: 'edit', resource: 'src/**', effect: 'deny' },
       ]));
+      expect(data.agents['kiki-implementer'].permissions).not.toContainEqual(
+        { action: 'edit', resource: 'src/**', effect: 'deny' });
+      expect((data.agents['kiki-implementer'].permissions as PermissionRule[]).slice(-7).every(
+        rule => rule.action === 'edit' && rule.effect === 'deny')).toBe(true);
       expect(data.agents['kiki-planner'].model).toEqual({ providerID: 'azure', model: 'planner' });
       expect(data.agents.other.model).toEqual({ providerID: 'keep', model: 'other' });
       expect(readFileSync(join(source, 'opencode.json'))).toEqual(sourceConfig);
@@ -686,10 +682,7 @@ describe('one-time OC1 to OC2 migration', () => {
       expect(existsSync(reviewer)).toBe(true);
       expect(existsSync(plugin)).toBe(true);
       expect(existsSync(join(project, '.agentic/kiki/migration.json'))).toBe(false);
-      expect(readJson(join(project, 'opencode.jsonc')).agents['kiki-implementer'].permissions).toEqual([
-        { action: 'edit', resource: '*', effect: 'deny' },
-        { action: 'edit', resource: 'src/**', effect: 'allow' },
-      ]);
+      expect(readJson(join(project, 'opencode.jsonc')).agents['kiki-implementer'].permissions).toEqual([]);
       const once = readFileSync(join(project, 'opencode.jsonc'), 'utf8');
       const second = migrateOC1({ from: source, project, destination: project, force: false });
       expect(second.exitCode).toBe(1);

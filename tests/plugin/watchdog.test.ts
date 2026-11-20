@@ -504,6 +504,87 @@ describe('watchdog loop detection', () => {
     expect(h.interrupt).not.toHaveBeenCalled();
   });
 
+  const longGraceConfig = {
+    gracePeriodMs: 120_000,
+    absoluteMaxMs: 600_000,
+    stuckThresholdMs: 600_000,
+  };
+
+  it('does not flag empty/whitespace reasoning parts as a content loop', async () => {
+    const h = buildWatchdog({ config: longGraceConfig });
+    createChild(h);
+    sendText(h, { key: 'reasoning:m1:0', text: '' });
+    sendText(h, { key: 'reasoning:m2:0', text: '   ' });
+    sendText(h, { key: 'reasoning:m3:0', text: '\n\t' });
+    sendText(h, { key: 'reasoning:m4:0', text: '' });
+    sendTool(h, { key: 'tool-1', name: 'read', input: { filePath: '/a' } });
+    sendTool(h, { key: 'tool-2', name: 'read', input: { filePath: '/b' } });
+    h.setTime(h.getTime() + 60_000);
+    await h.tick();
+
+    expect(h.interrupt).not.toHaveBeenCalled();
+    expect(JSON.stringify(h.writeHealth.mock.calls)).not.toContain('content-loop');
+  });
+
+  it('does not flag distinct nonempty reasoning parts after 60s', async () => {
+    const h = buildWatchdog({ config: longGraceConfig });
+    createChild(h);
+    sendText(h, { key: 'reasoning:m1:0', text: 'alpha' });
+    sendText(h, { key: 'reasoning:m2:0', text: 'beta' });
+    sendText(h, { key: 'reasoning:m3:0', text: 'gamma' });
+    sendTool(h, { key: 'tool-1', name: 'read', input: { filePath: '/a' } });
+    sendTool(h, { key: 'tool-2', name: 'read', input: { filePath: '/b' } });
+    h.setTime(h.getTime() + 60_000);
+    await h.tick();
+
+    expect(h.interrupt).not.toHaveBeenCalled();
+  });
+
+  it('still flags repeated nonempty reasoning parts after 60s', async () => {
+    const h = buildWatchdog({ config: longGraceConfig });
+    createChild(h);
+    sendText(h, { key: 'reasoning:m1:0', text: 'repeat me' });
+    sendText(h, { key: 'reasoning:m2:0', text: '  REPEAT   me ' });
+    sendText(h, { key: 'reasoning:m3:0', text: 'repeat me' });
+    h.setTime(h.getTime() + 60_000);
+    await h.tick();
+
+    expect(h.interrupt).toHaveBeenCalledWith('child-1');
+    expect(h.writeHealth).toHaveBeenCalledWith(
+      'warn',
+      expect.objectContaining({ event: 'watchdog-abort', reason: 'content-loop' }),
+    );
+  });
+
+  it('clears earlier content when a replacement has no text', async () => {
+    const h = buildWatchdog();
+    createChild(h);
+    sendText(h, { key: 'reasoning:m1:0', text: 'same' });
+    sendText(h, { key: 'reasoning:m1:0', text: '   ', mode: 'replace' });
+    sendText(h, { key: 'reasoning:m2:0', text: 'same' });
+    sendText(h, { key: 'reasoning:m3:0', text: 'same' });
+    await h.tick();
+
+    expect(h.interrupt).not.toHaveBeenCalled();
+  });
+
+  it('still detects repeated text built by deltas after empty replacements', async () => {
+    const h = buildWatchdog();
+    createChild(h);
+    for (const [index, key] of ['reasoning:m1:0', 'reasoning:m2:0', 'reasoning:m3:0'].entries()) {
+      sendText(h, { key, text: index === 0 ? '' : ' ', mode: 'replace' });
+      sendText(h, { key, text: 'sa', mode: 'append' });
+      sendText(h, { key, text: 'me', mode: 'append' });
+    }
+    await h.tick();
+
+    expect(h.interrupt).toHaveBeenCalledWith('child-1');
+    expect(h.writeHealth).toHaveBeenCalledWith(
+      'warn',
+      expect.objectContaining({ event: 'watchdog-abort', reason: 'content-loop' }),
+    );
+  });
+
   it('accumulates streaming deltas into one logical ring item', async () => {
     const h = buildWatchdog();
     createChild(h);

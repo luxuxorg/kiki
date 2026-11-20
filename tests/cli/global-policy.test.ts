@@ -3,8 +3,8 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { parse } from 'jsonc-parser';
-import { DEFAULT_CONFIG, generateImplementerTemplate } from '../../src/cli/config';
-import { parseAgent, installGlobalFiles, migrateProject, resetProject, initializeProjectAgents } from '../../src/cli/opencode-config';
+import { DEFAULT_CONFIG, generateAgentPermissions } from '../../src/cli/config';
+import { parseAgent, installGlobalFiles, migrateProject, resetProject, initializeProjectAgents, readOpenCodeSettings } from '../../src/cli/opencode-config';
 import { currentPackageSpec } from '../../src/cli/oc2-registration';
 import { migrate } from '../../src/cli/commands/migrate';
 import { reset } from '../../src/cli/commands/reset';
@@ -23,7 +23,7 @@ describe('global-only Kiki policy', () => {
   afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
   const config = (dir: string) => parse(readFileSync(join(dir, 'opencode.jsonc'), 'utf8'));
 
-  it('installs native agents and package registration, preserving unrelated JSONC and native additions on update', () => {
+  it('installs prompt-only native agents and canonical global arrays, preserving unrelated JSONC and safe customs on update', () => {
     writeFileSync(join(global, 'opencode.jsonc'), `{
  // keep this comment
  "model": "other/model",
@@ -31,19 +31,22 @@ describe('global-only Kiki policy', () => {
    "my-agent": {"prompt": "mine"},
    "kiki-implementer": {
      "model": {"providerID": "custom", "model": "model"},
-     "permissions": [{"action": "edit", "resource": "src/**", "effect": "allow"}]
+     "permissions": [{"action": "edit", "resource": "scripts/**", "effect": "allow"}]
    }
  }
 }`);
     installGlobalFiles(global);
     for (const name of ['kiki-orchestrator', 'kiki-implementer', 'kiki-historian']) {
       expect(existsSync(join(global, 'agents', `${name}.md`)), name).toBe(true);
+      const { settings } = parseAgent(readFileSync(join(global, 'agents', `${name}.md`), 'utf8'), name);
+      expect(settings, name).not.toHaveProperty('permissions');
+      expect(settings, name).not.toHaveProperty('permission');
     }
     expect(config(global).agents['my-agent'].prompt).toBe('mine');
-    expect(config(global).agents['kiki-implementer']).toEqual({
-      model: { providerID: 'custom', model: 'model' },
-      permissions: [{ action: 'edit', resource: 'src/**', effect: 'allow' }],
-    });
+    expect(config(global).agents['kiki-implementer'].model)
+      .toEqual({ providerID: 'custom', model: 'model' });
+    expect(config(global).agents['kiki-implementer'].permissions)
+      .toContainEqual({ action: 'edit', resource: 'scripts/**', effect: 'allow' });
     expect(config(global).model).toBe('other/model');
     expect(config(global).plugins).toEqual([currentPackageSpec()]);
     expect(config(global).permissions).toBeUndefined();
@@ -51,13 +54,14 @@ describe('global-only Kiki policy', () => {
     expect(existsSync(join(global, 'plugins/kiki.ts'))).toBe(false);
 
     const data = config(global);
-    data.agents['kiki-implementer'].permissions = [{ action: 'edit', resource: '*', effect: 'deny' }];
+    data.agents['kiki-implementer'].permissions = [{ action: 'edit', resource: 'vendor/**', effect: 'allow' }];
     data.agents['kiki-implementer'].model = { providerID: 'custom', model: 'changed' };
     writeFileSync(join(global, 'opencode.jsonc'), '// keep this comment\n' + JSON.stringify(data));
     installGlobalFiles(global, true);
-    expect(config(global).agents['kiki-implementer'].permissions).toEqual(
-      [{ action: 'edit', resource: '*', effect: 'deny' }]);
-    expect(config(global).agents['kiki-implementer'].model).toEqual({ providerID: 'custom', model: 'changed' });
+    expect(config(global).agents['kiki-implementer'].permissions)
+      .toContainEqual({ action: 'edit', resource: 'vendor/**', effect: 'allow' });
+    expect(config(global).agents['kiki-implementer'].model)
+      .toEqual({ providerID: 'custom', model: 'changed' });
     expect(readFileSync(join(global, 'opencode.jsonc'), 'utf8')).toContain('// keep this comment');
     expect(config(global).model).toBe('other/model');
   });
@@ -69,7 +73,8 @@ description: legacy
 mode: subagent
 model: custom/legacy
 permission:
-  edit: deny
+  write:
+    "scripts/**": allow
 ---
 body
 `);
@@ -80,7 +85,10 @@ body
     const { settings } = parseAgent(readFileSync(file, 'utf8'), file);
     expect(settings).not.toHaveProperty('model');
     expect(settings.permission).toBeUndefined();
-    expect(settings.permissions).toEqual([{ action: 'edit', resource: '*', effect: 'deny' }]);
+    expect(settings.permissions).toBeUndefined();
+    const rules = config(global).agents['kiki-implementer'].permissions;
+    expect(rules).toContainEqual({ action: 'edit', resource: 'scripts/**', effect: 'allow' });
+    expect(rules.slice(-7)).toEqual(generateAgentPermissions()['kiki-implementer'].slice(-7));
     expect(readdirSync(join(global, 'kiki/backups'), { withFileTypes: true }).filter(entry => entry.isDirectory())).toHaveLength(1);
   });
 
@@ -100,27 +108,33 @@ body
     expect(config(global).model).toBe('inherited/model');
   });
 
-  it('preserves comments inside existing native agent permission settings during a global update', () => {
-    writeFileSync(join(global, 'opencode.jsonc'), '{"agents":{"kiki-reviewer":{\n // project-independent restriction\n "permissions": [\n // approved boundary\n {"action":"edit","resource":"*","effect":"deny"}], "model":{"providerID":"custom","model":"model"}}}}');
+  it('preserves JSONC comments around existing agent settings during a global update', () => {
+    writeFileSync(join(global, 'opencode.jsonc'), '{"agents":{"kiki-reviewer":{\n // project-independent restriction\n "model":{"providerID":"custom","model":"model"},\n // approved boundary\n "permissions": [{"action":"edit","resource":"scripts/**","effect":"allow"}]}}}');
     installGlobalFiles(global, true);
     const text = readFileSync(join(global, 'opencode.jsonc'), 'utf8');
     expect(text).toContain('// approved boundary');
     expect(text).toContain('// project-independent restriction');
-    expect(config(global).agents['kiki-reviewer'].permissions).toEqual(
-      [{ action: 'edit', resource: '*', effect: 'deny' }]);
+    expect(config(global).agents['kiki-reviewer'].permissions)
+      .toContainEqual({ action: 'edit', resource: 'scripts/**', effect: 'allow' });
+    expect(config(global).agents['kiki-reviewer'].model)
+      .toEqual({ providerID: 'custom', model: 'model' });
   });
 
   it('migrates local rights and models before removing duplicates; preserves JSON overrides and working data', () => {
     installGlobalFiles(global);
-    // The source is an OC1-shaped config; installed OC2 agent files alone are
-    // not a V1 permission source.
-    const globalData = config(global);
-    globalData.agent = { 'kiki-implementer': { permission: { edit: { 'src/**': 'allow' } } } };
-    writeFileSync(join(global, 'opencode.jsonc'), JSON.stringify(globalData));
     mkdirSync(join(project, '.opencode/agents'), { recursive: true });
     mkdirSync(join(project, '.opencode/plugins'), { recursive: true });
     mkdirSync(join(project, '.agentic/kiki'), { recursive: true });
-    writeFileSync(join(project, '.opencode/agents/kiki-implementer.md'), generateImplementerTemplate(DEFAULT_CONFIG).replace('resource: "src/**"', 'resource: "backend/**"'));
+    writeFileSync(join(project, '.opencode/agents/kiki-implementer.md'), `---
+description: local
+mode: subagent
+permissions:
+  - action: edit
+    resource: "backend/**"
+    effect: allow
+---
+Local implementer
+`);
     writeFileSync(join(project, '.opencode/agents/unrelated.md'), 'keep');
     writeFileSync(join(project, '.opencode/plugins/kiki.ts'), 'legacy plugin');
     writeFileSync(join(project, '.agentic/kiki/routing.json'), JSON.stringify({ agents: { 'kiki-planner': 'custom/planner' } }));
@@ -133,8 +147,9 @@ body
       agent.permissions.find((entry: { action: string; resource: string }) =>
         entry.action === action && entry.resource === resource);
     expect(rule('edit', 'backend/**')?.effect).toBe('allow');
-    // A global allow must not leak through the native deep merge.
-    expect(rule('edit', 'src/**')?.effect).toBe('deny');
+    // The global src/** grant is authoritative; the project tier adds rights
+    // rather than masking them.
+    expect(rule('edit', 'src/**')).toBeUndefined();
     expect(config(project).agents['kiki-planner'].model).toEqual({ providerID: 'custom', model: 'planner' });
     expect(config(project).agent?.['kiki-implementer']).toBeUndefined();
     expect(existsSync(join(project, '.opencode/agents/kiki-implementer.md'))).toBe(false);
@@ -157,37 +172,35 @@ body
     expect(existsSync(join(project, 'opencode.jsonc'))).toBe(false);
   });
 
-  it('default init writes no local model keys and existing local models survive re-init', () => {
+  it('init writes no project config mirrors and re-init preserves existing bytes', () => {
     installGlobalFiles(global);
     initializeProjectAgents(project, DEFAULT_CONFIG, global);
-    for (const settings of Object.values(config(project).agents)) expect(settings).not.toHaveProperty('model');
-    const data = config(project);
-    data.agents['kiki-planner'].model = { providerID: 'provider', model: 'local' };
-    writeFileSync(join(project, 'opencode.jsonc'), JSON.stringify(data));
+    expect(existsSync(join(project, 'opencode.jsonc'))).toBe(false);
+    expect(existsSync(join(project, 'opencode.json'))).toBe(false);
+    const custom = '{ "agents": { "kiki-planner": { "model": { "providerID": "provider", "model": "local" } } } }\n';
+    writeFileSync(join(project, 'opencode.jsonc'), custom);
     initializeProjectAgents(project, DEFAULT_CONFIG, global);
-    expect(config(project).agents['kiki-planner'].model).toEqual({ providerID: 'provider', model: 'local' });
-    expect(config(project).agents['kiki-orchestrator']?.model).toBeUndefined();
+    expect(readFileSync(join(project, 'opencode.jsonc'), 'utf8')).toBe(custom);
   });
 
-  it('initializes project permissions without local runtime or agent copies and without replacing existing grants', () => {
+  it('init_no_native_config_writes including existing custom paths', () => {
+    const custom = '// keep\n{"agents":{"mine":{"model":{"providerID":"x","model":"y"}}}}\n';
+    writeFileSync(join(project, 'opencode.jsonc'), custom);
     initializeProjectAgents(project, DEFAULT_CONFIG, global);
     expect(existsSync(join(project, '.opencode'))).toBe(false);
-    expect(config(project).agents['kiki-implementer'].permissions).toContainEqual(
-      { action: 'edit', resource: 'src/**', effect: 'allow' });
-    const data = config(project);
-    data.agents['kiki-implementer'].permissions = [{ action: 'edit', resource: '*', effect: 'deny' }];
-    writeFileSync(join(project, 'opencode.jsonc'), JSON.stringify(data));
-    initializeProjectAgents(project, DEFAULT_CONFIG, global);
-    expect(config(project).agents['kiki-implementer'].permissions).toEqual(
-      [{ action: 'edit', resource: '*', effect: 'deny' }]);
+    expect(readFileSync(join(project, 'opencode.jsonc'), 'utf8')).toBe(custom);
+    expect(readOpenCodeSettings(project).agents?.['kiki-implementer']).toBeUndefined();
   });
 
   it('reset removes native and legacy Kiki overrides but retains other settings, agent customizations and task data', () => {
-    initializeProjectAgents(project, DEFAULT_CONFIG, global);
-    const data = config(project);
-    data.agents['other-agent'] = { model: { providerID: 'keep', model: 'model' } };
-    data.agent = { 'kiki-reviewer': { model: 'legacy/model' } };
-    data.theme = 'keep';
+    const data: any = {
+      agents: {
+        'kiki-implementer': { permissions: [{ action: 'edit', resource: 'scripts/**', effect: 'allow' }] },
+        'other-agent': { model: { providerID: 'keep', model: 'model' } },
+      },
+      agent: { 'kiki-reviewer': { model: 'legacy/model' } },
+      theme: 'keep',
+    };
     writeFileSync(join(project, 'opencode.jsonc'), JSON.stringify(data));
     mkdirSync(join(project, '.agentic/kiki'), { recursive: true });
     writeFileSync(join(project, '.agentic/kiki/TASK_REGISTRY.json'), '{"tasks":[]}');
@@ -204,30 +217,15 @@ body
     resetProject(project);
   });
 
-  it('initialization masks existing global grants outside project boundaries without seeding models', () => {
+  it('initialization is validation-only and never writes project mirrors of global grants', () => {
     installGlobalFiles(global);
-    const data = config(global);
-    data.agents = {
-      ...(data.agents || {}),
-      'kiki-implementer': {
-        permissions: [
-          { action: 'edit', resource: 'outside/**', effect: 'allow' },
-          { action: 'read', resource: 'protected/**', effect: 'deny' },
-        ],
-      },
-    };
-    writeFileSync(join(global, 'opencode.jsonc'), JSON.stringify(data));
+    const before = readFileSync(join(global, 'opencode.jsonc'), 'utf8');
     initializeProjectAgents(project, {
       ...DEFAULT_CONFIG,
       paths: { ...DEFAULT_CONFIG.paths, source: 'backend/' },
     }, global);
-    const permissions = config(project).agents['kiki-implementer'].permissions;
-    const rule = (action: string, resource: string) =>
-      permissions.find((entry: { action: string; resource: string }) =>
-        entry.action === action && entry.resource === resource);
-    expect(rule('edit', 'outside/**')?.effect).toBe('deny');
-    expect(rule('read', 'protected/**')?.effect).toBe('deny');
-    expect(config(project).agents['kiki-implementer']).not.toHaveProperty('model');
+    expect(existsSync(join(project, 'opencode.jsonc'))).toBe(false);
+    expect(readFileSync(join(global, 'opencode.jsonc'), 'utf8')).toBe(before);
   });
 
   it('invalid JSONC leaves legacy files intact before any cleanup', () => {

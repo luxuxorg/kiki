@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Explicit read-only Git inspection grants for specialist agents:** the seven
+  specialist roles — brainstormer, planner, implementer, gui-designer, reviewer,
+  escalation and historian — now allow `git status *`, `git rev-parse *` and
+  `git worktree list *` in the generated shell rules. The grants sit after the 18
+  publishing asks and before the force-push denials; the orchestrator receives no
+  read-only additions. Only the read-only `worktree list` subcommand is named:
+  no blanket `git worktree *` rule and no new write grant is added. The grants
+  are stored in the global config's role arrays; the orchestrator receives no
+  new explicit Git grants.
+- **Global secret edit denials:** every role now ends its edit rules with denies
+  for `.env*`, `**/.env*`, `**/*secret*`, `**/*credential*`, `**/*.pem`,
+  `**/*.key` and `**/id_rsa*`, so broader grants such as `src/**` or
+  `.superpowers/sdd/**` cannot permit secret edits. The rules were applied to
+  the global config's role arrays, not agent Markdown or project baseline copies.
+- **Worktree write parity:** role-scoped edit grants cover both `.worktree/**`
+  and `.worktrees/**`, including `.gitignore` for the implementer and the task
+  registry for the orchestrator. The grants remain narrow; no blanket worktree
+  write grant is added.
 - **German/English Kiki TUI copy and scoped status footers:** all visible `/kiki`
   menu, dialog, toast and error text now comes from a typed German/English
   dictionary. The language is resolved once at startup from the first non-empty
@@ -24,6 +42,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Single-source global permissions:** install/update persists role baselines in
+  global `agents.<id>.permissions`, verifies them before stripping Markdown
+  permission fields, and preserves existing prompts and models. Recognized
+  generated history is replaced; validated custom file grants survive, while
+  unknown denies, ambiguity or comments that would be lost halt before writing.
+  Init writes project metadata only. Kiki-managed project permission additions
+  are bounded file/folder grants with protective masks, not shell grants or
+  baseline mirrors; manually edited native overrides are not runtime-policed.
 - **Grouped two-line TUI agent rows with full agent IDs:** the scope, agent and
   model selection dialogs use the host's default width (60), subject to the
   terminal's size clamp. Full agent IDs, including the `kiki-` prefix, appear in
@@ -35,6 +61,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   search over agent name and model, while the model and scope dialogs keep their
   existing search behavior; the project-scope delete-all entry stays an ordinary,
   ungrouped action. Long model names may still clip; no wrapping is provided.
+
+### Fixed
+
+- **Empty watchdog content is not loop evidence:** content-loop detection now
+  ignores empty or whitespace-only text and reasoning parts, and a replacement
+  with no text clears that part's earlier ring evidence instead of leaving a
+  stale hash. Repeated nonempty content is still detected; thresholds, grace
+  behavior and permissions are unchanged.
 
 ## [3.1.1] — 2026-11-17
 

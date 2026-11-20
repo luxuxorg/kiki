@@ -12,22 +12,20 @@ describe('project initialization', () => {
   let root: string;
   beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'kiki-init-')); vi.stubEnv('XDG_CONFIG_HOME', join(root, 'global')); });
   afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
-  it('creates metadata and native permissions without duplicating the global installation', async () => {
+  it('creates metadata only, without duplicating the global installation or writing project config', async () => {
     await init(root, { wizard: false });
     expect(existsSync(join(root, '.opencode'))).toBe(false);
     expect(existsSync(join(root, '.agentic/kiki/routing.json'))).toBe(false);
+    expect(existsSync(join(root, 'opencode.jsonc'))).toBe(false);
+    expect(existsSync(join(root, 'opencode.json'))).toBe(false);
     const config = JSON.parse(readFileSync(join(root, '.agentic/kiki/config.json'), 'utf8'));
     expect(config.commands.security).toBe('npm audit');
-    const permissions = readOpenCodeSettings(root).agents['kiki-implementer'].permissions as PermissionRule[];
-    expect(permissions).toContainEqual({ action: 'edit', resource: 'src/**', effect: 'allow' });
   });
-  it('writes no models section and no agent model keys on a fresh init', async () => {
+  it('writes no models section and no project agent model keys on a fresh init', async () => {
     await init(root, { wizard: false });
     const config = JSON.parse(readFileSync(join(root, '.agentic/kiki/config.json'), 'utf8'));
     expect(config).not.toHaveProperty('models');
-    const agents = readOpenCodeSettings(root).agents ?? {};
-    expect(Object.keys(agents).length).toBeGreaterThan(0);
-    expect(Object.values(agents).some(settings => 'model' in settings)).toBe(false);
+    expect(readOpenCodeSettings(root).agents).toBeUndefined();
   });
   it('persists config as-is without models when metadata is missing', () => {
     installProjectConfig(root, DEFAULT_CONFIG);

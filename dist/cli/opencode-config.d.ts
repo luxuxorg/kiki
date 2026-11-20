@@ -70,6 +70,11 @@ export declare function baselineAgents(config?: KikiConfig): Record<string, {
     prompt: string;
 }>;
 export declare function installGlobalFiles(directory?: string, update?: boolean): void;
+/**
+ * `kiki init` is metadata-only. Validate every existing global and project
+ * config tier so malformed input fails before any metadata write, but never
+ * mirror baseline permissions into the project config.
+ */
 export declare function initializeProjectAgents(project: string, config: KikiConfig, directory?: string): void;
 export declare function migrateProject(project: string, global?: string): void;
 export declare function resetProject(project: string): void;

@@ -68,7 +68,7 @@ describe('global update command', () => {
     expect(existsSync(global)).toBe(false);
   });
 
-  it('prints the native /kiki model hint and preserves existing global additions', async () => {
+  it('prints the native /kiki model hint and preserves safe existing global additions', async () => {
     const hint = 'Agent models: set them with the /kiki command in OpenCode (or edit agents.<name>.model in opencode.json).';
     await update([]);
     const file = join(global, 'opencode.jsonc');
@@ -76,7 +76,7 @@ describe('global update command', () => {
     data.agents = {
       'kiki-reviewer': {
         model: { providerID: 'custom', model: 'reviewer' },
-        permissions: [{ action: 'edit', resource: '*', effect: 'deny' }],
+        permissions: [{ action: 'edit', resource: 'scripts/**', effect: 'allow' }],
       },
     };
     writeFileSync(file, JSON.stringify(data));
@@ -89,9 +89,10 @@ describe('global update command', () => {
       logSpy.mockRestore();
     }
     const after = parse(readFileSync(file, 'utf8'));
-    expect(after.agents['kiki-reviewer']).toEqual({
-      model: { providerID: 'custom', model: 'reviewer' },
-      permissions: [{ action: 'edit', resource: '*', effect: 'deny' }],
-    });
+    expect(after.agents['kiki-reviewer'].model)
+      .toEqual({ providerID: 'custom', model: 'reviewer' });
+    expect(after.agents['kiki-reviewer'].permissions).toContainEqual(
+      { action: 'edit', resource: 'scripts/**', effect: 'allow' },
+    );
   });
 });

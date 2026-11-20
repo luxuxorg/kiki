@@ -1,6 +1,173 @@
 {
   "tasks": [
     {
+      "id": "permission-history-inputs",
+      "description": "Pin eight provenance-verified installed generated permission sequences as finite inputs to the reviewed migration.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-20",
+      "startedAt": "2026-11-20",
+      "progress": "Exact eight installed role arrays SHA/provenance in existing catalog+fixture/tests/dist, no policy algorithm changes. Builder liveSame all8 unknownDenies0/preflight blockers0/customs0, fixture equality true; focused23pass and5files53pass build/lint/tsc/diffcheck0. Data review PASS_WITH_NOTES .agentic/reviews/2026-11-20-permission-history-inputs-review.md accepted. No live writes in this input task; rollout parent resumes.",
+      "documentation": {
+        "status": "not_required",
+        "reason": "Finite historical migration input catalog for already approved consolidation; public behavior documented with parent task, no separate documentation decision."
+      },
+      "failures": 0
+    },
+    {
+      "id": "permission-hook-spike",
+      "description": "Low-cost throwaway investigation of actual OpenCode evaluation hook coverage, ordering and failure behavior.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-20",
+      "startedAt": "2026-11-20",
+      "progress": "Builder ses_e07ccb421ffeuQGpZcTa6Sdcyq source-only SDK/binary inspection: evaluator skips hooks on native deny; shared mutable effect passed sequentially, later hook may override; no tier/global rule provenance, no catch/timeout. Edit paths available, shell target files not. Isolated help/debug paths EXIT0 only; no runtime evaluator proof, private server/model/build/tests/live writes. Simple enforcement recommendation negative; protection against arbitrary manual config edits remains separate design scope. No production changes.",
+      "documentation": {
+        "status": "not_required",
+        "reason": "Throwaway feasibility spike only; no product behavior or existing documentation changed."
+      },
+      "failures": 0
+    },
+    {
+      "id": "watchdog-empty-reasoning",
+      "description": "Ignore empty reasoning as content-loop evidence while retaining genuine repetition detection.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-19",
+      "startedAt": "2026-11-19",
+      "progress": "Builder ses_e0a971589ffeDl047DgqbEWY62 excludes empty normalized text and clears stale entries on empty replacement; five permanent regressions. Watchdog RED1fail56pass then GREEN57pass; build/scoped eslint EXIT0. Independent review PASS_WITH_NOTES: .agentic/reviews/2026-11-19-watchdog-empty-reasoning-final.md. Historian added concise Unreleased fix entry; README not stale and historical specs unchanged. No planner restart, permissions/time-limit changes, live rollout or commit.",
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e0a91fdedffeLc4rtYlANPz5JC",
+        "paths": ["CHANGELOG.md"]
+      },
+      "failures": 0
+    },
+    {
+      "id": "global-permissions-consolidation",
+      "description": "Consolidate Kiki permissions: remove Noema legacy local bash/worktree rules, cover .worktrees write parity globally, and make secret edit denials effective in the generated and live rules.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-20",
+      "startedAt": "2026-11-19",
+      "progress": "User switched to Build-Agent after implementer external-directory block; resumed directly with approved plan, no denied-route workaround. Reviewed normal kiki update persisted all8 canonical global arrays and stripped global markdown permissions with prompt bodies/models preserved; second update byte-stable. Removed8 Kiki project mirrors proven against tracked HEAD plus recorded seven secret-tail edits. Actual Noema legacy permission maps were present (earlier inventory had inspected native fields only): translated, removed exact baseline tuples and validated genuine additions; D3 restored relative root and relative+absolute voice rights, D4 canonical global impl/gui safeguards. Removed16 local account-signup generated markdowns after immutable fixture verification (orchestrator sole historical sentence provenance); preserved effective8x2 worktree models by relocating md selections to native config, existing legacy model settings untouched. Backups /tmp/opencode/kiki-permission-rollout-20261120-nD9g27; own global backup transaction also recorded there. README/CHANGELOG reconciled. No source/algorithm changes during rollout, no commit/push.",
+      "verification": "Fresh direct rollout EXIT0; second normal global update zero-diff. Fresh verification /tmp/opencode/kiki-permission-rollout-verify.mjs EXIT0:223 assertions,113 real permission API decisions PASS,16 effective worktree model selections preserved. Evidence /tmp/opencode/kiki-permission-rollout-20261120-nD9g27/permission-decisions.json. Initial probe after first voice location load returned deny for scripts/run.sh despite correct loaded arrays; after read-only debug loaded that location, independent session query and complete unchanged-expectation rerun passed; no policy changed to make it pass. No model/publishing commands executed. Prior reviewed focused159pass/buildlint0/isolated4+3pass, catalog53pass remain prior code evidence not a fresh full suite.",
+      "documentation": {
+        "status": "completed",
+        "paths": ["README.md", "CHANGELOG.md"]
+      },
+      "failures": 1
+    },
+    {
+      "id": "readonly-git-permissions",
+      "description": "Allow git status *, git rev-parse * and git worktree list * for seven specialist agents, not orchestrator.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-19",
+      "startedAt": "2026-11-19",
+      "progress": "Diagnosis ses_e0bac4147ffe8i72Zp3rtD31oj found stale global agent-layer shell deny masking lower config allows. After explicit user authorization, appended the three exact rules uniformly to all seven global specialist agent markdowns; orchestrator unchanged. Backup: /tmp/opencode/kiki-readonly-git-backup-20261119. Scoped diffs show only three added rules per file. opencode debug agents confirms all seven specialists carry git status *, git rev-parse *, git worktree list * after their existing shell rules; orchestrator has none. Blocked git status --short was not replayed. README security prose and Unreleased Changelog reconciled to the live application; registry JSON and doc diff-check EXIT0. Installer still preserves existing permissions, so durable propagation remains a separate follow-up. Repo commit still pending user confirmation.",
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e0be385d8ffehUd7oLfQ8HcgLn",
+        "paths": ["README.md", "CHANGELOG.md"]
+      },
+      "failures": 0
+    },
+    {
+      "id": "tui-update-delivery",
+      "description": "User-authorized selective commit and normal push of completed TUI localization, layout and compact-label changes.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-19",
+      "startedAt": "2026-11-19",
+      "progress": "Builder ses_e0d2ae05dffeaHLk4kzM6U0GDO selectively committed25 TUI source/test/dist/docs/review paths as4bc1cbe8391811c9dc25e93c55f91a0f53f89635 and pushed main to origin normally EXIT0; git ls-remote verified remote main equals commit, ahead/behind0/0. Fresh focused TUI69pass1skip EXIT0. Unrelated README Who Kiki is for hunk, opencode.jsonc and registry remain dirty/preserved. No release/tag/npm/install/force push; no further bookkeeping commit.",
+      "documentation": {
+        "status": "not_required",
+        "reason": "Delivery-only task; current feature README/CHANGELOG updates already completed by historian, no new product behavior or documentation."
+      },
+      "failures": 0
+    },
+    {
+      "id": "tui-global-text-label",
+      "description": "Replace inherited-project globe footer with neutral Global text in both languages.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-19",
+      "startedAt": "2026-11-19",
+      "progress": "GUI builder replaced inherited footer 🌐 with exact Global in both languages, tests and dist; Projekt/Project and behavior untouched. RED5fail47pass then GREEN52pass; build/scoped diff-check EXIT0 reported. Pure editorial copy, no separate review needed. Historian updated two current README/CHANGELOG marker clauses and checked old emoji absence; historical material untouched. No commit/push/install.",
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e0d4ca648ffeODxuKeMXc62FFX",
+        "paths": ["README.md", "CHANGELOG.md"],
+        "verification": "Historian reports scoped prose inspection and read-only stale-emoji greps; no additional command-based diff-check claimed."
+      },
+      "failures": 0
+    },
+    {
+      "id": "tui-compact-scope-status",
+      "description": "Keep current agent list layout and use compact Project/Projekt override labels and globe emoji for inherited project assignments.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-19",
+      "startedAt": "2026-11-19",
+      "progress": "GUI builder changed only DE/EN footer copy to Projekt/Project for global overrides and 🌐 for project inherited rows, exact label assertions and dist. RED5fail47pass then GREEN52pass; build/lint/scoped diff-check EXIT0 reported. Final review PASS_WITH_NOTES; see .agentic/reviews/2026-11-19-tui-compact-scope-status-final.md. Historian reconciled README/CHANGELOG, scoped diff-check EXIT0. No live emoji-rendering proof, layout/search/identity unchanged; no commit/push/install.",
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e0d5b966bffe1l7tQXe1ah29ii",
+        "paths": ["README.md", "CHANGELOG.md"],
+        "verification": "Historian scoped diff-check EXIT0 and final label/condition checks; prior intermediate status wording removed from current docs and unrelated edits preserved."
+      },
+      "failures": 0
+    },
+    {
+      "id": "tui-two-line-agent-rows",
+      "description": "Replace disliked wider agent menu with 60-column two-line agent rows and unparenthesized aligned model/status information.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-18",
+      "startedAt": "2026-11-18",
+      "progress": "GUI builder implements grouped two-line entries with full agent names, scoped bare statuses and default60 selects; operations/IDs unchanged. RED14fail38pass then GREEN52pass; TUI-area69pass1skip, build/lint/scoped diff-check EXIT0 reported. Independent review PASS_WITH_NOTES; see .agentic/reviews/2026-11-18-tui-two-line-agent-rows-final.md. Historian reconciled superseded layout docs, scoped diff-check EXIT0. No live visual proof/fullsuite/audit/install/commit/push.",
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e10d3c03effe9tYyIpffb0yW06",
+        "paths": ["README.md", "CHANGELOG.md"],
+        "verification": "Historian source reconciliation and scoped diff-check EXIT0; rejected intermediate layout descriptions removed from current docs, unrelated changes and historical reviews/specs preserved."
+      },
+      "failures": 0
+    },
+    {
+      "id": "tui-model-menu-layout",
+      "description": "Assess wider Kiki model dialogs and wrapping to prevent clipping of long model names and status information.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-18",
+      "startedAt": "2026-11-18",
+      "progress": "GUI builder implements large selects, display-only leading kiki- removal and separate status footers; internal identifiers preserved. RED10fail41pass then GREEN51pass; TUI-area68pass1skip, build/lint/diff-check EXIT0 reported. Final review ses_e10f6a3c3ffeghpcRBvRt1lHge PASS_WITH_NOTES; see .agentic/reviews/2026-11-18-tui-model-menu-layout-final.md. Historian updated README/CHANGELOG, scoped diff-check clean. No live visual proof/wrapping/fullsuite/audit/install/commit/push.",
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e10f265d6fferJwwTxkLexDxYn",
+        "paths": ["README.md", "CHANGELOG.md"],
+        "verification": "Scoped documentation diff-check clean; prior localization entries and unrelated edits preserved, clipping/no-wrap caveat documented."
+      },
+      "failures": 0
+    },
+    {
+      "id": "tui-local-model-override",
+      "description": "Localize Kiki TUI in German/English using system language with English fallback, and mark global model entries overridden in the active local project.",
+      "status": "completed",
+      "phase": "complete",
+      "completedAt": "2026-11-18",
+      "startedAt": "2026-11-18",
+      "progress": "Follow-up copy mitigation '(local overwrite!)' reviewed PASS_WITH_NOTES in second/final round; see follow-up section .agentic/reviews/2026-11-18-tui-de-en-localization-final.md. Builder RED2fail46pass then GREEN48pass; broader TUI65pass1skip and build/lint EXIT0 reported. Host clipping plausible, not live reproduced; no universal fit guarantee. Historian replaced two stale README/CHANGELOG literals, scoped diff-check EXIT0. No review FAIL; failures unchanged. No commit/push/live installation.",
+      "documentation": {
+        "status": "completed",
+        "sessionID": "ses_e11de935fffegY0KtwQNR8qyxd",
+        "paths": ["README.md", "CHANGELOG.md"],
+        "verification": "Initial doc checks passed; follow-up replaced exactly the two old English marker literals in README/CHANGELOG, checked source parity and scoped diff-check EXIT0. Existing unrelated changes preserved."
+      },
+      "failures": 0
+    },
+    {
       "id": "release-3.1.1",
       "description": "User-authorized patch release of the approved workflow and release-gate fixes: verify once, set3.1.1 consistently, commit, annotate v3.1.1 and push without npm publication.",
       "status": "in_progress",
