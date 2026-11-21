@@ -80,6 +80,9 @@ describe('global update command', () => {
       },
     };
     writeFileSync(file, JSON.stringify(data));
+    // Exercise the conservative legacy bootstrap path; with ownership evidence
+    // present this manual divergence would correctly halt.
+    rmSync(join(global, 'kiki/state.json'));
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {

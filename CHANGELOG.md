@@ -39,6 +39,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   the global scope. The footer never stacks, carries no parentheses or
   exclamation mark, and a global row without a project override has none. CLI
   and server logs, identifiers and error names are unchanged.
+- **Managed project permission requests (`kiki permissions`):** `list` and
+  `check` are read-only and metadata-only — scope, file, agent, index, action,
+  resource and effect — with no file writes and no provider/model/prompt
+  disclosure; `check` reports duplicate agent keys, legacy baseline mirrors and
+  unsafe surviving asks and exits non-zero on conflict. `add` and `remove`
+  preview by default and write only with explicit `--apply`, project scope only.
+  `add` accepts one literal resource with `--agent` and `--action read|edit`,
+  refuses secret, boundary, publishing, redundant and ineffective grants, and
+  reuses the existing backup → patch → verify → rollback transaction with
+  exact-byte preconditions, JSONC preservation and concurrent-change refusal.
+  `remove` deletes only the explicitly selected zero-based `--entry` plus its
+  exact action/resource/effect tuple, including user-handwritten project
+  entries, recomputes protective masks and secret denials for survivors, keeps
+  unrelated rules in order, and refuses stale/changed entries, inherited
+  entries and entries still required as mandatory protection. No project
+  provenance ledger, consent token or runtime hook is added.
+- **Hash-only global permission ownership evidence:** install/update records
+  SHA-256 hashes of the eight global `agents.<id>.permissions` arrays in the
+  resolved global config root's `kiki/state.json` (by default
+  `~/.config/opencode/kiki/state.json`, mode 0600, no rules). An unmodified
+  owned field is replaced and re-hashed; manual hash drift halts all roles with
+  a recorded-vs-current report and no writes; absent, corrupt or unknown-version
+  state falls back to the existing content classifier without guessed deletion.
+  Evidence is invalidated before a permission mutation and published only after
+  config verification, so a crash leaves it absent rather than stale; config
+  and state are two files, with no atomic multi-file guarantee, converging on
+  rerun.
+- **Managed permission command rules and role request exception:** all eight
+  roles, orchestrator included, get `kiki permissions list`, `list *`, `check`
+  and `check *` as allows, and `add`, `add *`, `remove`, `remove *` as asks,
+  after the `shell *` allow. Only exact bare commands and the literal space
+  wildcard are named; there is no prefix glob. Every generated role prompt ends
+  with one `## Kiki managed permission requests (v1)` fragment permitting only
+  an own-role file/directory request through the canonical native-ask CLI; it
+  grants no general command rights and retains no-self-authorization,
+  no-global/raw-config-edit, no-wrapper and terminal-rejection rules. The
+  fragment is delivered by the reviewed generator and normal backed-up
+  `kiki update`; the CLI never edits prompts or Markdown.
 
 ### Changed
 
@@ -61,6 +99,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   search over agent name and model, while the model and scope dialogs keep their
   existing search behavior; the project-scope delete-all entry stays an ordinary,
   ungrouped action. Long model names may still clip; no wrapping is provided.
+- **Generated shell baseline and role prompts:** the eight managed-permission
+  command rules now sit after `allow shell *` and before the 18 publishing asks,
+  and all eight role prompts carry the managed request fragment. Existing
+  installations receive both on the next ordinary `kiki update`; no live update
+  or rollout was performed.
 
 ### Fixed
 
@@ -69,6 +112,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   with no text clears that part's earlier ring evidence instead of leaving a
   stale hash. Repeated nonempty content is still detected; thresholds, grace
   behavior and permissions are unchanged.
+
+### Security
+
+- **Managed permission write boundary and accepted limits:** the CLI writes only
+  project configuration and never global policy, prompts or Markdown. The
+  native permission ask is human consent; the CLI validates rule shape only,
+  stores no approval and cannot verify visual consent. The ownership hash is
+  evidence, not tamperproofness. Arbitrary manual native edits remain outside
+  the guarantee; symlink-target enforcement and wrapper hardening are not
+  implemented or claimed, and no native visual-consent or bypass-proof claim is
+  made. Accepted residual risks: inherited ASK tuples hand-placed in a project
+  tier are accepted wherever they appear (unlike denies), so a hand-copied
+  `ask shell git push*` could flip an inherited force-push deny to an ask under
+  last-match and `check` does not report it; after a Kiki `add`, removing the
+  only grant is refused because it would orphan the trailing protective suffix,
+  and recovery from a manually orphaned suffix requires a manual edit outside
+  the guarantee; the `add` surface is intentionally limited to `read|edit`
+  (other validator-supported forms remain hand-addable); user text appended
+  after the managed prompt fragment halts the next update safely, and a v1→v2
+  transition story remains future work. The global update path keeps its
+  pre-existing post-write verification without adding an exact pre-write byte
+  precondition for concurrent external edits.
+- **Verification evidence (2026-11-21):** build and lint exited 0. The final
+  broad suite exited 1 with 948 passed, 1 known baseline `oc2-isolation`
+  failure reproduced at `bb1acee` on untouched code, and 2 opt-in skips; no
+  fresh full-green claim is made. The matcher/child spike is reused as prior
+  OpenCode 2.3.2 evidence (2/2 tests, 160 role decisions, one real implementer
+  child reject/once-approval), not as native visual-consent, wrapper-hardening,
+  argv-parser or other-child-role proof. `list`/`check` zero-write is covered at
+  CLI-test level.
 
 ## [3.1.1] — 2026-11-17
 

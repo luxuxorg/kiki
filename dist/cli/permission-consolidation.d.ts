@@ -26,6 +26,11 @@ export interface Classification {
  * The tracked fixture `tests/fixtures/kiki-permission-history.json` pins these
  * values. Entries are added only with exact content and provenance; a
  * generated-looking tuple without a proven sequence is ordinary custom input.
+ *
+ * Each role keeps its recorded 2026-11-19 shape and the exact 2026-11-20
+ * pre-change output of `generateAgentPermissions()` at bb1acee. The latter was
+ * captured by compiling that revision before the managed-permission-requests
+ * generator change, so an interruption during an update converges on rerun.
  */
 export declare const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]>;
 /** Split a canonical array into its non-secret prefix and final secret-edit tail. */

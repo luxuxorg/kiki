@@ -67,6 +67,15 @@ export declare const SECRET_GLOBS: readonly string[];
  * persist these arrays under `agents.<name>.permissions` in the global config.
  */
 export declare function generateAgentPermissions(config?: KikiConfig): Record<string, PermissionRule[]>;
+/**
+ * Narrow, additive permission-request exception. It is delivered by the
+ * reviewed generator and the normal backed-up update transaction; the
+ * permissions CLI never edits prompts or markdown. The heading is a managed
+ * marker: one exact fragment at the end is an idempotent no-op, and any
+ * conflicting or duplicate managed heading fails preflight.
+ */
+export declare const PERMISSION_REQUEST_FRAGMENT = "## Kiki managed permission requests (v1)\n\nThis narrow exception limits older \u201Cdo not run commands\u201D and \u201Cdo not change permissions\u201D wording only for requesting additional file or directory rights for your own role; it grants no general command rights. Use only the canonical native-ask CLI `kiki permissions add <literal-resource> --agent <your-role> --action read|edit --apply`, within the project scope the validator permits; a human must approve the native permission ask. Never self-authorize, edit global policy, edit raw config, or use wrappers, alternate tools, scripts or delegation to obtain rights. A rejected ask or `PERMISSION_BLOCKED` stops immediately: do not retry or work around it.";
+export declare function withPermissionRequestPrompt(prompt: string): string;
 export declare function generateOrchestratorTemplate(config: KikiConfig): string;
 export declare function generateBrainstormerTemplate(config: KikiConfig): string;
 export declare function generatePlannerTemplate(config: KikiConfig): string;

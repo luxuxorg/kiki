@@ -228,6 +228,33 @@ const FORCE_PUSH_DENIES: readonly string[] = [
  * are last-match wins, so they survive the baseline allow and every narrower
  * allow that precedes them.
  */
+const KIKI_PERMISSION_ASK_PATTERNS: readonly string[] = [
+  'kiki permissions add',
+  'kiki permissions add *',
+  'kiki permissions remove',
+  'kiki permissions remove *',
+];
+
+const KIKI_PERMISSION_ALLOW_PATTERNS: readonly string[] = [
+  'kiki permissions list',
+  'kiki permissions list *',
+  'kiki permissions check',
+  'kiki permissions check *',
+];
+
+/**
+ * Narrow managed permission CLI envelope. It follows the routine `shell *`
+ * allow so last-match wins, and uses only exact bare commands plus a literal
+ * space wildcard — never a prefix glob, so `addendum` cannot match. Mutations
+ * are asks; inspection is allow. All eight roles receive the same pairs.
+ */
+function kikiPermissionRules(): PermissionRule[] {
+  return [
+    ...KIKI_PERMISSION_ALLOW_PATTERNS.map(resource => allow('shell', resource)),
+    ...KIKI_PERMISSION_ASK_PATTERNS.map(resource => ({ action: 'shell' as const, resource, effect: 'ask' as const })),
+  ];
+}
+
 function shellRules(options: { readOnlyGit?: boolean } = {}): PermissionRule[] {
   const asks: PermissionRule[] = PUBLISH_ASK_PATTERNS.map(resource => ({
     action: 'shell',
@@ -236,6 +263,7 @@ function shellRules(options: { readOnlyGit?: boolean } = {}): PermissionRule[] {
   }));
   return [
     allow('shell', '*'),
+    ...kikiPermissionRules(),
     ...asks,
     ...(options.readOnlyGit ? readOnlyGitRules() : []),
     ...FORCE_PUSH_DENIES.map(resource => deny('shell', resource)),
@@ -518,6 +546,36 @@ export function generateAgentPermissions(
 const PERMISSION_BLOCK_PROMPT =
   'Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
 
+const PERMISSION_REQUEST_HEADING = '## Kiki managed permission requests (v1)';
+
+/**
+ * Narrow, additive permission-request exception. It is delivered by the
+ * reviewed generator and the normal backed-up update transaction; the
+ * permissions CLI never edits prompts or markdown. The heading is a managed
+ * marker: one exact fragment at the end is an idempotent no-op, and any
+ * conflicting or duplicate managed heading fails preflight.
+ */
+export const PERMISSION_REQUEST_FRAGMENT = `${PERMISSION_REQUEST_HEADING}
+
+This narrow exception limits older “do not run commands” and “do not change permissions” wording only for requesting additional file or directory rights for your own role; it grants no general command rights. Use only the canonical native-ask CLI \`kiki permissions add <literal-resource> --agent <your-role> --action read|edit --apply\`, within the project scope the validator permits; a human must approve the native permission ask. Never self-authorize, edit global policy, edit raw config, or use wrappers, alternate tools, scripts or delegation to obtain rights. A rejected ask or \`PERMISSION_BLOCKED\` stops immediately: do not retry or work around it.`;
+
+export function withPermissionRequestPrompt(prompt: string): string {
+  const headings = prompt.match(/^## Kiki managed permission requests \(v1\)$/gm) ?? [];
+  const eol = prompt.includes('\r\n') ? '\r\n' : '\n';
+  const fragment = PERMISSION_REQUEST_FRAGMENT.split('\n').join(eol);
+  if (headings.length === 0) {
+    const separator = !prompt ? '' : prompt.endsWith(eol + eol) ? '' : prompt.endsWith(eol) ? eol : eol + eol;
+    return `${prompt}${separator}${fragment}${eol}`;
+  }
+  if (headings.length === 1) {
+    const index = prompt.search(/^## Kiki managed permission requests \(v1\)$/m);
+    const tail = prompt.slice(index);
+    if (tail.replace(/\r\n/g, '\n').trimEnd() === PERMISSION_REQUEST_FRAGMENT.trimEnd()) return prompt;
+    throw new Error('Conflicting managed permission request section; refusing to overwrite prompt text.');
+  }
+  throw new Error('Duplicate managed permission request sections; refusing to overwrite prompt text.');
+}
+
 // Every generated agent prompt carries this exact fixed baseline. It is a
 // literal, deliberately not derived from the active project's alignment.json
 // at generation time (the generators have no project root), and it matches
@@ -589,7 +647,7 @@ function buildHistorianResponsibilities(p: KikiPaths): string {
 
 export function generateOrchestratorTemplate(config: KikiConfig): string {
   const p = config.paths;
-  return `---
+  return withPermissionRequestPrompt(`---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
 ---
@@ -693,12 +751,12 @@ Present the escalation recommendation to the user before doing anything; nothing
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`;
+`);
 }
 
 export function generateBrainstormerTemplate(config: KikiConfig): string {
   const p = config.paths;
-  return `---
+  return withPermissionRequestPrompt(`---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
 ---
@@ -720,12 +778,12 @@ No extra section, catalog or waiver format is required; the analysis lives where
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`;
+`);
 }
 
 export function generatePlannerTemplate(config: KikiConfig): string {
   const p = config.paths;
-  return `---
+  return withPermissionRequestPrompt(`---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
 ---
@@ -762,11 +820,11 @@ Example:
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`;
+`);
 }
 
 export function generateImplementerTemplate(config: KikiConfig): string {
-  return `---
+  return withPermissionRequestPrompt(`---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
 ---
@@ -786,11 +844,11 @@ ${buildBuilderHandoffPrompt(config.commands)}
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`;
+`);
 }
 
 export function generateGuiDesignerTemplate(config: KikiConfig): string {
-  return `---
+  return withPermissionRequestPrompt(`---
 description: Kiki GUI Designer — UI/UX design + implementation via superpowers skills
 mode: subagent
 ---
@@ -805,11 +863,11 @@ ${buildBuilderHandoffPrompt(config.commands)}
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`;
+`);
 }
 
 export function generateReviewerTemplate(_config: KikiConfig): string {
-  return `---
+  return withPermissionRequestPrompt(`---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent
 ---
@@ -853,11 +911,11 @@ Verdict: PASS | PASS_WITH_NOTES | FAIL
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`;
+`);
 }
 
 export function generateEscalationTemplate(_config: KikiConfig): string {
-  return `---
+  return withPermissionRequestPrompt(`---
 description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
 ---
@@ -888,13 +946,13 @@ Be honest and direct. Do not try to "save" a failing task.
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`;
+`);
 }
 
 export function generateHistorianTemplate(config: KikiConfig): string {
   const responsibilities = buildHistorianResponsibilities(config.paths);
   const p = config.paths;
-  return `---
+  return withPermissionRequestPrompt(`---
 description: Kiki Historian — maintains project documentation, README and CHANGELOG
 mode: subagent
 ---
@@ -912,7 +970,7 @@ ${responsibilities}
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`;
+`);
 }
 
 export function generateWorkflowTemplate(config: KikiConfig): string {
@@ -921,7 +979,7 @@ export function generateWorkflowTemplate(config: KikiConfig): string {
   if (p.decisions) docExtras.push(`decisions in \`${p.decisions}\``);
   if (p.knowledge) docExtras.push(`knowledge base in \`${p.knowledge}*\``);
   const docExtraStr = docExtras.length > 0 ? ', plus ' + docExtras.join(', ') : '';
-  return `# Kiki Workflow
+  return withPermissionRequestPrompt(`# Kiki Workflow
 
 This document describes the Kiki software engineering pipeline coordinated by the orchestrator agent. These loop controls are prompt-level guidance carried by the generated agent prompts: apart from the unchanged permission arrays they are not mechanically enforced, and the transcript remains the backstop.
 
@@ -1033,7 +1091,7 @@ Example:
 \`\`\`
 
 Use \`kiki doctor\` to check the installation. Existing local definitions can be imported with \`kiki migrate --project .\`; \`kiki reset --project .\` restores global agent defaults without deleting project work.
-`;
+`);
 }
 
 export interface GeneratedTemplates {

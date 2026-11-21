@@ -185,8 +185,9 @@ describe('global installation CLI', () => {
     const file = join(global, 'agents', 'kiki-reviewer.md');
     const text = readFileSync(file, 'utf8');
     const { settings, prompt } = parseAgent(text, file);
-    expect(prompt).toBe(customBody);
+    expect(prompt.startsWith(customBody)).toBe(true);
     expect(prompt).toContain('Keep this exact body.');
+    expect(prompt.split('## Kiki managed permission requests (v1)').length - 1).toBe(1);
     expect(settings).not.toHaveProperty('permissions');
     expect(settings.description).toBe('custom');
     expect(settings.mode).toBe('subagent');
@@ -194,6 +195,35 @@ describe('global installation CLI', () => {
       model: { providerID: 'custom', model: 'reviewer-model' },
       permissions: generateAgentPermissions()['kiki-reviewer'],
     });
+  });
+
+  it('fresh_and_existing_all_eight_roles_receive_exception', async () => {
+    await install([]);
+    for (const name of AGENTS) {
+      const file = join(global, 'agents', `${name}.md`);
+      const { prompt } = parseAgent(readFileSync(file, 'utf8'), file);
+      expect(prompt.split('## Kiki managed permission requests (v1)').length - 1, name).toBe(1);
+    }
+
+    const reviewerFile = join(global, 'agents', 'kiki-reviewer.md');
+    const customBody = '# Existing custom reviewer body\n\nKeep this prose unchanged.\n';
+    writeFileSync(reviewerFile, `---
+description: custom reviewer
+mode: subagent
+---
+${customBody}`);
+    await update([]);
+    const { settings, prompt } = parseAgent(readFileSync(reviewerFile, 'utf8'), reviewerFile);
+    expect(settings.description).toBe('custom reviewer');
+    expect(settings.mode).toBe('subagent');
+    expect(prompt.startsWith(customBody)).toBe(true);
+    expect(prompt.split('## Kiki managed permission requests (v1)').length - 1).toBe(1);
+    expect(prompt).toContain('Keep this prose unchanged.');
+    for (const name of AGENTS) {
+      const file = join(global, 'agents', `${name}.md`);
+      const body = parseAgent(readFileSync(file, 'utf8'), file).prompt;
+      expect(body.split('## Kiki managed permission requests (v1)').length - 1, name).toBe(1);
+    }
   });
 
   it('accepts repeated install/update without changing files or duplicating registration', async () => {

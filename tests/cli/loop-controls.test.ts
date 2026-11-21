@@ -13,6 +13,7 @@ import {
   generateEscalationTemplate,
   generateHistorianTemplate,
   generateWorkflowTemplate,
+  withPermissionRequestPrompt,
 } from '../../src/cli/config';
 import { parseDispatchLabels } from '../../src/diagnostics/ledger';
 
@@ -1381,5 +1382,64 @@ describe('necessity gate criteria and delivery boundaries', () => {
         );
       }
     }
+  });
+});
+
+describe('managed permission request prompt fragment', () => {
+  const HEADING = '## Kiki managed permission requests (v1)';
+  const REQUIRED = [
+    'own role',
+    'validator',
+    'native',
+    'kiki permissions add',
+    '--apply',
+    'raw config',
+    'global policy',
+    'wrappers',
+    'PERMISSION_BLOCKED',
+  ];
+
+  it('adds exactly one narrow fragment to every role prompt', () => {
+    for (const [label, config] of CONFIGS) {
+      for (const role of expectedRoles) {
+        const body = bodyOf(roleGenerators[role](config));
+        expect(body.split(HEADING).length - 1, `${label} ${role}: one heading`).toBe(1);
+        for (const phrase of REQUIRED) {
+          expect(body, `${label} ${role}: ${phrase}`).toContain(phrase);
+        }
+        expect(body, `${label} ${role}: narrow file/dir exception`).toMatch(/additional file or directory rights/i);
+        expect(body, `${label} ${role}: no general command rights`).toMatch(/no general command rights/i);
+        expect(body, `${label} ${role}: rejection stops`).toMatch(/rejected ask|rejection/i);
+      }
+    }
+  });
+
+  it('explicitly accommodates the older no-command/no-permission wording', () => {
+    for (const [label, config] of CONFIGS) {
+      const orchestrator = bodyOf(generateOrchestratorTemplate(config));
+      const escalation = bodyOf(generateEscalationTemplate(config));
+      expect(orchestrator, `${label}: older orchestrator wording`).toContain(
+        'Do not write code, implementation files, docs, or run commands',
+      );
+      expect(escalation, `${label}: older escalation wording`).toContain(
+        'do not publish, perform remote writes, or change permissions',
+      );
+      for (const body of [orchestrator, escalation]) {
+        expect(body).toMatch(/older .*do not run commands.*do not change permissions.*wording/i);
+      }
+    }
+  });
+
+  it('is idempotent, preserves the original body as an exact prefix, and refuses conflicts', () => {
+    const custom = '# Custom\r\n\r\nKeep this exact body.\r\n';
+    const once = withPermissionRequestPrompt(custom);
+    expect(once.startsWith(custom)).toBe(true);
+    expect(once.split(HEADING).length - 1).toBe(1);
+    expect(withPermissionRequestPrompt(once)).toBe(once);
+
+    const conflicting = `# Custom\n\n${HEADING}\n\nDifferent managed text.\n`;
+    expect(() => withPermissionRequestPrompt(conflicting)).toThrow(/conflict|managed/i);
+    const duplicate = `# Custom\n\n${HEADING}\n\nOriginal.\n\n${HEADING}\n\nDuplicate.\n`;
+    expect(() => withPermissionRequestPrompt(duplicate)).toThrow(/duplicate|conflict|managed/i);
   });
 });

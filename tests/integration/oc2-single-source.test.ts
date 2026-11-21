@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import {
@@ -166,6 +166,9 @@ describe.skipIf(!hasOC2Binary())('single-source permissions on the real binary',
         canonical['kiki-reviewer'],
       ), 'reviewer mixed state').toBe(true);
 
+      // A real interruption invalidates ownership evidence before the config
+      // mutation; the crash window is therefore observed with state absent.
+      rmSync(join(fixture.config, 'kiki/state.json'), { force: true });
       const updated = fixture.runCli(['install']);
       expect(updated.status, updated.stderr).toBe(0);
       for (const [file, name] of [[plannerMarkdown, 'kiki-planner'], [reviewerMarkdown, 'kiki-reviewer']] as const) {

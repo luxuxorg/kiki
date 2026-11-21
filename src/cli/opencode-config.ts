@@ -2,9 +2,11 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync
 import { dirname, join, resolve } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
-import { applyEdits, findNodeAtLocation, modify, parse as parseJsonc, parseTree, ParseError } from 'jsonc-parser';
+import { applyEdits, findNodeAtLocation, modify, parse as parseJsonc, parseTree, ParseError, type Node } from 'jsonc-parser';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { DEFAULT_CONFIG, generateAgentPermissions, generateAllTemplates, KikiConfig } from './config.js';
+import {
+  DEFAULT_CONFIG, generateAgentPermissions, generateAllTemplates, KikiConfig, withPermissionRequestPrompt,
+} from './config.js';
 import { assertNotOC1Config, canonicalPath, pathsOverlap, resolveOC2Roots } from './oc2-paths.js';
 import { translatePermissions } from './oc2-permissions.js';
 import {
@@ -13,6 +15,13 @@ import {
   stableCustoms,
   type PermissionSource,
 } from './permission-consolidation.js';
+import {
+  hashPermissionField,
+  ownershipStateFile,
+  readOwnershipState,
+  serializeOwnershipState,
+  type OwnershipState,
+} from './permission-ownership.js';
 import { migrateOC1, oc1GlobalDirectory } from './oc2-migration.js';
 import { currentPackageSpec, prepareRegistration } from './oc2-registration.js';
 
@@ -483,6 +492,16 @@ function renderAgentFile(settings: Settings, prompt: string): string {
   return `---\n${frontmatter}\n---\n${prompt}`;
 }
 
+function withProjectConfigPointer(prompt: string): string {
+  const heading = '## Kiki managed permission requests (v1)';
+  const index = prompt.indexOf(heading);
+  if (index < 0) return prompt + PROJECT_CONFIG_POINTER;
+  // Keep the managed fragment last: a following pointer would make the
+  // idempotent exact-tail check fail on the next update.
+  const head = prompt.slice(0, index).replace(/\n+$/, '\n\n');
+  return `${head}${PROJECT_CONFIG_POINTER.trim()}\n\n${prompt.slice(index)}`;
+}
+
 function nativeAgentContent(name: string, existingText?: string): string {
   const baseline = baselineAgents()[name];
   if (existingText !== undefined) {
@@ -497,13 +516,13 @@ function nativeAgentContent(name: string, existingText?: string): string {
     delete settings.model;
     delete settings.permissions;
     delete settings.permission;
-    return renderAgentFile(settings, existing.prompt);
+    return renderAgentFile(settings, withPermissionRequestPrompt(existing.prompt));
   }
   const settings: Settings = { ...baseline.settings };
   delete settings.model;
   delete settings.permissions;
   delete settings.permission;
-  return renderAgentFile(settings, baseline.prompt + PROJECT_CONFIG_POINTER);
+  return renderAgentFile(settings, withPermissionRequestPrompt(withProjectConfigPointer(baseline.prompt)));
 }
 
 function removeStaleDirectory(directory: string): void {
@@ -548,6 +567,68 @@ function restoreFiles(snapshots: FileSnapshot[]): string[] {
     }
   }
   return failures;
+}
+
+/** Focused transaction interfaces for the scoped project permission writer. */
+export function backupConfigFiles(files: string[], directory: string): string | undefined {
+  return backup(files, directory);
+}
+
+export function snapshotConfigFiles(files: string[]): FileSnapshot[] {
+  return snapshotFiles(files);
+}
+
+export function restoreConfigFiles(snapshots: FileSnapshot[]): string[] {
+  return restoreFiles(snapshots);
+}
+
+export function writeConfigAtomic(file: string, content: string): void {
+  writeAtomic(file, content);
+}
+
+/** Write (or remove, with undefined) one agent's permission field, preserving JSONC. */
+export function patchAgentPermissions(
+  file: string, agent: string, rules: PermissionRule[] | undefined,
+): void {
+  readSettings(file); // Validate before modifying.
+  const before = existsSync(file) ? readFileSync(file, 'utf8') : '{\n  "$schema": "https://opencode.ai/config.json"\n}\n';
+  const text = patchValue(before, ['agents', agent, 'permissions'], rules);
+  if (!existsSync(file) || text !== before) writeAtomic(file, text);
+}
+
+export function duplicateAgentConfigKeys(file: string): string[] {
+  return duplicateConfigKeys(file);
+}
+
+export function permissionArrayHasComments(file: string, agent: string): boolean {
+  return hasInnerArrayComments(file, agent);
+}
+
+export type { FileSnapshot };
+
+function duplicateConfigKeys(file: string): string[] {
+  const tree = parseTree(readFileSync(file, 'utf8'));
+  if (!tree) return [];
+  const duplicates: string[] = [];
+  const walk = (node: Node | undefined, path: string[]): void => {
+    if (!node || node.type !== 'object' || !node.children) return;
+    const seen = new Set<string>();
+    for (const property of node.children) {
+      const key = String(property.children?.[0]?.value ?? '');
+      if (key) {
+        if (seen.has(key)) duplicates.push([...path, key].join('.'));
+        seen.add(key);
+      }
+      walk(property.children?.[1], key ? [...path, key] : path);
+    }
+  };
+  walk(tree, []);
+  // Only the agent map and its direct fields are relevant to ownership; a
+  // duplicate scalar elsewhere is unrelated user data.
+  return [...new Set(duplicates.filter(path => {
+    const parts = path.split('.');
+    return parts[0] === 'agents' || parts[0] === 'agent';
+  }))];
 }
 
 function assertUniqueAgentKeys(text: string, label: string): void {
@@ -656,20 +737,97 @@ function removeAgentPermissions(file: string, names: string[]): boolean {
   return text !== before;
 }
 
+function sameOwnershipState(left: OwnershipState | undefined, right: OwnershipState): boolean {
+  if (!left || left.version !== right.version) return false;
+  const leftKeys = Object.keys(left.roles).sort();
+  const rightKeys = Object.keys(right.roles).sort();
+  if (leftKeys.length !== rightKeys.length) return false;
+  return leftKeys.every((role, index) => role === rightKeys[index] && left.roles[role] === right.roles[role]);
+}
+
+function driftReport(
+  name: string,
+  file: string,
+  recorded: string,
+  current: string | undefined,
+  detail?: string,
+): string {
+  return [
+    `  ${name} (${file}): ownership drift`,
+    `    recorded hash: ${recorded}`,
+    `    current hash: ${current ?? 'absent'}`,
+    `    rule diff: unavailable (hash-only evidence stores no rules)`,
+    ...(detail ? [`    detail: ${detail}`] : []),
+  ].join('\n');
+}
+
 export function installGlobalFiles(directory = globalDirectory(), update = false): void {
   // Reject V1 artifacts and malformed tiers before any write.
   assertNotOC1Config(canonicalPath(directory), homedir(), { allowKnownV1Artifacts: true });
   const configs = configFiles(directory, true);
-  for (const file of configs) readSettings(file);
+  for (const file of configs) {
+    readSettings(file);
+    const duplicateKeys = duplicateConfigKeys(file);
+    if (duplicateKeys.length) {
+      throw new Error(
+        `Ambiguous OpenCode configuration (duplicate agent keys): ${file}: ${duplicateKeys.join(', ')}`,
+      );
+    }
+  }
   const registration = prepareRegistration(directory, currentPackageSpec());
   const canonical = generateAgentPermissions(DEFAULT_CONFIG);
+  const targetFile = configTarget(directory, true);
+  const targetSettings = existsSync(targetFile) ? readSettings(targetFile) : {};
+  const stateFile = ownershipStateFile(directory);
+  const previousState = readOwnershipState(stateFile);
 
   const states = new Map<string, AgentFileState>();
   const targets: Settings = {};
   const report: string[] = [];
+  const drifts: string[] = [];
   for (const name of AGENT_NAMES) {
     const state = collectAgentSources(directory, name);
     states.set(name, state);
+    const ownedHash = previousState?.roles[name];
+    const targetRules = targetSettings.agents?.[name]?.permissions;
+    if (ownedHash !== undefined) {
+      const otherSources = state.sources.filter(source => source.file !== targetFile);
+      const currentHash = Array.isArray(targetRules) ? hashPermissionField(targetRules as PermissionRule[]) : undefined;
+      if (!Array.isArray(targetRules)) {
+        drifts.push(driftReport(name, targetFile, ownedHash, undefined, 'owned permission field is missing'));
+        continue;
+      }
+      if (currentHash !== ownedHash) {
+        drifts.push(driftReport(name, targetFile, ownedHash, currentHash));
+        continue;
+      }
+      if (otherSources.length) {
+        drifts.push(driftReport(
+          name, targetFile, ownedHash, currentHash,
+          `another permission source exists: ${otherSources.map(source => source.file).join(', ')}`,
+        ));
+        continue;
+      }
+      // The hash proves this exact field is Kiki-owned, but the field can still
+      // contain preserved custom allows. Classify it against the fresh baseline
+      // so old generated shapes are replaced while customs survive.
+      const classification = classifyPermissionSources(name, canonical[name], [
+        { file: targetFile, rules: targetRules as PermissionRule[] },
+      ]);
+      for (const entry of classification.entries) {
+        report.push(`  [${entry.kind}] ${entry.file}: ${entry.rule.action} ${entry.rule.resource} ${entry.rule.effect}`);
+      }
+      if (classification.blockers.length) {
+        throw new Error(
+          `Refusing to update permissions; manual resolution required:\n${classification.blockers.join('\n')}`,
+        );
+      }
+      report.push(`  [owned] ${targetFile}: ${name} matches recorded evidence; replacing with fresh baseline`);
+      const { prefix, tail } = splitSecretTail(canonical[name]);
+      targets[name] = { permissions: [...prefix, ...stableCustoms(classification.customs), ...tail] };
+      continue;
+    }
+
     const classification = classifyPermissionSources(name, canonical[name], state.sources);
     for (const entry of classification.entries) {
       report.push(`  [${entry.kind}] ${entry.file}: ${entry.rule.action} ${entry.rule.resource} ${entry.rule.effect}`);
@@ -681,6 +839,11 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
     }
     const { prefix, tail } = splitSecretTail(canonical[name]);
     targets[name] = { permissions: [...prefix, ...stableCustoms(classification.customs), ...tail] };
+  }
+  if (drifts.length) {
+    throw new Error(
+      `Refusing to update permissions; manual resolution required:\n${drifts.join('\n')}`,
+    );
   }
   console.log('Kiki permission plan (verbatim):');
   console.log(report.length ? report.join('\n') : '  (no existing permission rules)');
@@ -703,18 +866,23 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
   }
   removals.push(...staleV1Files(directory));
 
-  const targetFile = configTarget(directory, true);
-  const targetSettings = existsSync(targetFile) ? readSettings(targetFile) : {};
+  let permissionMutation = false;
   let needsChange = registration.files.length > 0 || writes.length > 0 || removals.length > 0;
   for (const name of AGENT_NAMES) {
     if (JSON.stringify(targetSettings.agents?.[name]?.permissions)
-      !== JSON.stringify(targets[name].permissions)) needsChange = true;
+      !== JSON.stringify(targets[name].permissions)) {
+      needsChange = true;
+      permissionMutation = true;
+    }
   }
   for (const file of configs) {
     if (file === targetFile) continue;
     const settings = readSettings(file);
     for (const name of AGENT_NAMES) {
-      if (settings.agents?.[name]?.permissions !== undefined) needsChange = true;
+      if (settings.agents?.[name]?.permissions !== undefined) {
+        needsChange = true;
+        permissionMutation = true;
+      }
     }
   }
 
@@ -733,6 +901,13 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
     }
   }
 
+  const desiredState: OwnershipState = {
+    version: 1,
+    roles: Object.fromEntries(AGENT_NAMES.map(name => [name, hashPermissionField(targets[name].permissions)])),
+  };
+  const stateNeedsChange = !sameOwnershipState(previousState, desiredState);
+  needsChange = needsChange || stateNeedsChange;
+
   if (!needsChange) {
     console.log(`Kiki ${update ? 'updated' : 'installed'} globally in ${directory}. Restart OpenCode to load it.`);
     console.log('Agent models: set them with the /kiki command in OpenCode (or edit agents.<name>.model in opencode.json).');
@@ -745,10 +920,18 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
     ...registration.files,
     ...writes.map(write => write.file),
     ...removals,
+    stateFile,
     ...AGENT_NAMES.map(name => states.get(name)!.markdownFile).filter((file): file is string => !!file),
   ])];
   const backupDirectory = backup(touched.filter(existsSync), join(directory, 'kiki/backups'));
-  const snapshots = snapshotFiles(touched);
+  const configSnapshots = snapshotFiles(touched.filter(file => file !== stateFile));
+  const stateSnapshot = snapshotFiles([stateFile])[0];
+
+  // Invalidate old ownership evidence before the first permission-field
+  // mutation. Preflight already completed; a crash from here on leaves either
+  // the old evidence (no mutation yet), absent evidence (bootstrap fallback) or
+  // newly verified evidence, never stale hashes describing changed bytes.
+  if (permissionMutation && existsSync(stateFile)) unlinkSync(stateFile);
 
   try {
     // Registration first: captured server-config text cannot overwrite the
@@ -775,11 +958,42 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
     }
     for (const file of [...new Set(removals)].filter(existsSync)) unlinkSync(file);
     removeStaleDirectory(join(directory, 'kiki/prompts'));
+
+    // Publish ownership evidence only after configuration verification and the
+    // remaining transaction operations.
+    mkdirSync(dirname(stateFile), { recursive: true, mode: 0o700 });
+    const stateContent = serializeOwnershipState(desiredState);
+    writeAtomic(stateFile, stateContent);
+    if (readFileSync(stateFile, 'utf8') !== stateContent) {
+      throw new Error('Ownership state verification failed.');
+    }
   } catch (error) {
-    const failures = restoreFiles(snapshots);
-    if (failures.length) {
+    const failures = restoreFiles(configSnapshots);
+    const restored = failures.length === 0 && configSnapshots.every(snapshot =>
+      snapshot.existed
+        ? existsSync(snapshot.file) && readFileSync(snapshot.file).equals(snapshot.content!)
+        : !existsSync(snapshot.file));
+    if (!restored) {
+      // Never restore old hashes over configuration that did not roll back.
+      try {
+        if (existsSync(stateFile)) unlinkSync(stateFile);
+      } catch {
+        // Evidence is absent or cannot be trusted; report recovery below.
+      }
       throw new Error(
-        `Install/update failed and rollback was incomplete; restore from ${backupDirectory ?? 'the backup directory'}: ${failures.join('; ')}. Original error: ${error instanceof Error ? error.message : String(error)}`,
+        `Install/update failed and rollback was incomplete; ownership evidence was left absent. Restore from ${backupDirectory ?? 'the backup directory'}: ${failures.join('; ') || 'configuration verification failed'}. Original error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    // State is restored last, only after configuration restoration verified.
+    const stateFailures = restoreFiles([stateSnapshot]);
+    if (stateFailures.length) {
+      try {
+        if (existsSync(stateFile)) unlinkSync(stateFile);
+      } catch {
+        // Leave evidence absent rather than stale.
+      }
+      throw new Error(
+        `Install/update failed and rollback was incomplete; ownership evidence could not be restored. Restore from ${backupDirectory ?? 'the backup directory'}: ${stateFailures.join('; ')}. Original error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
     throw error instanceof Error

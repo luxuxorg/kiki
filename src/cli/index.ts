@@ -10,6 +10,7 @@ import { doctor } from './commands/doctor.js';
 import { routing } from './commands/routing.js';
 import { migrate } from './commands/migrate.js';
 import { reset } from './commands/reset.js';
+import { permissions } from './commands/permissions.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -53,6 +54,11 @@ async function main() {
     case 'release':
       await release(args.slice(1));
       break;
+    case 'permissions': {
+      const code = await permissions(args.slice(1));
+      if (code !== 0) process.exit(code);
+      break;
+    }
     default:
       console.log(`Usage: kiki <command>
 Commands:
@@ -67,6 +73,7 @@ Commands:
   routing             Retired; configure agents.<id>.model in opencode.json
   verify <file>        Check for TBDs/TODOs/placeholders
   doctor [path]        Validate config, paths, agent files, and skills
+  permissions <cmd>    Inspect project permissions or preview/apply narrow project grants
   release [options]    Validate (default) or apply a local release candidate`);
       process.exitCode = !command || command === '--help' || command === '-h' ? 0 : 1;
   }

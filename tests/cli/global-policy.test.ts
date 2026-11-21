@@ -57,6 +57,9 @@ describe('global-only Kiki policy', () => {
     data.agents['kiki-implementer'].permissions = [{ action: 'edit', resource: 'vendor/**', effect: 'allow' }];
     data.agents['kiki-implementer'].model = { providerID: 'custom', model: 'changed' };
     writeFileSync(join(global, 'opencode.jsonc'), '// keep this comment\n' + JSON.stringify(data));
+    // Manual permission divergence with ownership evidence present must halt;
+    // this test covers the approved conservative bootstrap path.
+    rmSync(join(global, 'kiki/state.json'));
     installGlobalFiles(global, true);
     expect(config(global).agents['kiki-implementer'].permissions)
       .toContainEqual({ action: 'edit', resource: 'vendor/**', effect: 'allow' });

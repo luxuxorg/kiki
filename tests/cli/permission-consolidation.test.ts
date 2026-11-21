@@ -95,17 +95,21 @@ describe('permission source classification', () => {
     const canonical = generateAgentPermissions(DEFAULT_CONFIG);
     expect(Object.keys(HISTORICAL_GENERATED_SEQUENCES).sort()).toEqual(Object.keys(canonical).sort());
     for (const [agent, sequences] of Object.entries(HISTORICAL_GENERATED_SEQUENCES)) {
-      expect(sequences, agent).toHaveLength(1);
-      const result = classifyPermissionSources(agent, canonical[agent], [
-        { file: `/home/lutz/.config/opencode/agents/${agent}.md`, rules: sequences[0] },
-      ]);
-      expect(result.blockers, agent).toEqual([]);
-      expect(result.customs, agent).toEqual([]);
-      expect(result.entries.length, agent).toBe(sequences[0].length);
-      expect(result.entries.every(entry => entry.kind === 'generated'), agent).toBe(true);
-      // Read-only preflight preview: the proposed target is the canonical array.
-      const { prefix, tail } = splitSecretTail(canonical[agent]);
-      expect([...prefix, ...stableCustoms(result.customs), ...tail], agent).toEqual(canonical[agent]);
+      // One recorded 2026-11-19 shape plus the exact 2026-11-20 pre-change
+      // generator output at bb1acee.
+      expect(sequences, agent).toHaveLength(2);
+      for (const sequence of sequences) {
+        const result = classifyPermissionSources(agent, canonical[agent], [
+          { file: `/home/lutz/.config/opencode/agents/${agent}.md`, rules: sequence },
+        ]);
+        expect(result.blockers, agent).toEqual([]);
+        expect(result.customs, agent).toEqual([]);
+        expect(result.entries.length, agent).toBe(sequence.length);
+        expect(result.entries.every(entry => entry.kind === 'generated'), agent).toBe(true);
+        // Read-only preflight preview: the proposed target is the canonical array.
+        const { prefix, tail } = splitSecretTail(canonical[agent]);
+        expect([...prefix, ...stableCustoms(result.customs), ...tail], agent).toEqual(canonical[agent]);
+      }
     }
   });
 

@@ -69,6 +69,22 @@ export declare function baselineAgents(config?: KikiConfig): Record<string, {
     settings: Settings;
     prompt: string;
 }>;
+interface FileSnapshot {
+    file: string;
+    existed: boolean;
+    content?: Buffer;
+    mode?: number;
+}
+/** Focused transaction interfaces for the scoped project permission writer. */
+export declare function backupConfigFiles(files: string[], directory: string): string | undefined;
+export declare function snapshotConfigFiles(files: string[]): FileSnapshot[];
+export declare function restoreConfigFiles(snapshots: FileSnapshot[]): string[];
+export declare function writeConfigAtomic(file: string, content: string): void;
+/** Write (or remove, with undefined) one agent's permission field, preserving JSONC. */
+export declare function patchAgentPermissions(file: string, agent: string, rules: PermissionRule[] | undefined): void;
+export declare function duplicateAgentConfigKeys(file: string): string[];
+export declare function permissionArrayHasComments(file: string, agent: string): boolean;
+export type { FileSnapshot };
 export declare function installGlobalFiles(directory?: string, update?: boolean): void;
 /**
  * `kiki init` is metadata-only. Validate every existing global and project

@@ -483,8 +483,14 @@ describe('ordered native permission translation', () => {
       expect(shell[0], `${role}: routine local work runs without a prompt`).toEqual(shellAllowAll);
       expect(
         shell.filter(rule => rule.effect === 'ask').map(rule => rule.resource),
-        `${role}: publishing ask table`,
-      ).toEqual(publishAskPatterns);
+        `${role}: managed + publishing ask table`,
+      ).toEqual([
+        'kiki permissions add',
+        'kiki permissions add *',
+        'kiki permissions remove',
+        'kiki permissions remove *',
+        ...publishAskPatterns,
+      ]);
       expect(
         shell.slice(-forcePushDenies.length),
         `${role}: force-push denies stay last`,

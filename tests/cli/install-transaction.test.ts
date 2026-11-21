@@ -73,6 +73,14 @@ function backupCount(dir: string): number {
   return readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory()).length;
 }
 
+function stateFile(dir: string): string {
+  return join(dir, 'kiki/state.json');
+}
+
+function configFile(dir: string): string {
+  return join(dir, 'opencode.jsonc');
+}
+
 const customAllow: PermissionRule = { action: 'edit', resource: 'vendor/**', effect: 'allow' };
 const customDeny: PermissionRule = { action: 'edit', resource: 'vendor/**', effect: 'deny' };
 
@@ -126,6 +134,9 @@ body
     const markdown = agentMarkdown(global);
     const before = readFileSync(markdown, 'utf8');
     writeFileSync(markdown, addPermissions(before, [customAllow]));
+    // Simulate the legacy/bootstrap path: a manual markdown permission with no
+    // ownership evidence. With evidence present this would correctly halt.
+    rmSync(join(global, 'kiki/state.json'));
 
     installGlobalFiles(global, true);
 
@@ -151,6 +162,7 @@ body
     const settings = parseYaml(match[1], { uniqueKeys: false }) as Record<string, unknown>;
     settings.permission = { write: { 'vendor/**': 'allow' } };
     writeFileSync(markdown, `---\n${stringifyYaml(settings, { lineWidth: 0 }).trimEnd()}\n---\n${match[2]}`);
+    rmSync(join(global, 'kiki/state.json'));
 
     installGlobalFiles(global, true);
 
@@ -165,6 +177,7 @@ body
     installGlobalFiles(global);
     const markdown = agentMarkdown(global);
     writeFileSync(markdown, addPermissions(readFileSync(markdown, 'utf8'), [customDeny]));
+    rmSync(join(global, 'kiki/state.json'));
     const tracked = [
       ...AGENTS.map(name => agentMarkdown(global, name)),
       join(global, 'opencode.jsonc'),
@@ -217,6 +230,7 @@ body
     // must persist the custom and strip it from the markdown.
     const markdown = agentMarkdown(global);
     writeFileSync(markdown, addPermissions(readFileSync(markdown, 'utf8'), [customAllow]));
+    rmSync(join(global, 'kiki/state.json'));
     const tracked = [
       ...AGENTS.map(name => agentMarkdown(global, name)),
       join(global, 'opencode.jsonc'),
@@ -238,6 +252,7 @@ body
     const data = config(global);
     data.agents['kiki-implementer'].permissions = [...data.agents['kiki-implementer'].permissions, customAllow];
     writeFileSync(target, JSON.stringify(data, null, 2));
+    rmSync(join(global, 'kiki/state.json'));
     const markdown = agentMarkdown(global);
     const beforeConfig = readFileSync(target);
     const beforeMarkdown = readFileSync(markdown);
@@ -262,6 +277,7 @@ body
     installGlobalFiles(global);
     const markdown = agentMarkdown(global);
     writeFileSync(markdown, addPermissions(readFileSync(markdown, 'utf8'), [customAllow]));
+    rmSync(join(global, 'kiki/state.json'));
     fsFault.rename = (_from, to) => {
       if (to === markdown) throw new Error('injected strip failure');
     };
@@ -304,6 +320,9 @@ body
     const markdown = agentMarkdown(global);
     const canonical = generateAgentPermissions()['kiki-implementer'];
     writeFileSync(markdown, addPermissions(readFileSync(markdown, 'utf8'), canonical));
+    // A real interruption invalidates evidence before the config mutation, so
+    // the crash window is observed with state absent.
+    rmSync(join(global, 'kiki/state.json'));
 
     installGlobalFiles(global, true);
     const once = Object.fromEntries(
@@ -329,6 +348,7 @@ body
         HISTORICAL_GENERATED_SEQUENCES[name][0],
       ));
     }
+    rmSync(join(global, 'kiki/state.json'));
 
     installGlobalFiles(global, true);
 
@@ -337,5 +357,88 @@ body
       expect(parseAgent(readFileSync(agentMarkdown(global, name), 'utf8'), name).settings, name)
         .not.toHaveProperty('permissions');
     }
+  });
+});
+
+describe('managed permission prompt delivery', () => {
+  const HEADING = '## Kiki managed permission requests (v1)';
+  let root: string;
+  let global: string;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'kiki-fragment-'));
+    global = join(root, 'opencode');
+    vi.stubEnv('XDG_CONFIG_HOME', root);
+  });
+  afterEach(() => {
+    fsFault.write = undefined;
+    fsFault.rename = undefined;
+    fsFault.afterRename = undefined;
+    vi.unstubAllEnvs();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('fragment_second_update_no_diff', () => {
+    installGlobalFiles(global);
+    const reviewer = agentMarkdown(global, 'kiki-reviewer');
+    writeFileSync(reviewer, `---
+description: custom
+mode: subagent
+---
+Existing body only.
+`);
+    installGlobalFiles(global, true);
+    const once = snapshot([
+      ...AGENTS.map(name => agentMarkdown(global, name)),
+      configFile(global), join(global, 'kiki/agentic-workflow.md'),
+    ]);
+    const backups = backupCount(global);
+    installGlobalFiles(global, true);
+    expect(snapshot(Object.keys(once))).toEqual(once);
+    expect(backupCount(global)).toBe(backups);
+    const body = parseAgent(readFileSync(reviewer, 'utf8'), 'kiki-reviewer').prompt;
+    expect(body.startsWith('Existing body only.')).toBe(true);
+    expect(body.split(HEADING).length - 1).toBe(1);
+  });
+
+  it('conflicting_or_duplicate_heading_no_writes', () => {
+    installGlobalFiles(global);
+    const reviewer = agentMarkdown(global, 'kiki-reviewer');
+    writeFileSync(reviewer, `---
+description: custom
+mode: subagent
+---
+# Existing
+
+${HEADING}
+
+Different managed content.
+`);
+    const before = snapshot([
+      ...AGENTS.map(name => agentMarkdown(global, name)),
+      configFile(global), stateFile(global), join(global, 'kiki/agentic-workflow.md'),
+    ]);
+    const backups = backupCount(global);
+    expect(() => installGlobalFiles(global, true)).toThrow(/managed|conflict|duplicate/i);
+    expect(snapshot(Object.keys(before))).toEqual(before);
+    expect(backupCount(global)).toBe(backups);
+  });
+
+  it('fragment_write_failure_rolls_back', () => {
+    installGlobalFiles(global);
+    const reviewer = agentMarkdown(global, 'kiki-reviewer');
+    writeFileSync(reviewer, `---
+description: custom
+mode: subagent
+---
+Existing body only.
+`);
+    const beforeReviewer = readFileSync(reviewer);
+    const beforeConfig = readFileSync(configFile(global));
+    fsFault.rename = (_from, to) => {
+      if (to === reviewer) throw new Error('injected fragment write failure');
+    };
+    expect(() => installGlobalFiles(global, true)).toThrow(/rolled back/i);
+    expect(readFileSync(reviewer)).toEqual(beforeReviewer);
+    expect(readFileSync(configFile(global))).toEqual(beforeConfig);
   });
 });
