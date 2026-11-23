@@ -1,13 +1,13 @@
 # Kiki — OpenCode 2 Agent Orchestration
 
-Kiki 3.1.1 is the current OpenCode 2 (OC2) release of Kiki. It installs native OC2 agent
+Kiki 3.2.0 is the current OpenCode 2 (OC2) release of Kiki. It installs native OC2 agent
 definitions and a package-style server/TUI plugin for the Intake → Brainstorm → Plan →
 Architect Review → Implement → Review → Document → Complete workflow. Small, low-risk
 local tasks may use the shorter intake → implement → risk-appropriate review → complete
 path without persistent spec/plan files or a separate architect gate. Project
 configuration is kept separate from Kiki updates.
 
-Kiki 3.1.1 targets OpenCode V2 and is OC2-only. Its OC2 security-boundary
+Kiki 3.2.0 targets OpenCode V2 and is OC2-only. Its OC2 security-boundary
 integration suite passed against OpenCode **2.3.2** during 3.1.1 verification;
 the 3.0.0 baseline was **2.2.6**. OpenCode 1 is deprecated; there is no parallel
 V1/V2 setup.
