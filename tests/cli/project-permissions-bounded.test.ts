@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { projectPermissionRules } from '../../src/cli/oc2-permissions';
 import { DEFAULT_CONFIG, generateAgentPermissions } from '../../src/cli/config';
+import { HISTORICAL_GENERATED_SEQUENCES } from '../../src/cli/permission-consolidation';
 import type { PermissionRule } from '../../src/cli/opencode-config';
 
 function escapeRegExp(value: string): string {
@@ -38,6 +39,10 @@ function effect(rules: PermissionRule[], action: string, resource: string) {
 const permissions = generateAgentPermissions(DEFAULT_CONFIG);
 const implementer = permissions['kiki-implementer'];
 const planner = permissions['kiki-planner'];
+// Explicit cross-role denies are a measured historical inherited shape; the
+// lean bracket expresses the boundary as `deny edit *` plus territory allows.
+const historicalImplementer = HISTORICAL_GENERATED_SEQUENCES['kiki-implementer'][2];
+const historicalPlanner = HISTORICAL_GENERATED_SEQUENCES['kiki-planner'][2];
 
 function ok(local: PermissionRule[], inherited = implementer): PermissionRule[] {
   const result = projectPermissionRules(local, inherited);
@@ -60,13 +65,19 @@ describe('bounded additive project permission validation', () => {
   });
 
   it('rejects explicit role-boundary crossings and unsupported forms', () => {
-    // The planner carries an explicit `src/**` deny and explicit `docs/**` asks.
+    // The pinned historical planner carries an explicit `src/**` deny.
     expect(projectPermissionRules(
-      [{ action: 'edit', resource: 'src/special.ts', effect: 'allow' }], planner).ok).toBe(false);
-    // The implementer carries an explicit `docs/superpowers/**` deny.
+      [{ action: 'edit', resource: 'src/special.ts', effect: 'allow' }], historicalPlanner).ok).toBe(false);
+    // The pinned historical implementer carries an explicit `docs/superpowers/**` deny.
     expect(projectPermissionRules(
-      [{ action: 'edit', resource: 'docs/superpowers/x.md', effect: 'allow' }], implementer).ok)
+      [{ action: 'edit', resource: 'docs/superpowers/x.md', effect: 'allow' }], historicalImplementer).ok)
       .toBe(false);
+    // The lean bracket intentionally permits project-level widening; the
+    // project ask/native approval is the authorization boundary.
+    expect(projectPermissionRules(
+      [{ action: 'edit', resource: 'src/special.ts', effect: 'allow' }], planner).ok).toBe(true);
+    expect(projectPermissionRules(
+      [{ action: 'edit', resource: 'docs/superpowers/x.md', effect: 'allow' }], implementer).ok).toBe(true);
     for (const rule of [
       { action: 'edit', resource: '.env', effect: 'allow' },
       { action: 'edit', resource: 'scripts/.env', effect: 'allow' },

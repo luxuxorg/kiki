@@ -1,9 +1,5 @@
 export type Skill = 'brainstorming' | 'writing-plans' | 'executing-plans' | 'reviewing' | 'documenting';
 
-export interface StaticRoutingTable {
-  agents: Record<string, string>;
-}
-
 export interface KikiConfig {
   readonly projectName: string;
   readonly language: string;

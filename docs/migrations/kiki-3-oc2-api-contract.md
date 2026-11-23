@@ -244,8 +244,16 @@ const entrypoints: Host.Entrypoints = Host.resolve({ directory: '/path/to/plugin
   - `small_model` (V1) is normalized to **`agents.title.model`**. There is no top-level
     `title` key; `title` is the built-in agent entry under `agents.title`. Do not seed
     model defaults; user models are preserved.
-- `plugins`/`permissions`/`agents` are the only Kiki-owned native destinations. Kiki never
-  writes top-level `permissions` (OC2 appends those to every agent and would broaden).
+- Kiki-owned native destinations are `plugins`, `agents`, and two marked top-level
+  fragments: `permissions` (one `ask shell git push *` entry) and `policies` (14
+  secret read/edit denies). Role arrays are lean: `allow shell *`, two
+  `kiki permissions` asks, `deny edit *`, the role's own edit territory, and a
+  final `git push *` ask. Kiki appends each managed fragment after existing user
+  entries, preserves user rules and policy objects, recognizes its own entries on
+  every update, and stops before writing on changed, duplicated, reordered or
+  partially removed markers with file, location and expected/observed evidence.
+  Policies are evaluated after all permission rules and saved grants and can
+  never allow.
 
 ### Fixture provider (deterministic loopback)
 
@@ -302,11 +310,9 @@ The current Kiki CLI surface documented by the actual `src/cli/index.ts` dispatc
 | `kiki install --project <path>` | Scaffold project `.agentic/kiki/` metadata and project agent permissions |
 | `kiki init [path]` | Same project setup through the wizard |
 | `kiki update [--global]` | Refresh the global installation; project files untouched |
-| `kiki migrate [--from <dir>] [--project <path>] [--force]` | Import OC1 models/permissions into OC2 (global by default) |
 | `kiki reset --project <path>` | Remove project Kiki agent overrides after backup |
 | `kiki status [path]` | Show global/project configuration and effective model objects |
 | `kiki doctor [path]` | Check OC2 roots/version, native agents, plugin/TUI registration, project commands and skills |
-| `kiki routing` | Retired read-only notice; use `agents.<id>.model` |
 | `kiki verify <file>` | Check Markdown for unfinished markers |
 | `kiki release [options]` | Validate (default) or apply a local release candidate |
 

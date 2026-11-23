@@ -8,24 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **Explicit read-only Git inspection grants for specialist agents:** the seven
-  specialist roles — brainstormer, planner, implementer, gui-designer, reviewer,
-  escalation and historian — now allow `git status *`, `git rev-parse *` and
-  `git worktree list *` in the generated shell rules. The grants sit after the 18
-  publishing asks and before the force-push denials; the orchestrator receives no
-  read-only additions. Only the read-only `worktree list` subcommand is named:
-  no blanket `git worktree *` rule and no new write grant is added. The grants
-  are stored in the global config's role arrays; the orchestrator receives no
-  new explicit Git grants.
-- **Global secret edit denials:** every role now ends its edit rules with denies
+- **Managed global push ask and secret policy block:** install/update maintains
+  one marked top-level `permissions` entry — `ask shell git push *` — and one
+  marked top-level `policies` block of 14 statements denying `read` and `edit`
   for `.env*`, `**/.env*`, `**/*secret*`, `**/*credential*`, `**/*.pem`,
-  `**/*.key` and `**/id_rsa*`, so broader grants such as `src/**` or
-  `.superpowers/sdd/**` cannot permit secret edits. The rules were applied to
-  the global config's role arrays, not agent Markdown or project baseline copies.
-- **Worktree write parity:** role-scoped edit grants cover both `.worktree/**`
-  and `.worktrees/**`, including `.gitignore` for the implementer and the task
-  registry for the orchestrator. The grants remain narrow; no blanket worktree
-  write grant is added.
+  `**/*.key` and `**/id_rsa*`. Both fragments are appended after existing user
+  entries; user rules and policy objects are preserved, Kiki's entries are
+  recognized on every update, and a changed, duplicated, reordered or partially
+  removed fragment stops the update before writes with file, location and
+  expected/observed evidence. Policies are checked after all permission rules
+  and saved grants and can never allow, so the secret denies bind every agent,
+  including against later hand-written grants.
+- **Worktree and tool lines in generated prompts:** every generated role prompt
+  carries `Die Regeln aus Main gelten auch im Worktree.` and one behavioral tool
+  line. The brainstormer and planner may use web research; the orchestrator's
+  line forbids web, MCP and Code Mode while limiting delegation to the seven Kiki
+  roles; every other role gets no web, MCP, delegation or Code Mode. The binding
+  publishing consent line now names `publishing/Deploy-route approval` and
+  carries a `Behavioral rule:` prefix. Only the exact previously generated
+  consent line is replaced; a user-edited consent paragraph keeps its wording
+  and the canonical line is added alongside it.
 - **German/English Kiki TUI copy and scoped status footers:** all visible `/kiki`
   menu, dialog, toast and error text now comes from a typed German/English
   dictionary. The language is resolved once at startup from the first non-empty
@@ -55,39 +57,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   unrelated rules in order, and refuses stale/changed entries, inherited
   entries and entries still required as mandatory protection. No project
   provenance ledger, consent token or runtime hook is added.
-- **Hash-only global permission ownership evidence:** install/update records
-  SHA-256 hashes of the eight global `agents.<id>.permissions` arrays in the
-  resolved global config root's `kiki/state.json` (by default
-  `~/.config/opencode/kiki/state.json`, mode 0600, no rules). An unmodified
-  owned field is replaced and re-hashed; manual hash drift halts all roles with
-  a recorded-vs-current report and no writes; absent, corrupt or unknown-version
-  state falls back to the existing content classifier without guessed deletion.
-  Evidence is invalidated before a permission mutation and published only after
-  config verification, so a crash leaves it absent rather than stale; config
-  and state are two files, with no atomic multi-file guarantee, converging on
-  rerun.
 - **Managed permission command rules and role request exception:** all eight
-  roles, orchestrator included, get `kiki permissions list`, `list *`, `check`
-  and `check *` as allows, and `add`, `add *`, `remove`, `remove *` as asks,
-  after the `shell *` allow. Only exact bare commands and the literal space
-  wildcard are named; there is no prefix glob. Every generated role prompt ends
-  with one `## Kiki managed permission requests (v1)` fragment permitting only
-  an own-role file/directory request through the canonical native-ask CLI; it
-  grants no general command rights and retains no-self-authorization,
-  no-global/raw-config-edit, no-wrapper and terminal-rejection rules. The
-  fragment is delivered by the reviewed generator and normal backed-up
-  `kiki update`; the CLI never edits prompts or Markdown.
+  roles, orchestrator included, get `ask shell kiki permissions add *` and
+  `ask shell kiki permissions remove *` after the `shell *` allow. Only the
+  literal space wildcard is named; there is no prefix glob. `list` and `check`
+  need no own rule because they run under the allowed shell. Every generated
+  role prompt ends with one `## Kiki managed permission requests (v1)` fragment
+  permitting only an own-role file/directory request through the canonical
+  native-ask CLI; it grants no general command rights and retains
+  no-self-authorization, no-global/raw-config-edit, no-wrapper and
+  terminal-rejection rules. The fragment is delivered by the reviewed generator
+  and normal backed-up `kiki update`; the CLI never edits prompts or Markdown.
 
 ### Changed
 
-- **Single-source global permissions:** install/update persists role baselines in
-  global `agents.<id>.permissions`, verifies them before stripping Markdown
-  permission fields, and preserves existing prompts and models. Recognized
-  generated history is replaced; validated custom file grants survive, while
-  unknown denies, ambiguity or comments that would be lost halt before writing.
-  Init writes project metadata only. Kiki-managed project permission additions
-  are bounded file/folder grants with protective masks, not shell grants or
-  baseline mirrors; manually edited native overrides are not runtime-policed.
+- **Lean 74-entry permission baseline:** the 569-rule, eight-role catalog is
+  replaced by 59 per-role lines — `allow shell *`; `ask shell kiki permissions
+  add *` and `remove *`; `deny edit *`; the role's own edit territory; a final
+  `ask shell git push *` — plus one managed top-level push ask and 14 policy
+  statements, 74 entries total. The 18 publishing asks, five force-push denies,
+  79 alternate-route rules, eight per-role read allows, worktree mirror rules and
+  per-role secret edit tails are retired rather than relocated. Only `git push`
+  asks among publishing commands; `git push --force` and other force forms are
+  asks, not hard denies. Publishing beyond push, tool routes, Web/MCP/delegation/Code Mode
+  and access outside the project are prompt-governed behavioral rules, and the
+  worktree probe passed without `.worktrees/**` fallback rules. Existing
+  installations receive the lean baseline and prompt lines on the next ordinary
+  `kiki update`; no live update or rollout was performed.
+- **Single-source global permissions:** install/update persists the lean role
+  baselines in global `agents.<id>.permissions`, maintains the two managed
+  top-level fragments, verifies everything before stripping Markdown permission
+  fields, and preserves existing prompts and models. Known generated defaults —
+  recorded history or the fresh baseline — are replaced by exact
+  `(action, resource, effect)` identity, even when interleaved with customs;
+  the tracked history pins the full 569-generation so retiring defaults disappear
+  even from custom-mixed arrays. Unknown custom rules keep allow, ask and deny
+  effects in stable encounter order. Comments inside a permissions array that
+  would be lost still halt before writing. Init writes project metadata only.
+  Kiki-managed project permission additions are bounded file/folder grants with
+  protective masks, not shell grants or baseline mirrors; manually edited native
+  overrides are not runtime-policed.
+- **Removed global permission ownership state:** the ownership module, hash-only
+  `kiki/state.json` evidence and drift gate are gone rather than replaced.
+  Install/update neither reads, writes nor deletes an existing state file.
+  Config backup, re-read verification and rollback remain.
 - **Grouped two-line TUI agent rows with full agent IDs:** the scope, agent and
   model selection dialogs use the host's default width (60), subject to the
   terminal's size clamp. Full agent IDs, including the `kiki-` prefix, appear in
@@ -99,11 +112,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   search over agent name and model, while the model and scope dialogs keep their
   existing search behavior; the project-scope delete-all entry stays an ordinary,
   ungrouped action. Long model names may still clip; no wrapping is provided.
-- **Generated shell baseline and role prompts:** the eight managed-permission
-  command rules now sit after `allow shell *` and before the 18 publishing asks,
-  and all eight role prompts carry the managed request fragment. Existing
-  installations receive both on the next ordinary `kiki update`; no live update
-  or rollout was performed.
+
+### Removed
+
+- **OC1/V1 migration removed (breaking):** `kiki migrate`, its implementation,
+  tests and built artifacts are gone, and V1 configurations are no longer
+  imported. `kiki migrate` is no longer a command. Status, doctor and argument
+  messages that referenced it now point to manual `agents.<id>.model`
+  configuration. No migration marker is written.
+- **OC1 legacy residue removed (breaking):** the retired-notice `kiki routing`
+  command and the routing.json data layer are gone, including the public exports
+  `loadRoutingTable` and the `StaticRoutingTable` type from the package's `.`
+  entrypoint. The OC1 marker guard, the singular-agent install/upgrade shim, V1
+  permission-map translation and validation, V1 artifact cleanup paths, reset-time
+  V1 cleanup, legacy `routing.json` detection in `status`/`doctor`, and the
+  `.agentic/config.json` V1 project fallback are removed. The
+  `oc1-permission-templates.json` fixture is gone, with its custom config inlined
+  into the permission tests. External consumers of the removed exports and users
+  of `kiki routing` must adapt; the command now prints usage with exit 1. The
+  synthetic-OC1 isolation test was rewritten as a general XDG-default-location
+  isolation test with sentinels.
 
 ### Fixed
 
@@ -118,30 +146,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Managed permission write boundary and accepted limits:** the CLI writes only
   project configuration and never global policy, prompts or Markdown. The
   native permission ask is human consent; the CLI validates rule shape only,
-  stores no approval and cannot verify visual consent. The ownership hash is
-  evidence, not tamperproofness. Arbitrary manual native edits remain outside
+  stores no approval and cannot verify visual consent. Managed writes are not
+  tamperproofness. Arbitrary manual native edits remain outside
   the guarantee; symlink-target enforcement and wrapper hardening are not
   implemented or claimed, and no native visual-consent or bypass-proof claim is
   made. Accepted residual risks: inherited ASK tuples hand-placed in a project
-  tier are accepted wherever they appear (unlike denies), so a hand-copied
-  `ask shell git push*` could flip an inherited force-push deny to an ask under
-  last-match and `check` does not report it; after a Kiki `add`, removing the
-  only grant is refused because it would orphan the trailing protective suffix,
-  and recovery from a manually orphaned suffix requires a manual edit outside
-  the guarantee; the `add` surface is intentionally limited to `read|edit`
-  (other validator-supported forms remain hand-addable); user text appended
-  after the managed prompt fragment halts the next update safely, and a v1→v2
-  transition story remains future work. The global update path keeps its
+  tier are accepted wherever they appear (unlike denies), and hand edits can
+  still change permission-rule outcomes under last-match, which `check` does not
+  report in every case. The managed policy block is stronger: a hand-written
+  allow cannot open a secret path, although rewriting the managed block itself
+  disables it and makes the next update stop with drift evidence. After a Kiki
+  `add`, removing the only grant is refused because it would orphan the trailing
+  protective suffix, and recovery from a manually orphaned suffix requires a
+  manual edit outside the guarantee; the `add` surface is intentionally limited
+  to `read|edit` (other validator-supported forms remain hand-addable); user text
+  appended after the managed prompt fragment halts the next update safely, and a
+  v1→v2 transition story remains future work. The global update path keeps its
   pre-existing post-write verification without adding an exact pre-write byte
   precondition for concurrent external edits.
-- **Verification evidence (2026-11-21):** build and lint exited 0. The final
-  broad suite exited 1 with 948 passed, 1 known baseline `oc2-isolation`
-  failure reproduced at `bb1acee` on untouched code, and 2 opt-in skips; no
-  fresh full-green claim is made. The matcher/child spike is reused as prior
-  OpenCode 2.3.2 evidence (2/2 tests, 160 role decisions, one real implementer
-  child reject/once-approval), not as native visual-consent, wrapper-hardening,
-  argv-parser or other-child-role proof. `list`/`check` zero-write is covered at
-  CLI-test level.
+- **Verification evidence (2026-11-23):** build and lint exited 0 and
+  `git diff --check` was clean. After the migration removal, the native full
+  suite ran 916 passed, 2 env-gated opt-in skips
+  (`KIKI_RELEASE_TEST_REAL_TSC` and `KIKI_RELEASE_TEST_OC2_REHEARSAL`) and zero
+  failures; the worktree probe and policy battery passed at the final generator
+  state on OpenCode 2.3.2. No broader full-green claim is made. The matcher/child
+  spike remains prior OpenCode 2.3.2 evidence (2/2 tests, 160 role decisions, one
+  real implementer child reject/once-approval), not native visual-consent,
+  wrapper-hardening, argv-parser or other-child-role proof. `list`/`check`
+  zero-write is covered at CLI-test level.
+- **Verification evidence (2026-11-23, OC1 residue removal):** build and lint
+  exited 0 and `git diff --check` was clean. The native full suite ran 884
+  passed, 2 env-gated opt-in skips (`KIKI_RELEASE_TEST_REAL_TSC` and
+  `KIKI_RELEASE_TEST_OC2_REHEARSAL`) and zero failures; the change from 916
+  reconciles exactly with the 32 removed OC1/V1 residue tests. No broader
+  full-green claim is made.
 
 ## [3.1.1] — 2026-11-17
 

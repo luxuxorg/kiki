@@ -13,7 +13,7 @@ export declare function isKikiPluginEntry(entry: unknown, activePackageSpec?: st
 export declare function kikiServerSources(directory: string): PluginSource[];
 /** Kiki package entries configured in cli.json(c) files. */
 export declare function kikiCliSources(directory: string): PluginSource[];
-/** Auto-discovered V1 source files that OC2 would load alongside a package entry. */
+/** Auto-discovered Kiki plugin files that OC2 loads alongside a package entry; used for duplicate-source diagnostics. */
 export declare function autoDiscoveredKikiPlugins(directory: string): string[];
 export declare function hasKikiServerRegistration(directory: string): boolean;
 export declare function hasKikiCliRegistration(directory: string): boolean;

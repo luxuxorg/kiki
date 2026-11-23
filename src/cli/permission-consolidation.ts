@@ -3,9 +3,10 @@ import type { PermissionRule } from './opencode-config.js';
 
 /**
  * Pure classification of existing permission rules against the canonical
- * builder output. The installer and migration use this to drop only rules whose
- * generation is proven, keep unknown rules verbatim, and halt on anything
- * ambiguous instead of silently widening or narrowing policy.
+ * builder output and the proven historical defaults. Exact
+ * (action, resource, effect) identity decides whether a rule is a known
+ * default or an unknown custom; customs keep source order and are
+ * deduplicated exactly.
  *
  * This is not a runtime evaluator: no path is applied, nothing is written.
  */
@@ -18,13 +19,12 @@ export interface PermissionSource {
 export interface ClassifiedRule {
   file: string;
   rule: PermissionRule;
-  kind: 'generated' | 'custom' | 'ambiguous';
+  kind: 'generated' | 'custom';
 }
 
 export interface Classification {
   entries: ClassifiedRule[];
   customs: PermissionRule[];
-  blockers: string[];
 }
 
 /**
@@ -147,6 +147,343 @@ export const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]> 
         "action": "shell",
         "resource": "*",
         "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh pr merge*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh release*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh workflow run*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scalingo *deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway up*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ssh*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "sftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "rsync*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "lftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "curl*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "wget*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "npm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "yarn publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "pnpm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git push --force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push -f*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push *--force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * -f",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * --force",
+        "effect": "deny"
+      },
+      {
+        "action": "execute",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_list_mcp_resources",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_read_mcp_resource",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "webfetch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "websearch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "skill",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "subagent",
+        "resource": "kiki-brainstormer",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "kiki-planner",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "kiki-implementer",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "kiki-gui-designer",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "kiki-reviewer",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "kiki-escalation",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "kiki-historian",
+        "effect": "allow"
+      },
+      {
+        "action": "*_*",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      }
+    ],
+    [
+      {
+        "action": "read",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "read",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".agentic/kiki/TASK_REGISTRY.json",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/.agentic/kiki/TASK_REGISTRY.json",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/.agentic/kiki/TASK_REGISTRY.json",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".superpowers/sdd/**",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove *",
+        "effect": "ask"
       },
       {
         "action": "shell",
@@ -859,6 +1196,358 @@ export const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]> 
         "resource": "**/id_rsa*",
         "effect": "deny"
       }
+    ],
+    [
+      {
+        "action": "read",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "read",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "src/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "tests/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/superpowers/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/superpowers/plans/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/superpowers/specs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/docs/superpowers/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/docs/superpowers/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/docs/superpowers/plans/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/docs/superpowers/plans/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/docs/superpowers/specs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/docs/superpowers/specs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git push*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh pr merge*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh release*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh workflow run*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scalingo *deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway up*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ssh*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "sftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "rsync*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "lftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "curl*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "wget*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "npm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "yarn publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "pnpm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git status *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git rev-parse *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git worktree list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push --force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push -f*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push *--force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * -f",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * --force",
+        "effect": "deny"
+      },
+      {
+        "action": "execute",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_list_mcp_resources",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_read_mcp_resource",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "webfetch",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "websearch",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "skill",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "*_*",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      }
     ]
   ],
   "kiki-planner": [
@@ -1139,6 +1828,358 @@ export const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]> 
         "action": "shell",
         "resource": "*",
         "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh pr merge*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh release*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh workflow run*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scalingo *deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway up*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ssh*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "sftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "rsync*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "lftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "curl*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "wget*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "npm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "yarn publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "pnpm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git status *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git rev-parse *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git worktree list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push --force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push -f*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push *--force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * -f",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * --force",
+        "effect": "deny"
+      },
+      {
+        "action": "execute",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_list_mcp_resources",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_read_mcp_resource",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "webfetch",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "websearch",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "skill",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "*_*",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      }
+    ],
+    [
+      {
+        "action": "read",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "read",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "src/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "tests/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/superpowers/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/superpowers/plans/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/superpowers/specs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/docs/superpowers/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/docs/superpowers/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/docs/superpowers/plans/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/docs/superpowers/plans/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/docs/superpowers/specs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/docs/superpowers/specs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove *",
+        "effect": "ask"
       },
       {
         "action": "shell",
@@ -1951,6 +2992,378 @@ export const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]> 
         "resource": "**/id_rsa*",
         "effect": "deny"
       }
+    ],
+    [
+      {
+        "action": "read",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "read",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/superpowers/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "src/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "tests/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/src/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/src/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/tests/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/tests/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".gitignore",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/.gitignore",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/.gitignore",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "/tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".superpowers/sdd/**",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git push*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh pr merge*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh release*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh workflow run*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scalingo *deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway up*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ssh*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "sftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "rsync*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "lftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "curl*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "wget*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "npm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "yarn publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "pnpm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git status *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git rev-parse *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git worktree list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push --force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push -f*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push *--force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * -f",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * --force",
+        "effect": "deny"
+      },
+      {
+        "action": "execute",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_list_mcp_resources",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_read_mcp_resource",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "webfetch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "websearch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "skill",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "*_*",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "external_directory",
+        "resource": "/tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "external_directory",
+        "resource": "tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      }
     ]
   ],
   "kiki-gui-designer": [
@@ -2326,6 +3739,363 @@ export const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]> 
         "action": "shell",
         "resource": "*",
         "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh pr merge*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh release*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh workflow run*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scalingo *deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway up*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ssh*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "sftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "rsync*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "lftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "curl*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "wget*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "npm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "yarn publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "pnpm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git status *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git rev-parse *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git worktree list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push --force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push -f*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push *--force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * -f",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * --force",
+        "effect": "deny"
+      },
+      {
+        "action": "execute",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_list_mcp_resources",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_read_mcp_resource",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "webfetch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "websearch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "skill",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "*_*",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "external_directory",
+        "resource": "/tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "external_directory",
+        "resource": "tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      }
+    ],
+    [
+      {
+        "action": "read",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "read",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/superpowers/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "src/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "tests/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/src/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/src/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/tests/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/tests/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "/tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".superpowers/sdd/**",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove *",
+        "effect": "ask"
       },
       {
         "action": "shell",
@@ -3023,6 +4793,358 @@ export const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]> 
         "resource": "**/id_rsa*",
         "effect": "deny"
       }
+    ],
+    [
+      {
+        "action": "read",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "read",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "src/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "tests/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".agentic/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".opencode/docs/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/.agentic/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/.agentic/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/.opencode/docs/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/.opencode/docs/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git push*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh pr merge*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh release*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh workflow run*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scalingo *deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway up*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ssh*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "sftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "rsync*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "lftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "curl*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "wget*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "npm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "yarn publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "pnpm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git status *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git rev-parse *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git worktree list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push --force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push -f*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push *--force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * -f",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * --force",
+        "effect": "deny"
+      },
+      {
+        "action": "execute",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_list_mcp_resources",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_read_mcp_resource",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "webfetch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "websearch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "skill",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "*_*",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "external_directory",
+        "resource": "/tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "external_directory",
+        "resource": "tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      }
     ]
   ],
   "kiki-escalation": [
@@ -3258,6 +5380,343 @@ export const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]> 
         "action": "shell",
         "resource": "*",
         "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh pr merge*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh release*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh workflow run*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scalingo *deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway up*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ssh*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "sftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "rsync*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "lftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "curl*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "wget*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "npm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "yarn publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "pnpm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git status *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git rev-parse *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git worktree list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push --force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push -f*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push *--force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * -f",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * --force",
+        "effect": "deny"
+      },
+      {
+        "action": "execute",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_list_mcp_resources",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_read_mcp_resource",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "webfetch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "websearch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "skill",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "*_*",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "external_directory",
+        "resource": "/tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "external_directory",
+        "resource": "tmp/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      }
+    ],
+    [
+      {
+        "action": "read",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "read",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".agentic/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".opencode/docs/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/.agentic/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/.agentic/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/.opencode/docs/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/.opencode/docs/reviews/*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove *",
+        "effect": "ask"
       },
       {
         "action": "shell",
@@ -4050,6 +6509,408 @@ export const HISTORICAL_GENERATED_SEQUENCES: Record<string, PermissionRule[][]> 
         "resource": "**/id_rsa*",
         "effect": "deny"
       }
+    ],
+    [
+      {
+        "action": "read",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "read",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "read",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "README*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "CHANGELOG*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "docs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/docs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/docs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".agentic/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/README*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/README*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/CHANGELOG*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/CHANGELOG*",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/docs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/docs/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/.agentic/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/.agentic/**",
+        "effect": "allow"
+      },
+      {
+        "action": "edit",
+        "resource": "src/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "tests/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/src/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/src/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktree/**/tests/**",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".worktrees/**/tests/**",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions check *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions add *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "kiki permissions remove *",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git push*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh pr merge*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh release*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "gh workflow run*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scalingo *deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway up*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "railway deploy*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ssh*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "sftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "scp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "rsync*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "lftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "ftp*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "curl*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "wget*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "npm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "yarn publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "pnpm publish*",
+        "effect": "ask"
+      },
+      {
+        "action": "shell",
+        "resource": "git status *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git rev-parse *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git worktree list *",
+        "effect": "allow"
+      },
+      {
+        "action": "shell",
+        "resource": "git push --force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push -f*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push *--force*",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * -f",
+        "effect": "deny"
+      },
+      {
+        "action": "shell",
+        "resource": "git push * --force",
+        "effect": "deny"
+      },
+      {
+        "action": "execute",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_list_mcp_resources",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "opencode_read_mcp_resource",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "webfetch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "websearch",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "skill",
+        "resource": "*",
+        "effect": "allow"
+      },
+      {
+        "action": "subagent",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "*_*",
+        "resource": "*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": ".env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/.env*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*secret*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*credential*",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.pem",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/*.key",
+        "effect": "deny"
+      },
+      {
+        "action": "edit",
+        "resource": "**/id_rsa*",
+        "effect": "deny"
+      }
     ]
   ]
 };
@@ -4087,104 +6948,34 @@ export function stableCustoms(customs: PermissionRule[]): PermissionRule[] {
   return result;
 }
 
-interface SourceClassification {
-  entries: ClassifiedRule[];
-  matched: number;
-  complete: boolean;
-}
-
-function classifySource(
-  agent: string,
-  baseline: PermissionRule[],
-  source: PermissionSource,
-): SourceClassification {
-  const entries: ClassifiedRule[] = [];
-  let pointer = 0;
-  const historical = HISTORICAL_GENERATED_SEQUENCES[agent] ?? [];
-  if (historical.some(sequence => sameRules(sequence, source.rules))) {
-    return {
-      entries: source.rules.map(rule => ({ file: source.file, rule, kind: 'generated' as const })),
-      matched: baseline.length,
-      complete: true,
-    };
-  }
-  for (const rule of source.rules) {
-    if (pointer < baseline.length && keyOf(rule) === keyOf(baseline[pointer])) {
-      entries.push({ file: source.file, rule, kind: 'generated' });
-      pointer += 1;
-    } else {
-      entries.push({ file: source.file, rule, kind: 'custom' });
-    }
-  }
-  return {
-    entries,
-    matched: pointer,
-    complete: pointer === baseline.length,
-  };
-}
-
 /**
  * Classify ordered sources (discovered config files first, then the single
- * existing role markdown) against the fresh canonical array. Proven generated
- * rules are replaceable; unknown rules stay custom and are preserved verbatim;
- * custom denies and incomplete/ambiguous generated shapes block the write.
+ * existing role markdown). Every tuple with a known default identity — the
+ * role's recorded historical sequences or the fresh canonical baseline — is a
+ * replaceable default regardless of author, position or surrounding
+ * completeness. Every other tuple is a custom and is preserved for every
+ * effect in encounter order.
  */
 export function classifyPermissionSources(
   agent: string,
   baseline: PermissionRule[],
   sources: PermissionSource[],
 ): Classification {
+  const known = new Set<string>();
+  for (const sequence of HISTORICAL_GENERATED_SEQUENCES[agent] ?? []) {
+    for (const rule of sequence) known.add(keyOf(rule));
+  }
+  for (const rule of baseline) known.add(keyOf(rule));
+
   const entries: ClassifiedRule[] = [];
-  const blockers: string[] = [];
-  let matchedTotal = 0;
-  let sawGenerated = false;
-
+  const customRules: PermissionRule[] = [];
   for (const source of sources) {
-    const result = classifySource(agent, baseline, source);
-    matchedTotal += result.matched;
-    if (result.entries.some(entry => entry.kind === 'generated')) sawGenerated = true;
-    entries.push(...result.entries);
-    if (!result.complete && result.entries.some(entry => entry.kind === 'generated')) {
-      // A generated prefix without the full canonical sequence may be a stale
-      // or hand-patched shape. Missing evidence is a blocker, never reconstructed.
-      for (const entry of result.entries) {
-        if (entry.kind === 'generated') entry.kind = 'ambiguous';
-      }
-      blockers.push(
-        `${agent} (${source.file}): incomplete generated permission shape (${result.matched}/${baseline.length} rules matched)`,
-      );
+    for (const rule of source.rules) {
+      const kind: ClassifiedRule['kind'] = known.has(keyOf(rule)) ? 'generated' : 'custom';
+      entries.push({ file: source.file, rule, kind });
+      if (kind === 'custom') customRules.push(rule);
     }
   }
 
-  const customs: PermissionRule[] = [];
-  for (const entry of entries) {
-    if (entry.kind === 'generated') continue;
-    if (!customs.some(rule => keyOf(rule) === keyOf(entry.rule))) customs.push({ ...entry.rule });
-  }
-
-  for (const entry of entries) {
-    if (entry.kind === 'custom' && entry.rule.effect === 'deny') {
-      blockers.push(
-        `${agent} (${entry.file}): custom deny must be resolved manually: ${entry.rule.action} ${entry.rule.resource}`,
-      );
-    }
-  }
-
-  // Two customs that target the same action/resource with different effects are
-  // an ownership conflict: appending both would make the result order-dependent.
-  const effects = new Map<string, PermissionRule['effect']>();
-  for (const rule of customs) {
-    const key = `${rule.action}\u0000${rule.resource}`;
-    const existing = effects.get(key);
-    if (existing !== undefined && existing !== rule.effect) {
-      blockers.push(`${agent}: conflicting custom effects for ${rule.action} ${rule.resource}`);
-    }
-    if (existing === undefined) effects.set(key, rule.effect);
-  }
-
-  if (sawGenerated && matchedTotal === 0) {
-    blockers.push(`${agent}: generated rules appear out of canonical order`);
-  }
-
-  return { entries, customs, blockers: [...new Set(blockers)] };
+  return { entries, customs: stableCustoms(customRules) };
 }

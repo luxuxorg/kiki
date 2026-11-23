@@ -30,14 +30,20 @@ const {
   selectProjectTarget,
   inheritedPermissionRules,
 } = await import('../../src/cli/permission-requests');
-const { generateAgentPermissions } = await import('../../src/cli/config');
+const { generateAgentPermissions, SECRET_GLOBS } = await import('../../src/cli/config');
+const { HISTORICAL_GENERATED_SEQUENCES } = await import('../../src/cli/permission-consolidation');
 import type { PermissionRule } from '../../src/cli/opencode-config';
 
 const implementer = generateAgentPermissions()['kiki-implementer'];
 const planner = generateAgentPermissions()['kiki-planner'];
+// The explicit role-boundary shape is measured historical input; the lean
+// generator expresses the role boundary as `deny edit *` plus territory allows.
+const historicalImplementer = HISTORICAL_GENERATED_SEQUENCES['kiki-implementer'][2];
+const historicalPlanner = HISTORICAL_GENERATED_SEQUENCES['kiki-planner'][2];
 const scriptsAllow: PermissionRule = { action: 'edit', resource: 'scripts/**', effect: 'allow' };
 const scriptsFile: PermissionRule = { action: 'edit', resource: 'scripts/new.ts', effect: 'allow' };
 const secretDeny: PermissionRule = { action: 'edit', resource: '.env*', effect: 'deny' };
+const secretDenies: PermissionRule[] = SECRET_GLOBS.map(resource => ({ action: 'edit', resource, effect: 'deny' }));
 
 function rule(action: string, resource: string, effect: PermissionRule['effect']): PermissionRule {
   return { action, resource, effect };
@@ -49,7 +55,7 @@ describe('project permission planning', () => {
     expect(result.ok, result.ok ? '' : result.reason).toBe(true);
     if (!result.ok) return;
     expect(result.rules).toContainEqual(scriptsFile);
-    expect(result.rules.slice(-7)).toEqual(implementer.slice(-7));
+    expect(result.rules.slice(-7)).toEqual(secretDenies);
   });
 
   it('repeated_add_and_remove_accept_their_own_trailing_protection', () => {
@@ -62,7 +68,7 @@ describe('project permission planning', () => {
     if (!second.ok) return;
     expect(second.rules).toContainEqual(scriptsFile);
     expect(second.rules).toContainEqual(secondGrant);
-    expect(second.rules.slice(-7)).toEqual(implementer.slice(-7));
+    expect(second.rules.slice(-7)).toEqual(secretDenies);
     expect(second.rules.filter(item => JSON.stringify(item) === JSON.stringify(secretDeny))).toHaveLength(1);
     const secondIndex = second.rules.findIndex(item =>
       item.action === secondGrant.action
@@ -90,7 +96,6 @@ describe('project permission planning', () => {
     for (const grant of [
       rule('edit', '.env', 'allow'),
       rule('edit', 'scripts/.env.production', 'allow'),
-      rule('edit', 'docs/superpowers/x.md', 'allow'),
       rule('shell', 'git push*', 'allow'),
       rule('edit', 'scripts/**', 'deny'),
       rule('edit', 'scripts/*', 'allow'),
@@ -98,7 +103,27 @@ describe('project permission planning', () => {
     ]) {
       expect(planPermissionAdd([], implementer, grant).ok, JSON.stringify(grant)).toBe(false);
     }
-    expect(planPermissionAdd([], planner, rule('edit', 'src/special.ts', 'allow')).ok).toBe(false);
+    // Explicit cross-role boundaries only exist in the pinned historical
+    // inheritance; lean arrays express the boundary as `deny edit *` plus
+    // territory allows and intentionally permit project-level widening.
+    expect(planPermissionAdd([], historicalImplementer, rule('edit', 'docs/superpowers/x.md', 'allow')).ok)
+      .toBe(false);
+    expect(planPermissionAdd([], historicalPlanner, rule('edit', 'src/special.ts', 'allow')).ok).toBe(false);
+    expect(planPermissionAdd([], planner, rule('edit', 'src/special.ts', 'allow')).ok).toBe(true);
+  });
+
+  it('read_redundancy_uses_native_default', () => {
+    // Native OpenCode already allows non-secret reads; without `allow read *`
+    // the writer still refuses a redundant read grant.
+    expect(planPermissionAdd([], implementer, rule('read', 'src/new.ts', 'allow')).ok).toBe(false);
+    // An explicit inherited read ask remains a real decision: the trailing mask
+    // keeps it in force, so the addition is reported as ineffective.
+    const withReadAsk = [...implementer, rule('read', 'vendor/**', 'ask')];
+    const asked = planPermissionAdd([], withReadAsk, rule('read', 'vendor/x.ts', 'allow'));
+    expect(asked.ok).toBe(false);
+    if (!asked.ok) expect(asked.reason).toMatch(/ineffective|restriction/i);
+    // Secret read validation is unchanged.
+    expect(planPermissionAdd([], implementer, rule('read', '.env', 'allow')).ok).toBe(false);
   });
 
   it('protectProjectSurvivors preserves supported handwritten deny and ask entries', () => {
@@ -113,7 +138,9 @@ describe('project permission planning', () => {
   });
 
   it('protectProjectSurvivors rejects unsafe asks that could override a deny', () => {
-    const result = protectProjectSurvivors([rule('edit', 'docs/superpowers/**', 'ask')], implementer);
+    const result = protectProjectSurvivors(
+      [rule('edit', 'docs/superpowers/**', 'ask')], historicalImplementer,
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/boundary|unsafe ask/i);
     const shellAsk = protectProjectSurvivors([rule('shell', 'docker push*', 'ask')], implementer);
@@ -194,7 +221,7 @@ describe('project permission planning', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.rules.slice(0, 2)).toEqual(local);
-    expect(result.rules.slice(-7)).toEqual(implementer.slice(-7));
+    expect(result.rules.slice(-7)).toEqual(secretDenies);
     expect(result.rules.at(-7)).toEqual(secretDeny);
   });
 
@@ -419,6 +446,7 @@ describe('project permission inspection and application', () => {
       { projectDirectory: project, globalConfigDirectory: global }, 'kiki-implementer',
     );
     expect(inherited).toContainEqual(rule('edit', 'ancestor/**', 'allow'));
-    expect(inherited).toContainEqual({ action: 'read', resource: '*', effect: 'allow' });
+    expect(inherited).toContainEqual({ action: 'shell', resource: '*', effect: 'allow' });
+    expect(inherited.some(item => item.action === 'read')).toBe(false);
   });
 });

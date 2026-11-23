@@ -7,17 +7,12 @@ import { stats } from './commands/stats.js';
 import { verify } from './commands/verify.js';
 import { release } from './commands/release.js';
 import { doctor } from './commands/doctor.js';
-import { routing } from './commands/routing.js';
-import { migrate } from './commands/migrate.js';
 import { reset } from './commands/reset.js';
 import { permissions } from './commands/permissions.js';
 const args = process.argv.slice(2);
 const command = args[0];
 async function main() {
     switch (command) {
-        case 'migrate':
-            await migrate(args.slice(1));
-            break;
         case 'reset':
             await reset(args.slice(1));
             break;
@@ -45,12 +40,6 @@ async function main() {
         case 'doctor':
             await doctor(args[1] ?? '.');
             break;
-        case 'routing': {
-            const code = await routing(args.slice(1));
-            if (code !== 0)
-                process.exit(code);
-            break;
-        }
         case 'release':
             await release(args.slice(1));
             break;
@@ -67,11 +56,9 @@ Commands:
   install --project <path>  Scaffold .agentic/kiki/ in a project
   init [path]          Initialize project configuration only
   update [--global]    Refresh global Kiki installation; preserve project settings
-  migrate [--from <dir>] [--project <path>] [--force]  Migrate OC1 models/permissions into OC2 (global by default)
   reset --project <path>    Remove project Kiki agent overrides after backup
   status [path]       Show global/project configuration
   stats [path]        Summarize local usage diagnostics (read-only)
-  routing             Retired; configure agents.<id>.model in opencode.json
   verify <file>        Check for TBDs/TODOs/placeholders
   doctor [path]        Validate config, paths, agent files, and skills
   permissions <cmd>    Inspect project permissions or preview/apply narrow project grants

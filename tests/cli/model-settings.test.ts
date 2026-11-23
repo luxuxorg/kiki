@@ -35,18 +35,14 @@ describe('native model settings', () => {
   const read = (file: string) => parse(readFileSync(file, 'utf8'));
   const available = ['provider/new', 'provider/project', 'vendor/org/model'];
 
-  it('refuses explicit directories that alias a V1 install or overlap', () => {
-    mkdirSync(join(context.globalConfigDirectory, 'plugins'), { recursive: true });
-    writeFileSync(join(context.globalConfigDirectory, 'plugins', 'kiki.ts'), 'legacy\n');
+  it('refuses overlapping scopes without changing files', () => {
     const before = readFileSync(globalFile, 'utf8');
-    expect(() => setAgentModel('global', 'kiki-reviewer', 'provider/new', available, context)).toThrow(/V1|OC1|version 1|legacy/i);
-    expect(() => listAgentModels('project', context)).toThrow(/V1|OC1|version 1|legacy/i);
-    expect(readFileSync(globalFile, 'utf8')).toBe(before);
 
     expect(() => listAgentModels('project', {
       projectDirectory: context.globalConfigDirectory,
       globalConfigDirectory: context.globalConfigDirectory,
     })).toThrow(/overlap/i);
+    expect(readFileSync(globalFile, 'utf8')).toBe(before);
   });
 
   it('rejects_unwritable_destination_directory_without_changing_existing_files', () => {

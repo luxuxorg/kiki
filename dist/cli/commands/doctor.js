@@ -60,7 +60,7 @@ export async function doctor(targetPath = '.') {
     const roots = resolveOC2Roots(process.env, homedir());
     let rootsValid = true;
     try {
-        assertOC2Target(roots, homedir());
+        assertOC2Target(roots);
         check('OC2 roots', 'pass', 'config/data/cache/state are distinct');
     }
     catch (error) {
@@ -82,8 +82,8 @@ export async function doctor(targetPath = '.') {
     else {
         info('OC2 environment', 'standard OpenCode 2 roots; no wrapper or environment override required');
     }
-    // Do not inspect configuration when the roots guard failed (overlap or
-    // leftover V1 Kiki artifacts); report that failure and stop.
+    // Do not inspect configuration when the roots guard failed (overlapping
+    // roots); report that failure and stop.
     if (!rootsValid) {
         console.log(`${passes} passed, ${warnings} warnings, ${failures} failed`);
         if (failures)
@@ -94,7 +94,6 @@ export async function doctor(targetPath = '.') {
     const globalConfig = readOpenCodeSettings(global, true);
     const projectConfig = readOpenCodeSettings(targetPath);
     const nativeAgents = mergeSettings(globalConfig.agents || {}, projectConfig.agents || {});
-    const legacyAgents = mergeSettings(globalConfig.agent || {}, projectConfig.agent || {});
     for (const name of AGENT_NAMES) {
         const file = join(global, 'agents', `${name}.md`);
         let settings;
@@ -113,7 +112,6 @@ export async function doctor(targetPath = '.') {
                 check(`native agent: ${name}`, 'pass', expected);
         }
         const model = modelString(nativeAgents[name]?.model)
-            ?? modelString(legacyAgents[name]?.model)
             ?? modelString(projectConfig.model)
             ?? modelString(globalConfig.model);
         info(`agent ${name} model`, model ?? 'inherits OpenCode default; set via /kiki');
@@ -148,10 +146,7 @@ export async function doctor(targetPath = '.') {
         : 'not present in OC2 data root; run opencode auth login');
     const workflow = join(global, 'kiki/agentic-workflow.md');
     check('global workflow', outcome(existsSync(workflow)));
-    if (existsSync(join(targetPath, '.agentic/kiki/routing.json'))) {
-        check('legacy routing.json', 'fail', 'Run kiki migrate --project <path> to preserve models in OpenCode configuration');
-    }
-    if (existsSync(join(targetPath, '.agentic/kiki/config.json')) || existsSync(join(targetPath, '.agentic/config.json'))) {
+    if (existsSync(join(targetPath, '.agentic/kiki/config.json'))) {
         const config = loadConfig(targetPath);
         check('config.projectName', outcome(!!config.projectName && config.projectName !== 'my-project'));
         for (const [name, command] of Object.entries(config.commands)) {

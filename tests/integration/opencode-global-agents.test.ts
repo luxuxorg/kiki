@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { generateGlobalPermissions, generateSecretPolicies } from '../../src/cli/config';
 import {
   createOC2Fixture, hasOC2Binary, readJSONC, requireOC2Binary,
 } from '../helpers/oc2-fixture';
@@ -85,11 +86,14 @@ describe.skipIf(!hasOC2Binary())('real OC2 global agents', () => {
       expect(implementer.model).toEqual({ providerID: 'kiki-fixture', id: 'fixture-project' });
       expect(reviewer.model).toEqual({ providerID: 'kiki-fixture', id: 'fixture-global' });
 
-      // Install never seeds top-level permissions (OC2 appends those to every agent).
+      // Install seeds the one managed top-level push ask and the shared policy
+      // block; it never writes into the project tier.
       const installedGlobal = readJSONC(fixture.globalFile);
-      expect(installedGlobal.permissions).toBeUndefined();
+      expect(installedGlobal.permissions).toEqual(generateGlobalPermissions());
+      expect(installedGlobal.policies).toEqual(generateSecretPolicies());
       const installedProject = readJSONC(join(fixture.project, 'opencode.json'));
       expect(installedProject.permissions).toBeUndefined();
+      expect(installedProject.policies).toBeUndefined();
 
       const run = await fixture.runAsync([
         'run', '--standalone', '--format', 'json', '--agent', ORCHESTRATOR, 'Select orchestrator',

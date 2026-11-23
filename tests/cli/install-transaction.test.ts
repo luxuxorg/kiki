@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync,
+  existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -32,7 +32,7 @@ vi.mock('fs', async (importOriginal) => {
 });
 
 const { installGlobalFiles, parseAgent, readOpenCodeSettings } = await import('../../src/cli/opencode-config');
-const { generateAgentPermissions } = await import('../../src/cli/config');
+const { generateAgentPermissions, PERMISSION_REQUEST_FRAGMENT } = await import('../../src/cli/config');
 const { HISTORICAL_GENERATED_SEQUENCES } = await import('../../src/cli/permission-consolidation');
 import type { PermissionRule } from '../../src/cli/opencode-config';
 
@@ -71,10 +71,6 @@ function backupCount(dir: string): number {
   const root = join(dir, 'kiki/backups');
   if (!existsSync(root)) return 0;
   return readdirSync(root, { withFileTypes: true }).filter(entry => entry.isDirectory()).length;
-}
-
-function stateFile(dir: string): string {
-  return join(dir, 'kiki/state.json');
 }
 
 function configFile(dir: string): string {
@@ -134,9 +130,6 @@ body
     const markdown = agentMarkdown(global);
     const before = readFileSync(markdown, 'utf8');
     writeFileSync(markdown, addPermissions(before, [customAllow]));
-    // Simulate the legacy/bootstrap path: a manual markdown permission with no
-    // ownership evidence. With evidence present this would correctly halt.
-    rmSync(join(global, 'kiki/state.json'));
 
     installGlobalFiles(global, true);
 
@@ -151,46 +144,35 @@ body
     // The custom is deduplicated and reported once in the persisted array.
     const rules = readOpenCodeSettings(global, true).agents['kiki-implementer'].permissions as PermissionRule[];
     expect(rules.filter(rule => JSON.stringify(rule) === JSON.stringify(customAllow))).toHaveLength(1);
-    expect(rules.slice(-7)).toEqual(generateAgentPermissions()['kiki-implementer'].slice(-7));
+    const canonical = generateAgentPermissions()['kiki-implementer'];
+    expect(rules.slice(0, canonical.length)).toEqual(canonical);
+    // Lean output has no secret tail: preserved customs follow the canonical
+    // bracket. The generated role bracket still ends with its own push ask.
+    expect(rules.slice(canonical.length)).toEqual([customAllow]);
   });
 
-  it('translated_legacy_markdown_custom_allow_preserved', () => {
-    installGlobalFiles(global);
-    const markdown = agentMarkdown(global);
-    const before = readFileSync(markdown, 'utf8');
-    const match = before.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)!;
-    const settings = parseYaml(match[1], { uniqueKeys: false }) as Record<string, unknown>;
-    settings.permission = { write: { 'vendor/**': 'allow' } };
-    writeFileSync(markdown, `---\n${stringifyYaml(settings, { lineWidth: 0 }).trimEnd()}\n---\n${match[2]}`);
-    rmSync(join(global, 'kiki/state.json'));
-
-    installGlobalFiles(global, true);
-
-    expect(readOpenCodeSettings(global, true).agents['kiki-implementer'].permissions)
-      .toContainEqual(customAllow);
-    const settingsAfter = parseAgent(readFileSync(markdown, 'utf8'), 'kiki-implementer').settings;
-    expect(settingsAfter).not.toHaveProperty('permissions');
-    expect(settingsAfter).not.toHaveProperty('permission');
-  });
-
-  it('markdown_custom_deny_halts_before_write', () => {
+  it('markdown_custom_deny_preserved_with_verified_strip', () => {
     installGlobalFiles(global);
     const markdown = agentMarkdown(global);
     writeFileSync(markdown, addPermissions(readFileSync(markdown, 'utf8'), [customDeny]));
-    rmSync(join(global, 'kiki/state.json'));
-    const tracked = [
-      ...AGENTS.map(name => agentMarkdown(global, name)),
-      join(global, 'opencode.jsonc'),
-      join(global, 'cli.json'),
-      join(global, 'kiki/agentic-workflow.md'),
-    ];
-    const before = snapshot(tracked);
-    const backupsBefore = backupCount(global);
 
-    expect(() => installGlobalFiles(global, true)).toThrow(/custom deny/i);
+    installGlobalFiles(global, true);
 
-    for (const [file, bytes] of Object.entries(before)) expect(readFileSync(file), file).toEqual(bytes);
-    expect(backupCount(global)).toBe(backupsBefore);
+    const rules = readOpenCodeSettings(global, true).agents['kiki-implementer'].permissions as PermissionRule[];
+    const index = rules.findIndex(rule =>
+      rule.action === customDeny.action
+      && rule.resource === customDeny.resource
+      && rule.effect === customDeny.effect);
+    expect(index).toBeGreaterThanOrEqual(0);
+    // The preserved custom deny follows the canonical lean bracket.
+    expect(index).toBeGreaterThanOrEqual(generateAgentPermissions()['kiki-implementer'].length);
+
+    const after = readFileSync(markdown, 'utf8');
+    const settings = parseAgent(after, 'kiki-implementer').settings;
+    expect(settings).not.toHaveProperty('permissions');
+    expect(settings).not.toHaveProperty('permission');
+    // The strip happens only after the persisted config was re-read and verified.
+    expect(readOpenCodeSettings(global, true).agents['kiki-implementer'].permissions).toContainEqual(customDeny);
   });
 
   it('custom_jsonc_comments_survive', () => {
@@ -230,7 +212,6 @@ body
     // must persist the custom and strip it from the markdown.
     const markdown = agentMarkdown(global);
     writeFileSync(markdown, addPermissions(readFileSync(markdown, 'utf8'), [customAllow]));
-    rmSync(join(global, 'kiki/state.json'));
     const tracked = [
       ...AGENTS.map(name => agentMarkdown(global, name)),
       join(global, 'opencode.jsonc'),
@@ -252,7 +233,6 @@ body
     const data = config(global);
     data.agents['kiki-implementer'].permissions = [...data.agents['kiki-implementer'].permissions, customAllow];
     writeFileSync(target, JSON.stringify(data, null, 2));
-    rmSync(join(global, 'kiki/state.json'));
     const markdown = agentMarkdown(global);
     const beforeConfig = readFileSync(target);
     const beforeMarkdown = readFileSync(markdown);
@@ -277,7 +257,6 @@ body
     installGlobalFiles(global);
     const markdown = agentMarkdown(global);
     writeFileSync(markdown, addPermissions(readFileSync(markdown, 'utf8'), [customAllow]));
-    rmSync(join(global, 'kiki/state.json'));
     fsFault.rename = (_from, to) => {
       if (to === markdown) throw new Error('injected strip failure');
     };
@@ -296,6 +275,32 @@ body
     expect(message).toMatch(/kiki\/backups/);
     expect(message).toMatch(/injected strip failure/);
     expect(message).toMatch(/injected restore failure/);
+  });
+
+  it('backup_modes_restrictive_and_no_temp_garbage', () => {
+    installGlobalFiles(global);
+    // Force one backed-up update; a fresh install has nothing to back up.
+    writeFileSync(join(global, 'agents/kiki-reviewer.md'), `---
+description: custom
+mode: subagent
+---
+Existing body.
+`);
+    installGlobalFiles(global, true);
+    const backupRoot = join(global, 'kiki/backups');
+    const backupDirs = readdirSync(backupRoot, { withFileTypes: true })
+      .filter(entry => entry.isDirectory());
+    expect(backupDirs).toHaveLength(1);
+    const backupDir = join(backupRoot, backupDirs[0].name);
+    expect(statSync(backupDir).mode & 0o777).toBe(0o700);
+    for (const entry of readdirSync(backupDir, { withFileTypes: true })) {
+      if (entry.isFile()) expect(statSync(join(backupDir, entry.name)).mode & 0o777).toBe(0o600);
+    }
+    const garbage = (directory: string): string[] => readdirSync(directory, { withFileTypes: true })
+      .flatMap(entry => entry.isDirectory()
+        ? garbage(join(directory, entry.name))
+        : entry.name.endsWith('.tmp') ? [join(directory, entry.name)] : []);
+    expect(garbage(global)).toEqual([]);
   });
 
   it('registration_failure_rolls_back', () => {
@@ -320,9 +325,6 @@ body
     const markdown = agentMarkdown(global);
     const canonical = generateAgentPermissions()['kiki-implementer'];
     writeFileSync(markdown, addPermissions(readFileSync(markdown, 'utf8'), canonical));
-    // A real interruption invalidates evidence before the config mutation, so
-    // the crash window is observed with state absent.
-    rmSync(join(global, 'kiki/state.json'));
 
     installGlobalFiles(global, true);
     const once = Object.fromEntries(
@@ -348,7 +350,6 @@ body
         HISTORICAL_GENERATED_SEQUENCES[name][0],
       ));
     }
-    rmSync(join(global, 'kiki/state.json'));
 
     installGlobalFiles(global, true);
 
@@ -415,7 +416,89 @@ Different managed content.
 `);
     const before = snapshot([
       ...AGENTS.map(name => agentMarkdown(global, name)),
-      configFile(global), stateFile(global), join(global, 'kiki/agentic-workflow.md'),
+      configFile(global), join(global, 'kiki/agentic-workflow.md'),
+    ]);
+    const backups = backupCount(global);
+    expect(() => installGlobalFiles(global, true)).toThrow(/managed|conflict|duplicate/i);
+    expect(snapshot(Object.keys(before))).toEqual(before);
+    expect(backupCount(global)).toBe(backups);
+  });
+
+  it('behavior_section_and_consent_migrate_custom_prompts_without_overwriting', () => {
+    installGlobalFiles(global);
+    const reviewer = agentMarkdown(global, 'kiki-reviewer');
+    const legacyConsent = 'Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
+    const consent = 'Behavioral rule: Do not circumvent publishing/Deploy-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
+    const toolLine = 'Verhaltensregel: Kein Web, kein MCP, keine Delegation, kein Code Mode.';
+    writeFileSync(reviewer, `---
+description: custom reviewer
+mode: subagent
+---
+# Existing review instructions
+
+Keep this unique custom line.
+
+${legacyConsent}
+`);
+
+    installGlobalFiles(global, true);
+
+    const text = readFileSync(reviewer, 'utf8');
+    expect(text).toContain('description: custom reviewer');
+    expect(text).toContain('# Existing review instructions');
+    expect(text).toContain('Keep this unique custom line.');
+    expect(text).not.toContain('Do not circumvent publishing-route approval');
+    expect(text.split(consent).length - 1).toBe(1);
+    expect(text).toContain('Die Regeln aus Main gelten auch im Worktree.');
+    expect(text.split('Die Regeln aus Main gelten auch im Worktree.').length - 1).toBe(1);
+    expect(text).toContain(toolLine);
+    expect(text.split(toolLine).length - 1).toBe(1);
+    expect(text.split('## Kiki baseline behavior (v1)').length - 1).toBe(1);
+    expect(text.indexOf('## Kiki baseline behavior (v1)'))
+      .toBeLessThan(text.indexOf('## Kiki managed permission requests (v1)'));
+    const body = parseAgent(text, 'kiki-reviewer').prompt;
+    expect(body.trimEnd().endsWith(PERMISSION_REQUEST_FRAGMENT.trimEnd())).toBe(true);
+
+    // Repeated update is byte-stable.
+    const once = readFileSync(reviewer);
+    installGlobalFiles(global, true);
+    expect(readFileSync(reviewer)).toEqual(once);
+  });
+
+  it('behavior_migration_preserves_crlf_custom_prompts', () => {
+    installGlobalFiles(global);
+    const reviewer = agentMarkdown(global, 'kiki-reviewer');
+    const legacyConsent = 'Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
+    writeFileSync(reviewer, `---\r\ndescription: crlf reviewer\r\nmode: subagent\r\n---\r\nCRLF custom body.\r\n\r\n${legacyConsent}\r\n`);
+
+    installGlobalFiles(global, true);
+
+    const text = readFileSync(reviewer, 'utf8');
+    expect(text).toContain('CRLF custom body.');
+    // The inserted prompt text follows the body's existing CRLF convention; the
+    // renderer's frontmatter separators keep their established LF form.
+    expect(text).toContain('\r\nDie Regeln aus Main gelten auch im Worktree.');
+    expect(text).toContain('\r\nVerhaltensregel: Kein Web, kein MCP, keine Delegation, kein Code Mode.');
+    expect(text).not.toContain('Do not circumvent publishing-route approval');
+    expect(text.split('Behavioral rule: Do not circumvent publishing/Deploy-route approval').length - 1).toBe(1);
+  });
+
+  it('conflicting_or_duplicate_behavior_heading_no_writes', () => {
+    installGlobalFiles(global);
+    const reviewer = agentMarkdown(global, 'kiki-reviewer');
+    writeFileSync(reviewer, `---
+description: custom
+mode: subagent
+---
+# Existing
+
+## Kiki baseline behavior (v1)
+
+Conflicting content.
+`);
+    const before = snapshot([
+      ...AGENTS.map(name => agentMarkdown(global, name)),
+      configFile(global), join(global, 'kiki/agentic-workflow.md'),
     ]);
     const backups = backupCount(global);
     expect(() => installGlobalFiles(global, true)).toThrow(/managed|conflict|duplicate/i);

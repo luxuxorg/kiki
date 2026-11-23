@@ -78,12 +78,6 @@ describe('CLI diagnostics configuration', () => {
     expect(loadConfig(root).diagnostics).toEqual({ enabled: false });
   });
 
-  it('loads diagnostics from the legacy config fallback', () => {
-    mkdirSync(join(root, '.agentic'), { recursive: true });
-    writeFileSync(join(root, '.agentic', 'config.json'), JSON.stringify({ diagnostics: { enabled: true } }));
-    expect(loadConfig(root).diagnostics).toEqual({ enabled: true });
-  });
-
   it('keeps existing path and health handling while adding diagnostics', () => {
     writeModernConfig({
       paths: { source: 'backend/' },

@@ -8,7 +8,9 @@ import { parse } from 'jsonc-parser';
 import { install } from '../../src/cli/commands/install';
 import { update } from '../../src/cli/commands/update';
 import { parseAgent, readOpenCodeSettings, type PermissionRule } from '../../src/cli/opencode-config';
-import { generateAgentPermissions } from '../../src/cli/config';
+import {
+  generateAgentPermissions, generateGlobalPermissions, generateSecretPolicies,
+} from '../../src/cli/config';
 import { currentPackageSpec } from '../../src/cli/oc2-registration';
 
 const AGENTS = [
@@ -262,12 +264,14 @@ ${customBody}`);
     expect(after.agents['kiki-implementer'].model)
       .toEqual({ providerID: 'custom', model: 'model' });
     expect(after.agents['kiki-implementer'].permissions).toContainEqual(custom);
-    // The custom rule sits before the final secret-edit denies.
+    // Lean output: preserved customs follow the canonical bracket.
     const rules = after.agents['kiki-implementer'].permissions as PermissionRule[];
-    expect(rules.slice(-7)).toEqual(canonical.slice(-7));
+    expect(rules.slice(0, canonical.length)).toEqual(canonical);
+    expect(rules.slice(canonical.length)).toEqual([custom]);
     expect(after.model).toBe('other/model');
     expect(after.plugins).toEqual(['other-plugin', currentPackageSpec()]);
-    expect(after.permissions).toBeUndefined();
+    expect(after.permissions).toEqual(generateGlobalPermissions());
+    expect(after.policies).toEqual(generateSecretPolicies());
     expect(readFileSync(join(global, 'opencode.jsonc'), 'utf8')).toContain('// keep this comment');
   });
 
@@ -293,44 +297,12 @@ Custom prompt
       .toEqual(generateAgentPermissions()['kiki-implementer']);
   });
 
-  it('backs up and removes stale V1 loader, prompts and generated plugin files on update', async () => {
-    await install([]);
-    mkdirSync(join(global, 'kiki/prompts'), { recursive: true });
-    mkdirSync(join(global, 'plugins'), { recursive: true });
-    writeFileSync(join(global, 'kiki/prompts/kiki-implementer.md'), 'stale prompt');
-    writeFileSync(join(global, 'kiki/tui.js'), 'stale loader');
-    writeFileSync(join(global, 'plugins/kiki.ts'), 'stale plugin');
-
-    await update([]);
-
-    expect(existsSync(join(global, 'kiki/prompts'))).toBe(false);
-    expect(existsSync(join(global, 'kiki/tui.js'))).toBe(false);
-    expect(existsSync(join(global, 'plugins/kiki.ts'))).toBe(false);
-    const backups = filesUnder(join(global, 'kiki/backups'));
-    expect(backups.some(file => file.endsWith('kiki.ts'))).toBe(true);
-    expect(backups.some(file => file.endsWith('kiki-implementer.md'))).toBe(true);
-  });
-
   it('validates every tier before writing when a config is malformed', async () => {
     mkdirSync(global, { recursive: true });
     writeFileSync(join(global, 'opencode.jsonc'), '{broken');
     await expect(install([])).rejects.toThrow(/Invalid OpenCode/);
     expect(existsSync(join(global, 'agents'))).toBe(false);
     expect(existsSync(join(global, 'cli.json'))).toBe(false);
-  });
-
-  it('backs up and replaces a stale V1 artifact in the standard config on install', async () => {
-    vi.stubEnv('HOME', root);
-    vi.stubEnv('XDG_CONFIG_HOME', '');
-    const config = join(root, '.config', 'opencode');
-    mkdirSync(join(config, 'plugins'), { recursive: true });
-    writeFileSync(join(config, 'plugins/kiki.ts'), 'legacy');
-
-    await install([]);
-
-    expect(existsSync(join(config, 'agents'))).toBe(true);
-    expect(existsSync(join(config, 'plugins/kiki.ts'))).toBe(false);
-    expect(filesUnder(join(config, 'kiki/backups')).some(file => file.endsWith('kiki.ts'))).toBe(true);
   });
 
   it('help, unknown options and conflicting scopes never perform an install', async () => {

@@ -83,29 +83,8 @@ function fileGlob(path) {
     }
     return path;
 }
-function fileDir(path) {
-    const lastSlash = path.lastIndexOf('/');
-    return lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '';
-}
-function worktreeGlob(path) {
-    return '.worktree/**/' + path;
-}
-function worktreesGlob(path) {
-    return '.worktrees/**/' + path;
-}
-/**
- * Both project-worktree layouts for the same role-scoped path: the existing
- * singular `.worktree/` directory and the plural `.worktrees/` directory.
- * Callers keep their existing narrow path grants; this adds parity, never a
- * blanket worktree grant.
- */
-function worktreeGlobs(path) {
-    return [worktreeGlob(path), worktreesGlob(path)];
-}
 export function loadConfig(targetPath) {
-    const modernConfigPath = join(targetPath, '.agentic', 'kiki', 'config.json');
-    const legacyConfigPath = join(targetPath, '.agentic', 'config.json');
-    const configPath = existsSync(modernConfigPath) ? modernConfigPath : legacyConfigPath;
+    const configPath = join(targetPath, '.agentic', 'kiki', 'config.json');
     if (!existsSync(configPath))
         return { ...DEFAULT_CONFIG };
     try {
@@ -129,98 +108,6 @@ function allow(action, resource) {
 function deny(action, resource) {
     return { action, resource, effect: 'deny' };
 }
-// Routine local work runs without approval prompts; the role prompts still
-// govern behavior (the orchestrator remains coordination-only by instruction).
-// The baseline allow comes first so publishing/remote-changing asks appended
-// after it win (last matching rule wins).
-const PUBLISH_ASK_PATTERNS = [
-    'git push*',
-    'gh pr merge*',
-    'gh release*',
-    'gh workflow run*',
-    'scalingo *deploy*',
-    'railway up*',
-    'railway deploy*',
-    'ssh*',
-    'sftp*',
-    'scp*',
-    'rsync*',
-    'lftp*',
-    'ftp*',
-    'curl*',
-    'wget*',
-    'npm publish*',
-    'yarn publish*',
-    'pnpm publish*',
-];
-// Force-push taboos. They follow the publishing asks so the last matching rule
-// wins and denies; aliases and wrappers remain a known limitation. The trailing
-// forms require the flag to be its own final argument, so branch names that
-// merely contain `-f` (e.g. `my-feature`, `hot-fix`) stay on the ask rule.
-const FORCE_PUSH_DENIES = [
-    'git push --force*',
-    'git push -f*',
-    'git push *--force*',
-    'git push * -f',
-    'git push * --force',
-];
-/**
- * Shell order: allow everything routine, then ask the publishing routes, then
- * the optional read-only Git grants, then deny the force-push taboos. Denies
- * are last-match wins, so they survive the baseline allow and every narrower
- * allow that precedes them.
- */
-const KIKI_PERMISSION_ASK_PATTERNS = [
-    'kiki permissions add',
-    'kiki permissions add *',
-    'kiki permissions remove',
-    'kiki permissions remove *',
-];
-const KIKI_PERMISSION_ALLOW_PATTERNS = [
-    'kiki permissions list',
-    'kiki permissions list *',
-    'kiki permissions check',
-    'kiki permissions check *',
-];
-/**
- * Narrow managed permission CLI envelope. It follows the routine `shell *`
- * allow so last-match wins, and uses only exact bare commands plus a literal
- * space wildcard — never a prefix glob, so `addendum` cannot match. Mutations
- * are asks; inspection is allow. All eight roles receive the same pairs.
- */
-function kikiPermissionRules() {
-    return [
-        ...KIKI_PERMISSION_ALLOW_PATTERNS.map(resource => allow('shell', resource)),
-        ...KIKI_PERMISSION_ASK_PATTERNS.map(resource => ({ action: 'shell', resource, effect: 'ask' })),
-    ];
-}
-function shellRules(options = {}) {
-    const asks = PUBLISH_ASK_PATTERNS.map(resource => ({
-        action: 'shell',
-        resource,
-        effect: 'ask',
-    }));
-    return [
-        allow('shell', '*'),
-        ...kikiPermissionRules(),
-        ...asks,
-        ...(options.readOnlyGit ? readOnlyGitRules() : []),
-        ...FORCE_PUSH_DENIES.map(resource => deny('shell', resource)),
-    ];
-}
-// Narrow read-only Git inspection commands. They are appended after the broad
-// shell baseline so an inherited `shell *` ask cannot block routine repository
-// inspection. Only the read-only `worktree list` subcommand is granted: the
-// writable `git worktree *` family (add/remove/move/prune/lock/unlock) is
-// deliberately absent, as are all other new write routes.
-const READ_ONLY_GIT_PATTERNS = [
-    'git status *',
-    'git rev-parse *',
-    'git worktree list *',
-];
-function readOnlyGitRules() {
-    return READ_ONLY_GIT_PATTERNS.map(resource => allow('shell', resource));
-}
 export const SECRET_GLOBS = [
     '.env*',
     '**/.env*',
@@ -230,204 +117,27 @@ export const SECRET_GLOBS = [
     '**/*.key',
     '**/id_rsa*',
 ];
-function secretDenies(action) {
-    return SECRET_GLOBS.map(resource => deny(action, resource));
-}
-function buildBroadReadPermissions() {
-    return [allow('read', '*'), ...secretDenies('read')];
-}
-// Secret paths stay uneditable even when a broader role grant (for example the
-// implementer's `src/**` allow) would otherwise match. Callers append these
-// last so the last-match-wins rule keeps the denial authoritative.
-function secretEditDenies() {
-    return secretDenies('edit');
-}
 // The superpowers SDD workspace is git-ignored scratch shared by the
 // implementer (task reports), the gui-designer that reuses its builder, and the
-// orchestrator (ledger and briefs). This is a permanent narrow grant, not a
-// temporary migration grant; every other role keeps the broad edit deny.
+// orchestrator (ledger and briefs). This is a permanent narrow grant.
 const SDD_WORKSPACE_GLOB = '.superpowers/sdd/**';
-const KIKI_SUBAGENTS = [
-    'kiki-brainstormer',
-    'kiki-planner',
-    'kiki-implementer',
-    'kiki-gui-designer',
-    'kiki-reviewer',
-    'kiki-escalation',
-    'kiki-historian',
-];
+const REVIEW_EDIT_GLOBS = ['.agentic/reviews/*', '.opencode/docs/reviews/*'];
+const GIT_PUSH_ASK = { action: 'shell', resource: 'git push *', effect: 'ask' };
 /**
- * Alternate-route restrictions, appended after the file/shell scopes.
- *
- * Measured on OpenCode 2.2.7: `execute` denial removes Code Mode, `webfetch`
- * and `subagent` denials remove those tools, and `skill` allow loads skills.
- * MCP server tools use the action `<server>_<tool>`. OpenCode 2 matches action
- * names as whole-value wildcards, so a generic `*_*` action deny closes every
- * arbitrary server without a blanket `*` rule or a server list.
+ * The lean role bracket. Order is part of the contract: routine shell work is
+ * allowed, the two permission-mutation asks follow it, the broad edit deny opens
+ * the file scope, the role territories grant only that role's workspace, and the
+ * per-role push ask is the last line (a top-level ask alone does not bind a role
+ * with its own rules).
  */
-function routeRules(options) {
-    const rules = [
-        deny('execute', '*'),
-        deny('opencode_list_mcp_resources', '*'),
-        deny('opencode_read_mcp_resource', '*'),
-        options.research ? allow('webfetch', '*') : deny('webfetch', '*'),
-        options.research ? allow('websearch', '*') : deny('websearch', '*'),
-        allow('skill', '*'),
-        // Deny every delegation first, then allow only the orchestrator's seven
-        // named Kiki subagents (last matching rule wins).
-        deny('subagent', '*'),
-    ];
-    if (options.orchestrator) {
-        for (const agent of KIKI_SUBAGENTS)
-            rules.push(allow('subagent', agent));
-    }
-    // Generic MCP server-tool closure: every MCP tool action is
-    // `<server>_<tool>`, so `*_*` covers arbitrary server names. Appended after
-    // the base allows so the last matching rule wins.
-    rules.push(deny('*_*', '*'));
-    // `external_directory` also contains an underscore, so the generic deny
-    // closes it. Only the roles that pass their pre-existing narrow grants replay
-    // those allows after this deny; every other role stays denied. No blanket
-    // external-directory allow is added, so project-level denies are preserved.
-    for (const resource of options.externalDirectory ?? []) {
-        rules.push(allow('external_directory', resource));
-    }
-    return rules;
-}
-function buildBrainstormerPermissions(p) {
-    const sw = dirGlob(p.superpowers);
-    const plans = dirGlob(p.plans);
-    const specs = dirGlob(p.specs);
-    const src = dirGlob(p.source);
-    const tst = dirGlob(p.tests);
+function leanRoleRules(territories) {
     return [
-        ...buildBroadReadPermissions(),
+        allow('shell', '*'),
+        { action: 'shell', resource: 'kiki permissions add *', effect: 'ask' },
+        { action: 'shell', resource: 'kiki permissions remove *', effect: 'ask' },
         deny('edit', '*'),
-        deny('edit', src),
-        deny('edit', tst),
-        allow('edit', sw),
-        allow('edit', plans),
-        allow('edit', specs),
-        ...worktreeGlobs(sw).map(resource => allow('edit', resource)),
-        ...worktreeGlobs(plans).map(resource => allow('edit', resource)),
-        ...worktreeGlobs(specs).map(resource => allow('edit', resource)),
-        ...shellRules({ readOnlyGit: true }),
-        ...routeRules({ research: true }),
-        ...secretEditDenies(),
-    ];
-}
-function buildImplementerPermissions(config, options = {}) {
-    const p = config.paths;
-    const src = dirGlob(p.source);
-    const tst = dirGlob(p.tests);
-    const sw = dirGlob(p.superpowers);
-    return [
-        ...buildBroadReadPermissions(),
-        deny('edit', '*'),
-        deny('edit', sw),
-        allow('edit', src),
-        allow('edit', tst),
-        ...worktreeGlobs(src).map(resource => allow('edit', resource)),
-        ...worktreeGlobs(tst).map(resource => allow('edit', resource)),
-        // Only the implementer maintains .gitignore, and only at the exact root or
-        // inside a project worktree; never a blanket `**/.gitignore` grant.
-        ...(options.gitignore
-            ? [
-                allow('edit', '.gitignore'),
-                ...worktreeGlobs('.gitignore').map(resource => allow('edit', resource)),
-            ]
-            : []),
-        allow('edit', '/tmp/**'),
-        allow('edit', 'tmp/**'),
-        allow('edit', SDD_WORKSPACE_GLOB),
-        ...shellRules({ readOnlyGit: true }),
-        ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
-        ...secretEditDenies(),
-    ];
-}
-function buildReviewerPermissions() {
-    return [
-        ...buildBroadReadPermissions(),
-        deny('edit', '*'),
-        deny('edit', 'src/**'),
-        deny('edit', 'tests/**'),
-        deny('edit', 'docs/**'),
-        allow('edit', '.agentic/reviews/*'),
-        allow('edit', '.opencode/docs/reviews/*'),
-        ...worktreeGlobs('.agentic/reviews/*').map(resource => allow('edit', resource)),
-        ...worktreeGlobs('.opencode/docs/reviews/*').map(resource => allow('edit', resource)),
-        ...shellRules({ readOnlyGit: true }),
-        ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
-        ...secretEditDenies(),
-    ];
-}
-function buildEscalationPermissions() {
-    return [
-        ...buildBroadReadPermissions(),
-        deny('edit', '*'),
-        allow('edit', '.agentic/reviews/*'),
-        allow('edit', '.opencode/docs/reviews/*'),
-        ...worktreeGlobs('.agentic/reviews/*').map(resource => allow('edit', resource)),
-        ...worktreeGlobs('.opencode/docs/reviews/*').map(resource => allow('edit', resource)),
-        ...shellRules({ readOnlyGit: true }),
-        ...routeRules({ research: false, externalDirectory: ['/tmp/**', 'tmp/**'] }),
-        ...secretEditDenies(),
-    ];
-}
-function buildHistorianPermissions(p) {
-    const src = dirGlob(p.source);
-    const tst = dirGlob(p.tests);
-    const readmeGlob = fileGlob(p.readme);
-    const changelogGlob = fileGlob(p.changelog);
-    const docsGlob = dirGlob(p.docs);
-    const rules = [
-        ...buildBroadReadPermissions(),
-        deny('edit', '*'),
-        allow('edit', readmeGlob),
-        allow('edit', changelogGlob),
-        allow('edit', docsGlob),
-    ];
-    if (p.decisions) {
-        const decDir = fileDir(p.decisions);
-        if (decDir) {
-            const decGlob = dirGlob(decDir);
-            rules.push(allow('edit', decGlob));
-            rules.push(...worktreeGlobs(decGlob).map(resource => allow('edit', resource)));
-        }
-    }
-    if (p.knowledge) {
-        const kgGlob = dirGlob(p.knowledge);
-        rules.push(allow('edit', kgGlob));
-        rules.push(...worktreeGlobs(kgGlob).map(resource => allow('edit', resource)));
-    }
-    rules.push(allow('edit', '.agentic/**'));
-    rules.push(...worktreeGlobs(readmeGlob).map(resource => allow('edit', resource)));
-    rules.push(...worktreeGlobs(changelogGlob).map(resource => allow('edit', resource)));
-    rules.push(...worktreeGlobs(docsGlob).map(resource => allow('edit', resource)));
-    rules.push(...worktreeGlobs('.agentic/**').map(resource => allow('edit', resource)));
-    rules.push(deny('edit', src));
-    rules.push(deny('edit', tst));
-    rules.push(...worktreeGlobs(src).map(resource => deny('edit', resource)));
-    rules.push(...worktreeGlobs(tst).map(resource => deny('edit', resource)));
-    rules.push(...shellRules({ readOnlyGit: true }));
-    rules.push(...routeRules({ research: false }));
-    rules.push(...secretEditDenies());
-    return rules;
-}
-function buildOrchestratorPermissions(p) {
-    // The shared shell baseline applies here too, so a primary session does not
-    // prompt for routine local work; the orchestrator prompt keeps coordination
-    // authoritative by instruction. Read protections apply and the only edit
-    // grants are the task registry and the SDD ledger/briefs workspace.
-    return [
-        ...buildBroadReadPermissions(),
-        deny('edit', '*'),
-        allow('edit', p.taskRegistry),
-        ...worktreeGlobs(p.taskRegistry).map(resource => allow('edit', resource)),
-        allow('edit', SDD_WORKSPACE_GLOB),
-        ...shellRules(),
-        ...routeRules({ research: false, orchestrator: true }),
-        ...secretEditDenies(),
+        ...territories.map(resource => allow('edit', resource)),
+        { ...GIT_PUSH_ASK },
     ];
 }
 /**
@@ -438,20 +148,103 @@ function buildOrchestratorPermissions(p) {
 export function generateAgentPermissions(config = DEFAULT_CONFIG) {
     const p = config.paths;
     return {
-        'kiki-orchestrator': buildOrchestratorPermissions(p),
-        'kiki-brainstormer': buildBrainstormerPermissions(p),
-        'kiki-planner': buildBrainstormerPermissions(p),
-        'kiki-implementer': buildImplementerPermissions(config, { gitignore: true }),
-        'kiki-gui-designer': buildImplementerPermissions(config),
-        'kiki-reviewer': buildReviewerPermissions(),
-        'kiki-escalation': buildEscalationPermissions(),
-        'kiki-historian': buildHistorianPermissions(p),
+        'kiki-orchestrator': leanRoleRules([p.taskRegistry, SDD_WORKSPACE_GLOB]),
+        'kiki-brainstormer': leanRoleRules([dirGlob(p.superpowers)]),
+        'kiki-planner': leanRoleRules([dirGlob(p.superpowers)]),
+        'kiki-implementer': leanRoleRules([
+            dirGlob(p.source), dirGlob(p.tests), '.gitignore', SDD_WORKSPACE_GLOB,
+        ]),
+        'kiki-gui-designer': leanRoleRules([
+            dirGlob(p.source), dirGlob(p.tests), SDD_WORKSPACE_GLOB,
+        ]),
+        'kiki-reviewer': leanRoleRules(REVIEW_EDIT_GLOBS),
+        'kiki-escalation': leanRoleRules(REVIEW_EDIT_GLOBS),
+        'kiki-historian': leanRoleRules([
+            dirGlob(p.docs), fileGlob(p.readme), fileGlob(p.changelog), '.agentic/**',
+        ]),
     };
 }
+/** The one generated top-level permissions entry; it reaches every agent. */
+export function generateGlobalPermissions() {
+    return [{ ...GIT_PUSH_ASK }];
+}
+/**
+ * The shared secret policy block. Policies are checked after every permission
+ * rule and stored approval, can never allow, and therefore bind every agent
+ * without per-role secret tails.
+ */
+export function generateSecretPolicies() {
+    return SECRET_GLOBS.flatMap(resource => [
+        { action: 'tool.use', resource: `read:${resource}`, effect: 'deny' },
+        { action: 'tool.use', resource: `edit:${resource}`, effect: 'deny' },
+    ]);
+}
 // Every generated agent prompt carries this exact no-circumvention line: the
-// publishing-route approval must not be routed around by other means, and a
-// rejected approval must stop the agent (remote-change safety).
-const PERMISSION_BLOCK_PROMPT = 'Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
+// publishing/Deploy-route approval must not be routed around by other means,
+// and a rejected approval must stop the agent (remote-change safety). It is
+// explicitly labelled as a behavioral rule; the lean permission baseline no
+// longer enforces publishing routes mechanically.
+const PERMISSION_BLOCK_PROMPT = 'Behavioral rule: Do not circumvent publishing/Deploy-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
+// Exact previous generated consent line. Only this literal is refreshed; a
+// user-edited consent paragraph keeps its own wording (never overwrite).
+const LEGACY_PERMISSION_BLOCK_PROMPT = 'Do not circumvent publishing-route approval via scripts, wrappers, alternate tools, APIs, or delegation. Request approval for the intended publishing operation. If approval is rejected, do not retry or work around it; report PERMISSION_BLOCKED: <command> and stop.';
+const BASELINE_BEHAVIOR_HEADING = '## Kiki baseline behavior (v1)';
+const WORKTREE_BEHAVIOR_SENTENCE = 'Die Regeln aus Main gelten auch im Worktree.';
+function behaviorToolLine(agent) {
+    if (agent === 'kiki-brainstormer' || agent === 'kiki-planner') {
+        return 'Verhaltensregel: Web-Recherche ist erlaubt; kein MCP, keine Delegation, kein Code Mode.';
+    }
+    if (agent === 'kiki-orchestrator') {
+        return 'Verhaltensregel: Kein Web, kein MCP, kein Code Mode; Delegation nur an die sieben Kiki-Rollen.';
+    }
+    return 'Verhaltensregel: Kein Web, kein MCP, keine Delegation, kein Code Mode.';
+}
+function baselineBehaviorSection(agent, eol) {
+    return [
+        BASELINE_BEHAVIOR_HEADING,
+        WORKTREE_BEHAVIOR_SENTENCE,
+        behaviorToolLine(agent),
+    ].join(`${eol}${eol}`);
+}
+function insertBeforePermissionTail(prompt, fragment, eol) {
+    const index = prompt.search(/^## Kiki managed permission requests \(v1\)$/m);
+    const at = index >= 0 ? index : prompt.length;
+    const head = prompt.slice(0, at).replace(/(?:\r?\n)+$/, '');
+    const tail = prompt.slice(at);
+    return `${head}${head ? `${eol}${eol}` : ''}${fragment}${tail ? `${eol}${eol}${tail}` : ''}`;
+}
+/**
+ * One small idempotent managed behavior section plus a targeted exact
+ * old-consent replacement. Existing custom prompt bytes are preserved; a
+ * conflicting or duplicate managed heading stops instead of overwriting.
+ */
+export function withBaselineBehaviorPrompt(prompt, agent) {
+    const eol = prompt.includes('\r\n') ? '\r\n' : '\n';
+    const section = baselineBehaviorSection(agent, eol).split('\n').join(eol);
+    let result = prompt;
+    if (result.includes(LEGACY_PERMISSION_BLOCK_PROMPT)) {
+        result = result.split(LEGACY_PERMISSION_BLOCK_PROMPT).join(PERMISSION_BLOCK_PROMPT);
+    }
+    else if (!result.includes(PERMISSION_BLOCK_PROMPT)) {
+        result = insertBeforePermissionTail(result, PERMISSION_BLOCK_PROMPT, eol);
+    }
+    const headings = result.match(/^## Kiki baseline behavior \(v1\)$/gm) ?? [];
+    if (headings.length === 0) {
+        return insertBeforePermissionTail(result, section, eol);
+    }
+    if (headings.length > 1) {
+        throw new Error('Duplicate managed behavior sections; refusing to overwrite prompt text.');
+    }
+    const index = result.search(/^## Kiki baseline behavior \(v1\)$/m);
+    const afterHeading = index + BASELINE_BEHAVIOR_HEADING.length;
+    const nextHeading = result.slice(afterHeading).search(/^## /m);
+    const end = nextHeading < 0 ? result.length : afterHeading + nextHeading;
+    const observed = result.slice(index, end).replace(/\r\n/g, '\n').trimEnd();
+    if (observed !== section.replace(/\r\n/g, '\n').trimEnd()) {
+        throw new Error('Conflicting managed behavior section; refusing to overwrite prompt text.');
+    }
+    return result;
+}
 const PERMISSION_REQUEST_HEADING = '## Kiki managed permission requests (v1)';
 /**
  * Narrow, additive permission-request exception. It is delivered by the
@@ -546,7 +339,7 @@ function buildHistorianResponsibilities(p) {
 }
 export function generateOrchestratorTemplate(config) {
     const p = config.paths;
-    return withPermissionRequestPrompt(`---
+    return withBaselineBehaviorPrompt(withPermissionRequestPrompt(`---
 description: Kiki Orchestrator — routes the superpowers pipeline
 mode: primary
 ---
@@ -650,11 +443,11 @@ Present the escalation recommendation to the user before doing anything; nothing
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`);
+`), 'kiki-orchestrator');
 }
 export function generateBrainstormerTemplate(config) {
     const p = config.paths;
-    return withPermissionRequestPrompt(`---
+    return withBaselineBehaviorPrompt(withPermissionRequestPrompt(`---
 description: Kiki Brainstormer — produces design specs via superpowers brainstorming
 mode: subagent
 ---
@@ -676,11 +469,11 @@ No extra section, catalog or waiver format is required; the analysis lives where
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`);
+`), 'kiki-brainstormer');
 }
 export function generatePlannerTemplate(config) {
     const p = config.paths;
-    return withPermissionRequestPrompt(`---
+    return withBaselineBehaviorPrompt(withPermissionRequestPrompt(`---
 description: Kiki Planner — writes implementation plans via superpowers writing-plans
 mode: subagent
 ---
@@ -717,10 +510,10 @@ Example:
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`);
+`), 'kiki-planner');
 }
 export function generateImplementerTemplate(config) {
-    return withPermissionRequestPrompt(`---
+    return withBaselineBehaviorPrompt(withPermissionRequestPrompt(`---
 description: Kiki Implementer — writes code and tests per approved plan
 mode: subagent
 ---
@@ -740,10 +533,10 @@ ${buildBuilderHandoffPrompt(config.commands)}
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`);
+`), 'kiki-implementer');
 }
 export function generateGuiDesignerTemplate(config) {
-    return withPermissionRequestPrompt(`---
+    return withBaselineBehaviorPrompt(withPermissionRequestPrompt(`---
 description: Kiki GUI Designer — UI/UX design + implementation via superpowers skills
 mode: subagent
 ---
@@ -758,10 +551,10 @@ ${buildBuilderHandoffPrompt(config.commands)}
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`);
+`), 'kiki-gui-designer');
 }
 export function generateReviewerTemplate(_config) {
-    return withPermissionRequestPrompt(`---
+    return withBaselineBehaviorPrompt(withPermissionRequestPrompt(`---
 description: Kiki Reviewer — read-only code and security review
 mode: subagent
 ---
@@ -805,10 +598,10 @@ Verdict: PASS | PASS_WITH_NOTES | FAIL
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`);
+`), 'kiki-reviewer');
 }
 export function generateEscalationTemplate(_config) {
-    return withPermissionRequestPrompt(`---
+    return withBaselineBehaviorPrompt(withPermissionRequestPrompt(`---
 description: Kiki Escalation — diagnoses failures and recommends next steps
 mode: subagent
 ---
@@ -839,12 +632,12 @@ Be honest and direct. Do not try to "save" a failing task.
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`);
+`), 'kiki-escalation');
 }
 export function generateHistorianTemplate(config) {
     const responsibilities = buildHistorianResponsibilities(config.paths);
     const p = config.paths;
-    return withPermissionRequestPrompt(`---
+    return withBaselineBehaviorPrompt(withPermissionRequestPrompt(`---
 description: Kiki Historian — maintains project documentation, README and CHANGELOG
 mode: subagent
 ---
@@ -862,7 +655,7 @@ ${responsibilities}
 ${PERMISSION_BLOCK_PROMPT}
 
 ${ALIGNMENT_GUARDRAIL_PROMPT}
-`);
+`), 'kiki-historian');
 }
 export function generateWorkflowTemplate(config) {
     const p = config.paths;
@@ -983,7 +776,7 @@ Example:
 }
 \`\`\`
 
-Use \`kiki doctor\` to check the installation. Existing local definitions can be imported with \`kiki migrate --project .\`; \`kiki reset --project .\` restores global agent defaults without deleting project work.
+Use \`kiki doctor\` to check the installation. \`kiki reset --project .\` restores global agent defaults without deleting project work.
 `);
 }
 export function generateAllTemplates(config) {

@@ -1,4 +1,4 @@
-import { existsSync, realpathSync, statSync } from 'fs';
+import { existsSync, realpathSync } from 'fs';
 import { basename, dirname, join, resolve, sep } from 'path';
 function xdgBase(env, name, home, fallback) {
     const configured = env[name];
@@ -45,54 +45,11 @@ export function canonicalPath(target) {
 export function pathsOverlap(first, second) {
     return first === second || first.startsWith(second + sep) || second.startsWith(first + sep);
 }
-const OC1_MARKER_FILES = [
-    ['plugins', 'kiki.ts'],
-    ['plugins', 'kiki.js'],
-    ['kiki', 'tui.js'],
-];
-/**
- * Metadata-only detection of a live OpenCode 1 Kiki installation. Config files
- * are deliberately not parsed here because they can contain provider
- * credentials; a credential-bearing config must be exported sanitized by the
- * user instead of being inspected by Kiki.
- */
-export function hasOC1Markers(directory) {
-    for (const parts of OC1_MARKER_FILES) {
-        if (existsSync(join(directory, ...parts)))
-            return true;
-    }
-    try {
-        if (statSync(join(directory, 'kiki', 'prompts')).isDirectory())
-            return true;
-    }
-    catch {
-        // Absent V1 prompt directory.
-    }
-    return false;
-}
-/**
- * Fail closed when the target is, contains, or is contained by a directory with
- * OpenCode 1 (V1) Kiki artifacts. OpenCode 1 and OpenCode 2 share the standard
- * config directory (`~/.config/opencode`), so the presence of
- * `opencode.json(c)` proves nothing about the installed generation and is not a
- * marker. Only V1-specific Kiki files identify a legacy installation; config
- * contents are never inspected here because they may carry credentials.
- */
-export function assertNotOC1Config(target, home, options = {}) {
-    const directory = canonicalPath(target);
-    const machineDefault = canonicalPath(join(home, '.config', 'opencode'));
-    const markers = hasOC1Markers(directory)
-        || (pathsOverlap(directory, machineDefault) && hasOC1Markers(machineDefault));
-    if (markers && options.allowKnownV1Artifacts !== true) {
-        throw new Error('Refusing to modify a directory that contains OpenCode 1 (V1) Kiki artifacts. Remove them first; kiki install backs up and replaces the files it owns.');
-    }
-}
 /**
  * Fail closed before Kiki 3.0.0 reads or writes an OpenCode 2 destination.
- * Refuses overlapping config/data/cache/state roots and any config root that
- * aliases or nests inside a directory with OpenCode 1 Kiki artifacts.
+ * Refuses overlapping config/data/cache/state roots.
  */
-export function assertOC2Target(roots, home, options = {}) {
+export function assertOC2Target(roots) {
     const entries = Object.entries(roots);
     const canonical = {};
     for (const [scope, directory] of entries) {
@@ -108,6 +65,5 @@ export function assertOC2Target(roots, home, options = {}) {
             }
         }
     }
-    assertNotOC1Config(canonical.config, home, options);
 }
 //# sourceMappingURL=oc2-paths.js.map

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import {
@@ -99,23 +99,18 @@ describe.skipIf(!hasOC2Binary())('single-source permissions on the real binary',
       for (const name of AGENTS) {
         const agent = effective.find(entry => entry.id === name)!;
         const rules = agent.permissions as PermissionRule[];
-        // The real binary appends its own built-in defaults after the configured
-        // array, so the secret tail is a contiguous block rather than the
-        // absolute last seven rules.
-        const secretTail = canonical[name].slice(-7);
-        const secretIndex = rules.findIndex((_, index) =>
-          JSON.stringify(rules.slice(index, index + secretTail.length)) === JSON.stringify(secretTail));
-        expect(secretIndex, `${name}: secret-edit block present`).toBeGreaterThan(-1);
+        // The lean role arrays carry no read, route or secret permissions; the
+        // real binary may append its own built-in defaults after them.
+        expect(canonical[name].some(rule => rule.action === 'read'), `${name}: no read grants`).toBe(false);
+        expect(canonical[name].some(rule => rule.resource.startsWith('.worktree')), `${name}: no mirrors`).toBe(false);
         const gitAllows = rules
           .filter(rule => rule.action === 'shell' && rule.effect === 'allow' && rule.resource.startsWith('git '))
           .map(rule => rule.resource);
-        expect(gitAllows, `${name}: read-only git grants`).toEqual(
-          name === 'kiki-orchestrator'
-            ? []
-            : ['git status *', 'git rev-parse *', 'git worktree list *'],
-        );
+        expect(gitAllows, `${name}: no read-only git grants`).toEqual([]);
         expect(effect(rules, 'shell', 'git push origin main'), `${name}: publishing ask`).toBe('ask');
-        expect(effect(rules, 'shell', 'git push --force origin main'), `${name}: force deny`).toBe('deny');
+        // Force push is now an ask, not a hard deny.
+        expect(effect(rules, 'shell', 'git push --force origin main'), `${name}: force push ask`).toBe('ask');
+        expect(effect(rules, 'shell', 'npm publish'), `${name}: publishing wrapper allowed`).toBe('allow');
       }
       console.info(`[single-source] observed OpenCode ${observedOC2Version(binary)}`);
     } finally {
@@ -166,9 +161,6 @@ describe.skipIf(!hasOC2Binary())('single-source permissions on the real binary',
         canonical['kiki-reviewer'],
       ), 'reviewer mixed state').toBe(true);
 
-      // A real interruption invalidates ownership evidence before the config
-      // mutation; the crash window is therefore observed with state absent.
-      rmSync(join(fixture.config, 'kiki/state.json'), { force: true });
       const updated = fixture.runCli(['install']);
       expect(updated.status, updated.stderr).toBe(0);
       for (const [file, name] of [[plannerMarkdown, 'kiki-planner'], [reviewerMarkdown, 'kiki-reviewer']] as const) {

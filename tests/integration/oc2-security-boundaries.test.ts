@@ -778,24 +778,32 @@ describe('OpenCode 2.x security boundaries', () => {
       }
     }
 
-    // Applied generated policy: routine local work runs without a prompt,
-    // publishing routes ask after the allow baseline, and force-push denies
-    // stay last.
+    // Applied lean policy: routine local work runs without a prompt, only the
+    // two permission-mutation asks and a real per-role push ask remain, and no
+    // force-push deny or route rule is generated.
     for (const role of ROLES) {
-      const shell = generatedPermissions(role).filter(rule => rule.action === 'shell');
+      const rules = generatedPermissions(role);
+      const shell = rules.filter(rule => rule.action === 'shell');
       expect.soft(shell[0], `${role}: routine local work is allowed`).toEqual(allowAll);
       expect.soft(
         shell.some(rule => rule.resource === '*' && rule.effect === 'ask'),
         `${role}: no blanket shell ask`,
       ).toBe(false);
       expect.soft(
-        shell.some(rule => rule.resource === 'git push*' && rule.effect === 'ask'),
-        `${role}: publishing routes ask`,
-      ).toBe(true);
+        shell.filter(rule => rule.effect === 'ask').map(rule => rule.resource),
+        `${role}: lean asks`,
+      ).toEqual(['kiki permissions add *', 'kiki permissions remove *', 'git push *']);
       expect.soft(
         shell[shell.length - 1],
-        `${role}: force-push deny stays last`,
-      ).toEqual({ action: 'shell', resource: 'git push * --force', effect: 'deny' });
+        `${role}: final push ask stays last`,
+      ).toEqual({ action: 'shell', resource: 'git push *', effect: 'ask' });
+      expect.soft(shell.some(rule => rule.effect === 'deny'), `${role}: no shell denies`).toBe(false);
+      expect.soft(rules.some(rule => rule.action === 'read'), `${role}: no read grants`).toBe(false);
+      expect.soft(
+        rules.some(rule => ['execute', 'webfetch', 'websearch', 'skill', 'subagent', '*_*']
+          .includes(rule.action)),
+        `${role}: no route rules`,
+      ).toBe(false);
       const settings = baselineAgents(DEFAULT_CONFIG)[role].settings as Record<string, unknown>;
       expect.soft(settings.permission, `${role}: generated V1 permission block`).toBeUndefined();
     }
@@ -971,8 +979,14 @@ describe('OpenCode 2.x security boundaries', () => {
     expect(completed!.body).toBe('child done');
   });
 
-  it('security_runtime_routes', async () => {
+  it('security_runtime_routes_are_mechanically_open', async () => {
     const { binary, version } = gate();
+    const routeActions = ['execute', 'webfetch', 'websearch', 'skill', 'subagent', '*_*', 'external_directory'];
+    for (const role of ROLES) {
+      const rules = generatedPermissions(role);
+      expect(rules.some(rule => routeActions.includes(rule.action)), `${role}: no route rules`).toBe(false);
+    }
+
     let webHits = 0;
     const webServer = createServer((_request, response) => {
       webHits += 1;
@@ -982,202 +996,39 @@ describe('OpenCode 2.x security boundaries', () => {
     await new Promise<void>(resolve => webServer.listen(0, '127.0.0.1', () => resolve()));
     const address = webServer.address();
     const webUrl = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/route`;
+    const fixture = createOC2Fixture(binary);
+    const provider = await startFixtureProvider();
     try {
-      for (const role of ROLES) {
-        const fixture = createOC2Fixture(binary);
-        const provider = await startFixtureProvider();
-        try {
-          const counterFile = join(fixture.root, 'route-mcp-counter');
-          writeRouteConfig(fixture, provider, generatedPermissions(role), counterFile);
+      const counterFile = join(fixture.root, 'route-mcp-counter');
+      // One representative generated role proves the routes are mechanically
+      // open; the per-role structural assertions above cover every role.
+      writeRouteConfig(fixture, provider, generatedPermissions('kiki-implementer'), counterFile);
 
-          const execute = await routeRun(fixture, provider, 'execute', { code: 'return 1' });
-          expect(execute.toolStatus, `${role}: execute denied`).toBe('error');
-          expect(execute.error, `${role}: execute denied`)
-            .toMatch(/No tool named "execute"|Code Mode is disabled/);
-          record({
-            scenario: `route/${role}/execute`,
-            version,
-            configuration: 'generated execute deny removes Code Mode',
-            decision: execute.toolStatus,
-            toolError: execute.error,
-          });
+      const web = await routeRun(fixture, provider, 'webfetch', { url: webUrl });
+      expect(web.toolStatus, 'webfetch is open without a route deny').toBe('completed');
+      expect(webHits, 'loopback fetch hit').toBe(1);
+      record({ scenario: 'route/open/webfetch', version, decision: web.toolStatus, hitCount: webHits });
 
-          const skill = await routeRun(fixture, provider, 'skill', { id: 'probe-skill' });
-          expect(skill.toolStatus, `${role}: skill allowed`).toBe('completed');
-          expect(skill.output, `${role}: skill content`).toContain('PROBE SKILL BODY');
-          record({
-            scenario: `route/${role}/skill`,
-            version,
-            configuration: 'generated skill allow loads the local skill',
-            decision: skill.toolStatus,
-          });
+      const mcp = await routeRun(fixture, provider, 'probe_echo', {});
+      expect(mcp.toolStatus, 'MCP server tool is open').toBe('completed');
+      expect(counterFileCount(counterFile), 'MCP tool executed').toBe(1);
+      record({ scenario: 'route/open/mcp', version, decision: mcp.toolStatus, stubCount: 1 });
 
-          const beforeWeb = webHits;
-          const web = await routeRun(fixture, provider, 'webfetch', { url: webUrl });
-          if (ROUTE_RESEARCH.has(role)) {
-            expect(web.toolStatus, `${role}: webfetch allowed`).toBe('completed');
-            expect(webHits - beforeWeb, `${role}: webfetch hit count`).toBe(1);
-          } else {
-            expect(web.toolStatus, `${role}: webfetch denied`).toBe('error');
-            expect(web.error, `${role}: webfetch denied`).toMatch(/No tool named "webfetch"/);
-            expect(webHits - beforeWeb, `${role}: webfetch hit count`).toBe(0);
-          }
-          record({
-            scenario: `route/${role}/webfetch`,
-            version,
-            configuration: 'generated webfetch allow/deny against a loopback server',
-            decision: web.toolStatus,
-            hitCount: webHits - beforeWeb,
-          });
+      const execute = await routeRun(fixture, provider, 'execute', { code: 'return 1' });
+      expect(execute.toolStatus, 'Code Mode is not removed by a permission deny').not.toBe('error');
+      record({ scenario: 'route/open/execute', version, decision: execute.toolStatus });
 
-          // Positive control: the dummy MCP server really executes when its
-          // tool action is allowed, so a zero below is not vacuous.
-          rmSync(counterFile, { force: true });
-          const control = await routeRun(fixture, provider, 'probe_echo', {}, 'mcp-control');
-          expect(control.toolStatus, `${role}: MCP positive control`).toBe('completed');
-          expect(counterFileCount(counterFile), `${role}: MCP positive control count`).toBe(1);
-
-          rmSync(counterFile, { force: true });
-          const mcp = await routeRun(fixture, provider, 'probe_echo', {});
-          const mcpCalls = counterFileCount(counterFile);
-          record({
-            scenario: `route/${role}/mcp`,
-            version,
-            configuration: 'generated role permissions against a local stdio MCP tool',
-            decision: mcp.toolStatus,
-            stubCount: mcpCalls,
-          });
-          // Every MCP server tool action is `<server>_<tool>`; the generated
-          // `*_*` action deny must close the route for every role.
-          expect(mcp.toolStatus, `${role}: MCP server tool denied`).toBe('error');
-          expect(mcp.error, `${role}: MCP server tool denied`)
-            .toMatch(/No tool named "probe_echo"|Permission denied/);
-          expect(mcpCalls, `${role}: MCP server tool must be denied`).toBe(0);
-
-          // `external_directory` also contains an underscore, so the generic
-          // `*_*` deny catches it. Only the roles with a pre-existing narrow
-          // /tmp grant reopen it with a later allow; every other role stays
-          // denied. The probe file lives under this fixture root (inside /tmp
-          // on the supported runtime), so it exercises the same narrow scope.
-          const externalFile = join(fixture.root, 'external-probe.txt');
-          writeFileSync(externalFile, 'EXTERNAL PROBE BODY\n');
-
-          if (role === 'kiki-implementer') {
-            // Controls: the generic deny blocks, and a later external_directory
-            // allow restores access. Both are role-independent control agents.
-            const deniedExternal = await routeRun(
-              fixture,
-              provider,
-              'read',
-              { path: externalFile },
-              'external-deny-control',
-            );
-            expect(deniedExternal.toolStatus, 'external-directory deny control').toBe('error');
-            expect(deniedExternal.error, 'external-directory deny control')
-              .toMatch(/external_directory|Permission denied/);
-            record({
-              scenario: 'route/external_directory/deny-control',
-              version,
-              configuration: 'permissions: read allow; *_* deny (no external_directory allow)',
-              decision: deniedExternal.toolStatus,
-              toolError: deniedExternal.error,
-            });
-
-            const allowedExternal = await routeRun(
-              fixture,
-              provider,
-              'read',
-              { path: externalFile },
-              'external-control',
-            );
-            expect(allowedExternal.toolStatus, 'external-directory re-allow control').toBe('completed');
-            expect(allowedExternal.output, 'external-directory re-allow control')
-              .toContain('EXTERNAL PROBE BODY');
-            record({
-              scenario: 'route/external_directory/re-allow-control',
-              version,
-              configuration: 'permissions: read allow; *_* deny; external_directory allow',
-              decision: allowedExternal.toolStatus,
-            });
-          }
-
-          const roleExternal = await routeRun(fixture, provider, 'read', { path: externalFile });
-          if (ROUTE_EXTERNAL_DIRECTORY.has(role)) {
-            expect(roleExternal.toolStatus, `${role}: /tmp external-directory allowed`)
-              .toBe('completed');
-            expect(roleExternal.output, `${role}: /tmp external-directory allowed`)
-              .toContain('EXTERNAL PROBE BODY');
-          } else {
-            expect(roleExternal.toolStatus, `${role}: external-directory denied`).toBe('error');
-            expect(roleExternal.error, `${role}: external-directory denied`)
-              .toMatch(/external_directory|Permission denied/);
-          }
-          record({
-            scenario: `route/${role}/external_directory`,
-            version,
-            configuration: ROUTE_EXTERNAL_DIRECTORY.has(role)
-              ? 'generated narrow /tmp external-directory grant after the generic deny'
-              : 'generic *_* deny closes external_directory',
-            decision: roleExternal.toolStatus,
-          });
-
-          if (role === 'kiki-orchestrator') {
-            const named = await routeRun(fixture, provider, 'subagent', {
-              agent: 'kiki-reviewer',
-              description: 'review route',
-              prompt: 'review',
-            });
-            expect(named.exitStatus, `${role}: named dispatch exit`).toBe(0);
-            expect(named.toolStatus, `${role}: named dispatch`).toBe('completed');
-            // On OpenCode 2.x the tool result is a background-launch notice;
-            // success is the child's terminal synthetic message, not this text.
-            const launchNotice = named.output.match(
-              /subagent is working in the background \(sessionID: (ses_[A-Za-z0-9]+)\)/,
-            );
-            expect(launchNotice, `${role}: named dispatch launch notice`).not.toBeNull();
-            const completedChild = completedSubagentReport(
-              provider.bodies(),
-              launchNotice![1]!,
-              'review route',
-            );
-            expect(completedChild, `${role}: named dispatch child completion`).toBeDefined();
-            expect(completedChild!.state, `${role}: named dispatch child state`).toBe('completed');
-            expect(completedChild!.body, `${role}: named dispatch child`).toContain('child done');
-            const other = await routeRun(fixture, provider, 'subagent', {
-              agent: 'other-agent',
-              description: 'other route',
-              prompt: 'other',
-            });
-            expect(other.toolStatus, `${role}: non-named dispatch`).toBe('error');
-            expect(other.error, `${role}: non-named dispatch`).toMatch(/Permission denied: subagent/);
-            record({
-              scenario: `route/${role}/subagent`,
-              version,
-              configuration: 'orchestrator allows only the seven named Kiki agents',
-              decision: 'named-allow/non-named-deny',
-            });
-          } else {
-            const denied = await routeRun(fixture, provider, 'subagent', {
-              agent: 'kiki-reviewer',
-              description: 'review route',
-              prompt: 'review',
-            });
-            expect(denied.toolStatus, `${role}: delegation denied`).toBe('error');
-            expect(denied.error, `${role}: delegation denied`).toMatch(/No tool named "subagent"/);
-            record({
-              scenario: `route/${role}/subagent`,
-              version,
-              configuration: 'non-primary delegation deny removes the subagent tool',
-              decision: denied.toolStatus,
-            });
-          }
-        } finally {
-          await provider.stop();
-          await fixture.cleanup();
-        }
-      }
+      const subagent = await routeRun(fixture, provider, 'subagent', {
+        agent: 'kiki-reviewer', description: 'review route', prompt: 'review',
+      });
+      expect(subagent.exitStatus, 'delegation probe exit').toBe(0);
+      expect(subagent.toolStatus, 'delegation is open for a non-primary role').toBe('completed');
+      record({ scenario: 'route/open/subagent', version, decision: subagent.toolStatus });
     } finally {
+      await provider.stop();
+      await fixture.cleanup();
       await new Promise<void>(resolve => webServer.close(() => resolve()));
     }
-  }, 600_000);
+  }, 180_000);
+
 });

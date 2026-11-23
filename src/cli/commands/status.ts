@@ -35,9 +35,8 @@ export async function status(projectPath = '.'): Promise<void> {
     if (effective[name] === undefined && model === undefined) continue;
     const source = projectAgents[name]?.model !== undefined ? 'project' : 'global';
     console.log(`  ${name}: ${model || '(inherited)'} [${source}]`);
-    if (['agent', 'agents'].some(dir => existsSync(join(projectPath, '.opencode', dir, `${name}.md`)))) {
+    if (existsSync(join(projectPath, '.opencode', 'agents', `${name}.md`))) {
       console.log(`    Local Markdown override present for ${name}; it can override these settings.`);
     }
   }
-  if (existsSync(join(projectPath, '.agentic/kiki/routing.json'))) console.log('Legacy routing.json found: use kiki migrate --project <path>.');
 }

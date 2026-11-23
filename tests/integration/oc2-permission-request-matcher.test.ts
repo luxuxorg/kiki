@@ -67,7 +67,7 @@ function cases(project: string, binKiki: string, fakeCli: string): Case[] {
     { command: `${binKiki} permissions add src/x.ts`, note: 'LIMIT: absolute executable path' },
     { command: `sh -c '${ADD} src/x.ts'`, note: 'LIMIT: shell wrapper' },
     { command: `node ${fakeCli} permissions add src/x.ts`, note: 'LIMIT: node wrapper' },
-    { command: 'git push --force origin main', expected: 'deny', note: 'baseline deny control' },
+    { command: 'git push --force origin main', expected: 'ask', note: 'lean baseline: force push asks' },
   ];
 }
 

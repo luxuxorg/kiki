@@ -258,6 +258,18 @@ export function planPermissionAdd(local, inherited, grant) {
     const probe = grant.resource.endsWith('/**')
         ? `${directoryLiteral(grant.resource).replace(/\/$/, '')}/__kiki_permission_probe__`
         : grant.resource;
+    // OpenCode's native file default already allows non-secret reads. With the
+    // lean baseline there is no `allow read *` rule to expose that redundancy, so
+    // an explicit read grant is redundant unless an inherited/local read ask or
+    // deny would otherwise decide the resource (secret validation still applies).
+    if (grant.action === 'read') {
+        const explicitReadDecision = [...inherited, ...local].some(rule => rule.action === 'read'
+            && (rule.effect === 'ask' || rule.effect === 'deny')
+            && globToRegExp(rule.resource).test(probe));
+        if (!explicitReadDecision) {
+            return fail('Requested permission is already covered by the native read default.');
+        }
+    }
     const effective = effectiveEffect(candidate.rules, grant.action, probe);
     if (effective !== 'allow') {
         return fail(`Requested grant is ineffective because a retained restriction overrides it (${effective ?? 'no matching rule'}).`);

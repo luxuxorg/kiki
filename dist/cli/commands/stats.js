@@ -432,9 +432,7 @@ function printLedgerSummary(projectPath, config, records, skipped, ledgerExists)
  * opens referenced spec/plan/code contents.
  */
 export async function stats(projectPath = '.') {
-    const configPath = existsSync(join(projectPath, '.agentic', 'kiki', 'config.json'))
-        ? join(projectPath, '.agentic', 'kiki', 'config.json')
-        : join(projectPath, '.agentic', 'config.json');
+    const configPath = join(projectPath, '.agentic', 'kiki', 'config.json');
     console.log('Kiki usage diagnostics summary');
     console.log(`project=${projectPath}`);
     if (existsSync(configPath)) {

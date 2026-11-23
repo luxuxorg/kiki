@@ -147,22 +147,6 @@ it('reports the standard OpenCode roots as the normal setup', async () => {
   expect(output()).not.toContain('use the user wrapper');
 });
 
-it('accepts an isolated root with a legacy TUI config while still reporting registration state', async () => {
-  writeFileSync(join(globalDir, 'tui.json'), '{"theme":"custom"}');
-  await runDoctor();
-  expect(output()).toContain('✓ OC2 roots');
-  expect(output()).toContain('✓ server plugin registration');
-});
-
-it('fails closed on leftover V1 Kiki artifacts instead of masking them', async () => {
-  mkdirSync(join(globalDir, 'plugins'), { recursive: true });
-  writeFileSync(join(globalDir, 'plugins/kiki.ts'), 'legacy');
-
-  await expect(runDoctor()).rejects.toThrow('exit(1)');
-  expect(output()).toContain('✗ OC2 roots');
-  expect(output()).toMatch(/V1|OC1|version 1|legacy/i);
-});
-
 it('fails an unparsable native agent file and a non-native mode', async () => {
   writeFileSync(join(globalDir, 'agents/kiki-planner.md'), '---\ninvalid: [\n---\nbody');
   await expect(runDoctor()).rejects.toThrow('exit(1)');

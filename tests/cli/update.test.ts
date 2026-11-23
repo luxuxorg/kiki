@@ -41,6 +41,10 @@ describe('global update command', () => {
     expect(orchestrator).toContain('Only when the user explicitly requests a comparison');
     expect(orchestrator).toContain('createLedgerWriter');
     expect(orchestrator).toContain('worktrees are not sandboxes');
+    expect(orchestrator).toContain('Die Regeln aus Main gelten auch im Worktree.');
+    expect(orchestrator).toContain('Delegation nur an die sieben Kiki-Rollen.');
+    expect(implementer).toContain('Die Regeln aus Main gelten auch im Worktree.');
+    expect(implementer).toContain('Behavioral rule: Do not circumvent publishing/Deploy-route approval');
     expect(parseDispatchLabels('[task:diag fix] Correct regression now')).toEqual({
       taskId: 'diag',
       kind: 'fix',
@@ -57,7 +61,7 @@ describe('global update command', () => {
   });
 
   it('rejects the old destructive positional project update before writing', async () => {
-    await expect(update([root])).rejects.toThrow(/migrate/);
+    await expect(update([root])).rejects.toThrow(/unsupported argument/);
     expect(existsSync(global)).toBe(false);
   });
 
@@ -80,9 +84,6 @@ describe('global update command', () => {
       },
     };
     writeFileSync(file, JSON.stringify(data));
-    // Exercise the conservative legacy bootstrap path; with ownership evidence
-    // present this manual divergence would correctly halt.
-    rmSync(join(global, 'kiki/state.json'));
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {

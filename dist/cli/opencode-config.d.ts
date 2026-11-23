@@ -92,6 +92,5 @@ export declare function installGlobalFiles(directory?: string, update?: boolean)
  * mirror baseline permissions into the project config.
  */
 export declare function initializeProjectAgents(project: string, config: KikiConfig, directory?: string): void;
-export declare function migrateProject(project: string, global?: string): void;
 export declare function resetProject(project: string): void;
 //# sourceMappingURL=opencode-config.d.ts.map

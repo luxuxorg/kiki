@@ -67,6 +67,20 @@ export declare const SECRET_GLOBS: readonly string[];
  * persist these arrays under `agents.<name>.permissions` in the global config.
  */
 export declare function generateAgentPermissions(config?: KikiConfig): Record<string, PermissionRule[]>;
+/** The one generated top-level permissions entry; it reaches every agent. */
+export declare function generateGlobalPermissions(): PermissionRule[];
+/**
+ * The shared secret policy block. Policies are checked after every permission
+ * rule and stored approval, can never allow, and therefore bind every agent
+ * without per-role secret tails.
+ */
+export declare function generateSecretPolicies(): PermissionRule[];
+/**
+ * One small idempotent managed behavior section plus a targeted exact
+ * old-consent replacement. Existing custom prompt bytes are preserved; a
+ * conflicting or duplicate managed heading stops instead of overwriting.
+ */
+export declare function withBaselineBehaviorPrompt(prompt: string, agent: string): string;
 /**
  * Narrow, additive permission-request exception. It is delivered by the
  * reviewed generator and the normal backed-up update transaction; the

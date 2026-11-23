@@ -1,10 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, } from 'fs';
 import { dirname, isAbsolute, join, resolve, sep } from 'path';
-import { homedir } from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { applyEdits, modify, parse as parseJsonc } from 'jsonc-parser';
-import { assertNotOC1Config, canonicalPath } from './oc2-paths.js';
+import { canonicalPath } from './oc2-paths.js';
 const SERVER_CONFIG_NAMES = ['opencode.json', 'opencode.jsonc'];
 const CLI_CONFIG_NAMES = ['cli.json', 'cli.jsonc'];
 const KIKI_PACKAGE_NAME = 'kiki';
@@ -105,11 +104,6 @@ function backupFiles(files, directory) {
 function newServerConfig() {
     return '{\n  "$schema": "https://opencode.ai/config.json"\n}\n';
 }
-function guard(directory) {
-    // Installation/update owns the documented V1 artifacts and may back them up
-    // and replace them.
-    assertNotOC1Config(canonicalPath(directory), homedir(), { allowKnownV1Artifacts: true });
-}
 function collectConfigSources(directory, names) {
     const result = [];
     for (const file of configFiles(directory, names)) {
@@ -136,7 +130,7 @@ export function kikiServerSources(directory) {
 export function kikiCliSources(directory) {
     return collectConfigSources(directory, CLI_CONFIG_NAMES);
 }
-/** Auto-discovered V1 source files that OC2 would load alongside a package entry. */
+/** Auto-discovered Kiki plugin files that OC2 loads alongside a package entry; used for duplicate-source diagnostics. */
 export function autoDiscoveredKikiPlugins(directory) {
     return ['plugin', 'plugins'].flatMap(folder => ['kiki.ts', 'kiki.js'].map(file => join(directory, folder, file))).filter(existsSync);
 }
@@ -198,7 +192,6 @@ function registrationEntry(directory, names, fallback, packageSpec, defaultText)
 export function prepareRegistration(directory, packageSpec) {
     if (typeof packageSpec !== 'string' || !packageSpec.trim())
         throw new Error('Invalid Kiki package specification.');
-    guard(directory);
     const server = registrationEntry(directory, SERVER_CONFIG_NAMES, 'opencode.jsonc', packageSpec, newServerConfig());
     const cli = registrationEntry(directory, CLI_CONFIG_NAMES, 'cli.json', packageSpec, '{}\n');
     const writes = [server, cli].filter((entry) => entry !== undefined);
@@ -212,7 +205,6 @@ export function prepareRegistration(directory, packageSpec) {
 }
 /** Remove only known Kiki entries; unrelated plugins and comments survive. */
 export function removeKikiRegistration(directory) {
-    guard(directory);
     const changes = [];
     for (const names of [SERVER_CONFIG_NAMES, CLI_CONFIG_NAMES]) {
         for (const file of configFiles(directory, names)) {

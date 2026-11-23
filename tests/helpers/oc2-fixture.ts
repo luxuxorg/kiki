@@ -275,8 +275,8 @@ export interface TreeDigest {
 }
 
 /**
- * Byte/mode snapshot of a directory tree. Used by isolation tests to prove an
- * OC1-shaped fixture was not rewritten by OC2 activity.
+ * Byte/mode snapshot of a directory tree. Used by isolation tests to prove
+ * unrelated roots were not rewritten by OC2 activity.
  */
 export function snapshotTree(directory: string): TreeDigest[] {
   const entries: TreeDigest[] = [];

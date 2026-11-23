@@ -53,7 +53,7 @@ export function buildModelContext(
   home: string = homedir(),
 ): ModelContext {
   const roots = resolveOC2Roots(env, home);
-  assertOC2Target(roots, home);
+  assertOC2Target(roots);
 
   const globalConfigDirectory = canonicalPath(roots.config);
   assertWritableDirectory(globalConfigDirectory);

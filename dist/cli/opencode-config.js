@@ -1,15 +1,12 @@
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
 import { applyEdits, findNodeAtLocation, modify, parse as parseJsonc, parseTree } from 'jsonc-parser';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { DEFAULT_CONFIG, generateAgentPermissions, generateAllTemplates, withPermissionRequestPrompt, } from './config.js';
-import { assertNotOC1Config, canonicalPath, pathsOverlap, resolveOC2Roots } from './oc2-paths.js';
-import { translatePermissions } from './oc2-permissions.js';
-import { classifyPermissionSources, splitSecretTail, stableCustoms, } from './permission-consolidation.js';
-import { hashPermissionField, ownershipStateFile, readOwnershipState, serializeOwnershipState, } from './permission-ownership.js';
-import { migrateOC1, oc1GlobalDirectory } from './oc2-migration.js';
+import { DEFAULT_CONFIG, generateAgentPermissions, generateAllTemplates, generateGlobalPermissions, generateSecretPolicies, withBaselineBehaviorPrompt, withPermissionRequestPrompt, } from './config.js';
+import { canonicalPath, pathsOverlap, resolveOC2Roots } from './oc2-paths.js';
+import { classifyPermissionSources, splitSecretTail, } from './permission-consolidation.js';
 import { currentPackageSpec, prepareRegistration } from './oc2-registration.js';
 export const AGENT_NAMES = ['kiki-orchestrator', 'kiki-brainstormer', 'kiki-planner',
     'kiki-implementer', 'kiki-gui-designer', 'kiki-reviewer', 'kiki-escalation', 'kiki-historian'];
@@ -42,20 +39,6 @@ export function globalDirectory() {
 }
 function object(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-function validateLegacyPermissions(value, label) {
-    if (value === undefined)
-        return;
-    const action = (item) => item === 'allow' || item === 'deny' || item === 'ask';
-    if (!object(value) || Object.values(value).some(item => !action(item) && (!object(item) || Object.values(item).some(rule => !action(rule))))) {
-        throw new Error(`Invalid agent permission: ${label}`);
-    }
-}
-function validateLegacyAgent(settings, label) {
-    if (settings.model !== undefined && (typeof settings.model !== 'string' || !settings.model.trim())) {
-        throw new Error(`Invalid agent model: ${label}`);
-    }
-    validateLegacyPermissions(settings.permission, label);
 }
 export function mergeSettings(base, extra) {
     const result = { ...base };
@@ -120,7 +103,6 @@ function validateNativeAgent(settings, label) {
 }
 function validateAgentFile(settings, label) {
     validateNativeModel(settings.model, label);
-    validateLegacyPermissions(settings.permission, label);
     validateNativePermissions(settings.permissions, label);
     if (settings.mode !== undefined && !['primary', 'subagent', 'all'].includes(settings.mode)) {
         throw new Error(`Invalid agent mode: ${label}`);
@@ -134,15 +116,6 @@ export function readSettings(file) {
     if (errors.length || !object(data))
         throw new Error(`Invalid OpenCode configuration: ${file}`);
     rejectForbiddenKeys(data);
-    if (data.agent !== undefined) {
-        if (!object(data.agent))
-            throw new Error(`Invalid agent configuration: ${file}`);
-        for (const [name, settings] of Object.entries(data.agent)) {
-            if (!object(settings))
-                throw new Error(`Invalid agent configuration: ${name}`);
-            validateLegacyAgent(settings, name);
-        }
-    }
     if (data.agents !== undefined) {
         if (!object(data.agents))
             throw new Error(`Invalid agent configuration: ${file}`);
@@ -240,15 +213,14 @@ function validateModelScope(scope) {
         throw new Error('Ungültiger Geltungsbereich.');
 }
 // The menu functions can be called with explicit directories (TUI sends the
-// env-derived config dir). Refuse overlapping scopes and any alias of a live
-// V1 installation before reading or writing either one.
+// env-derived config dir). Refuse overlapping scopes before reading or writing
+// either one.
 function assertContextTargets(context) {
     const config = canonicalPath(context.globalConfigDirectory);
     const project = canonicalPath(context.projectDirectory);
     if (pathsOverlap(config, project)) {
         throw new Error('Refusing to modify overlapping OpenCode configuration directories.');
     }
-    assertNotOC1Config(config, homedir());
 }
 function selectionString(value) {
     if (typeof value === 'string')
@@ -390,10 +362,7 @@ export function baselineAgents(config = DEFAULT_CONFIG) {
         return [name, { settings: { ...parsed.settings, permissions: permissions[name] }, prompt: parsed.prompt }];
     }));
 }
-const PROJECT_CONFIG_POINTER = '\n\n## Project configuration\nRead `.agentic/kiki/config.json` when present. Its paths and commands describe this project; use them instead of the default paths in these instructions. Models and permissions are configured natively in OpenCode, not routing.json.\n';
-function pluginFiles(directory) {
-    return ['plugin', 'plugins'].flatMap(dir => ['kiki.ts', 'kiki.js'].map(file => join(directory, dir, file))).filter(existsSync);
-}
+const PROJECT_CONFIG_POINTER = '\n\n## Project configuration\nRead `.agentic/kiki/config.json` when present. Its paths and commands describe this project; use them instead of the default paths in these instructions. Models and permissions are configured natively in OpenCode.\n';
 function backup(files, directory) {
     const existing = [...new Set(files.filter(existsSync))];
     if (!existing.length)
@@ -410,35 +379,19 @@ function backup(files, directory) {
 function nativeAgentFile(directory, name) {
     return join(directory, 'agents', `${name}.md`);
 }
-function singularAgentFile(directory, name) {
-    return join(directory, 'agent', `${name}.md`);
-}
-function promptFiles(directory) {
-    const promptDirectory = join(directory, 'kiki/prompts');
-    if (!existsSync(promptDirectory))
-        return [];
-    return readdirSync(promptDirectory, { withFileTypes: true })
-        .filter(entry => entry.isFile())
-        .map(entry => join(promptDirectory, entry.name));
-}
-function staleV1Files(directory) {
-    return [
-        join(directory, 'kiki/tui.js'),
-        ...promptFiles(directory),
-        ...pluginFiles(directory),
-    ].filter(existsSync);
-}
 function renderAgentFile(settings, prompt) {
     const frontmatter = stringifyYaml(settings, { lineWidth: 0 }).trimEnd();
     return `---\n${frontmatter}\n---\n${prompt}`;
 }
 function withProjectConfigPointer(prompt) {
-    const heading = '## Kiki managed permission requests (v1)';
-    const index = prompt.indexOf(heading);
+    const behavior = prompt.indexOf('## Kiki baseline behavior (v1)');
+    const permission = prompt.indexOf('## Kiki managed permission requests (v1)');
+    // Keep both managed sections intact: insert before the behavior section when
+    // present so the behavior section stays immediately before the permission
+    // tail, and fall back to the permission heading otherwise.
+    const index = behavior >= 0 && (permission < 0 || behavior < permission) ? behavior : permission;
     if (index < 0)
         return prompt + PROJECT_CONFIG_POINTER;
-    // Keep the managed fragment last: a following pointer would make the
-    // idempotent exact-tail check fail on the next update.
     const head = prompt.slice(0, index).replace(/\n+$/, '\n\n');
     return `${head}${PROJECT_CONFIG_POINTER.trim()}\n\n${prompt.slice(index)}`;
 }
@@ -449,28 +402,17 @@ function nativeAgentContent(name, existingText) {
         // mode bytes; it strips only the permission fields from the markdown. The
         // canonical arrays live in the global config.
         const existing = parseAgent(existingText, name);
-        if (existing.settings.permission !== undefined && existing.settings.permissions !== undefined) {
-            throw new Error(`Duplicate native and legacy permissions for ${name}.`);
-        }
         const settings = { ...existing.settings };
         delete settings.model;
         delete settings.permissions;
         delete settings.permission;
-        return renderAgentFile(settings, withPermissionRequestPrompt(existing.prompt));
+        return renderAgentFile(settings, withBaselineBehaviorPrompt(withPermissionRequestPrompt(existing.prompt), name));
     }
     const settings = { ...baseline.settings };
     delete settings.model;
     delete settings.permissions;
     delete settings.permission;
-    return renderAgentFile(settings, withPermissionRequestPrompt(withProjectConfigPointer(baseline.prompt)));
-}
-function removeStaleDirectory(directory) {
-    try {
-        rmdirSync(directory);
-    }
-    catch {
-        // Keep a non-empty or already absent directory.
-    }
+    return renderAgentFile(settings, withBaselineBehaviorPrompt(withPermissionRequestPrompt(withProjectConfigPointer(baseline.prompt)), name));
 }
 function snapshotFiles(files) {
     return [...new Set(files)].map(file => {
@@ -548,12 +490,9 @@ function duplicateConfigKeys(file) {
         }
     };
     walk(tree, []);
-    // Only the agent map and its direct fields are relevant to ownership; a
-    // duplicate scalar elsewhere is unrelated user data.
-    return [...new Set(duplicates.filter(path => {
-            const parts = path.split('.');
-            return parts[0] === 'agents' || parts[0] === 'agent';
-        }))];
+    // Only the agent map and its direct fields are relevant here; a duplicate
+    // scalar elsewhere is unrelated user data.
+    return [...new Set(duplicates.filter(path => path.split('.')[0] === 'agents'))];
 }
 function assertUniqueAgentKeys(text, label) {
     const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
@@ -565,6 +504,270 @@ function assertUniqueAgentKeys(text, label) {
     catch {
         throw new Error(`Ambiguous agent frontmatter (duplicate keys): ${label}`);
     }
+}
+const MANAGED_MARKERS = {
+    permissions: {
+        begin: '/* kiki managed permissions begin */',
+        end: '/* kiki managed permissions end */',
+    },
+    policies: {
+        begin: '/* kiki managed policies begin */',
+        end: '/* kiki managed policies end */',
+    },
+};
+/** Comment tokens outside string literals, offsets relative to `text`. */
+function scanComments(text) {
+    const tokens = [];
+    let inString = false;
+    let escaped = false;
+    for (let index = 0; index < text.length; index++) {
+        const char = text[index];
+        if (inString) {
+            if (escaped)
+                escaped = false;
+            else if (char === '\\')
+                escaped = true;
+            else if (char === '"')
+                inString = false;
+            continue;
+        }
+        if (char === '"') {
+            inString = true;
+            continue;
+        }
+        if (char === '/' && text[index + 1] === '/') {
+            const end = text.indexOf('\n', index + 2);
+            const stop = end < 0 ? text.length : end;
+            tokens.push({ start: index, end: stop, text: text.slice(index, stop) });
+            index = stop - 1;
+        }
+        else if (char === '/' && text[index + 1] === '*') {
+            const end = text.indexOf('*/', index + 2);
+            if (end < 0)
+                throw new Error('Malformed JSONC comment.');
+            const stop = end + 2;
+            tokens.push({ start: index, end: stop, text: text.slice(index, stop) });
+            index = stop - 1;
+        }
+    }
+    return tokens;
+}
+function withoutComments(text) {
+    const chars = [...text];
+    for (const token of scanComments(text)) {
+        for (let index = token.start; index < token.end; index++)
+            chars[index] = ' ';
+    }
+    return chars.join('');
+}
+function hasCommaOutsideComments(text) {
+    return withoutComments(text).includes(',');
+}
+function duplicateObjectKeyPaths(text) {
+    const tree = parseTree(text);
+    if (!tree)
+        return [];
+    const duplicates = [];
+    const walk = (node, path) => {
+        if (!node)
+            return;
+        if (node.type === 'object' && node.children) {
+            const seen = new Set();
+            for (const property of node.children) {
+                const key = String(property.children?.[0]?.value ?? '');
+                if (key && seen.has(key))
+                    duplicates.push(path ? `${path}.${key}` : key);
+                seen.add(key);
+                walk(property.children?.[1], path ? `${path}.${key}` : key);
+            }
+            return;
+        }
+        if (node.type === 'array' && node.children) {
+            node.children.forEach((child, index) => walk(child, `${path}[${index}]`));
+        }
+    };
+    walk(tree, '');
+    return [...new Set(duplicates)];
+}
+function parseManagedRoot(text, file) {
+    const errors = [];
+    const tree = parseTree(text, errors, { allowTrailingComma: true, disallowComments: false });
+    if (!tree || errors.length || tree.type !== 'object') {
+        throw new Error(`Invalid OpenCode configuration: ${file}`);
+    }
+    return tree;
+}
+function managedArrayNode(tree, kind, file) {
+    const properties = (tree.children ?? []).filter(property => property.children?.[0]?.value === kind);
+    if (properties.length > 1) {
+        throw new Error(`Ambiguous OpenCode configuration (duplicate top-level ${kind}): ${file}`);
+    }
+    const value = properties[0]?.children?.[1];
+    if (value !== undefined && value.type !== 'array') {
+        throw new Error(`Invalid top-level ${kind} (expected an array): ${file}`);
+    }
+    return value;
+}
+function sameManagedRule(value, expected) {
+    if (!object(value))
+        return false;
+    const keys = Object.keys(value).sort();
+    return keys.length === 3 && keys[0] === 'action' && keys[1] === 'effect' && keys[2] === 'resource'
+        && value.action === expected.action
+        && value.resource === expected.resource
+        && value.effect === expected.effect;
+}
+function managedDrift(kind, file, expected, observed) {
+    return new Error(`Modified managed ${kind} fragment: ${file}: top-level ${kind} array. `
+        + `Expected ${expected.length} exact ordered rules ${JSON.stringify(expected)}; `
+        + `observed ${JSON.stringify(observed)}.`);
+}
+function inspectManagedBlock(inner, kind, expected, file) {
+    const comments = scanComments(inner);
+    const otherKind = kind === 'permissions' ? 'policies' : 'permissions';
+    const foreign = comments.filter(comment => Object.values(MANAGED_MARKERS[otherKind]).some(marker => marker === comment.text));
+    if (foreign.length) {
+        throw new Error(`Ambiguous managed ${kind} markers in ${file}: top-level ${kind} array contains ${otherKind} markers.`);
+    }
+    const begin = comments.filter(comment => comment.text === MANAGED_MARKERS[kind].begin);
+    const end = comments.filter(comment => comment.text === MANAGED_MARKERS[kind].end);
+    if (begin.length === 0 && end.length === 0)
+        return { present: false };
+    if (begin.length !== 1 || end.length !== 1) {
+        throw new Error(`Modified or ambiguous managed ${kind} markers: ${file}: top-level ${kind} array. `
+            + `Expected exactly one begin and one end marker; observed ${begin.length} begin and ${end.length} end.`);
+    }
+    if (begin[0].start >= end[0].start) {
+        throw new Error(`Modified managed ${kind} markers: ${file}: top-level ${kind} array has end before begin.`);
+    }
+    const enclosed = inner.slice(begin[0].end, end[0].start);
+    if (scanComments(enclosed).length) {
+        throw new Error(`Modified managed ${kind} fragment: ${file}: top-level ${kind} array contains an unexpected comment inside the managed block.`);
+    }
+    const duplicateKeys = duplicateObjectKeyPaths(`[${enclosed}]`);
+    if (duplicateKeys.length) {
+        throw new Error(`Ambiguous managed ${kind} fragment: ${file}: duplicate keys ${duplicateKeys.join(', ')}.`);
+    }
+    const errors = [];
+    const parsed = parseJsonc(`[${enclosed}]`, errors, { allowTrailingComma: true });
+    if (errors.length || !Array.isArray(parsed)) {
+        throw managedDrift(kind, file, expected, parsed);
+    }
+    const exact = parsed.length === expected.length
+        && parsed.every((rule, index) => sameManagedRule(rule, expected[index]));
+    if (!exact)
+        throw managedDrift(kind, file, expected, parsed);
+    return { present: true, beginStart: begin[0].start, endEnd: end[0].end };
+}
+function managedRuleText(rule) {
+    return `{ "action": ${JSON.stringify(rule.action)}, "resource": ${JSON.stringify(rule.resource)}, "effect": ${JSON.stringify(rule.effect)} }`;
+}
+function managedBlockLines(entries, kind) {
+    const lines = [`    ${MANAGED_MARKERS[kind].begin}`];
+    entries.forEach((rule, index) => {
+        lines.push(`    ${managedRuleText(rule)}${index < entries.length - 1 ? ',' : ''}`);
+    });
+    lines.push(`    ${MANAGED_MARKERS[kind].end}`);
+    return lines;
+}
+/**
+ * Append the canonical marked block after every existing array item. Existing
+ * user bytes (entries, comments and extra policy fields) are copied verbatim;
+ * only the managed block and the separating comma are inserted.
+ */
+function appendManagedBlock(inner, entries, kind, file) {
+    const base = inner.replace(/[ \t\r\n]+$/, '');
+    const errors = [];
+    // Keep a newline before the closing bracket so a trailing line comment in
+    // `base` cannot swallow it in this validation parse.
+    const arrayTree = parseTree(`[${base}\n]`, errors, { allowTrailingComma: true, disallowComments: false });
+    if (!arrayTree || errors.length)
+        throw new Error(`Invalid OpenCode configuration: ${file}`);
+    const elements = arrayTree.children ?? [];
+    let insertion = base;
+    if (elements.length) {
+        const last = elements[elements.length - 1];
+        const lastEnd = last.offset - 1 + last.length;
+        const tail = base.slice(lastEnd);
+        if (!hasCommaOutsideComments(tail)) {
+            insertion = `${base.slice(0, lastEnd)},${base.slice(lastEnd)}`;
+        }
+    }
+    return `${insertion}\n${managedBlockLines(entries, kind).join('\n')}\n  `;
+}
+function createManagedArrayProperty(text, entries, kind, file) {
+    let result = text;
+    const selectRoot = () => parseManagedRoot(result, file);
+    let root = selectRoot();
+    const compact = (root.children ?? []).at(-1);
+    if (compact) {
+        const rootClose = root.offset + root.length - 1;
+        const between = result.slice(compact.offset + compact.length, rootClose);
+        if (!hasCommaOutsideComments(between)) {
+            const at = compact.offset + compact.length;
+            result = `${result.slice(0, at)},${result.slice(at)}`;
+            root = selectRoot();
+        }
+    }
+    const close = root.offset + root.length - 1;
+    const before = result.slice(0, close).replace(/[ \t\r\n]+$/, '');
+    return `${before}\n  "${kind}": [\n${managedBlockLines(entries, kind).join('\n')}\n  ]\n${result.slice(close)}`;
+}
+function planManagedArray(text, kind, file) {
+    const expected = kind === 'permissions' ? generateGlobalPermissions() : generateSecretPolicies();
+    const tree = parseManagedRoot(text, file);
+    const node = managedArrayNode(tree, kind, file);
+    if (!node)
+        return createManagedArrayProperty(text, expected, kind, file);
+    const start = node.offset + 1;
+    const end = node.offset + node.length - 1;
+    const inner = text.slice(start, end);
+    const inspected = inspectManagedBlock(inner, kind, expected, file);
+    let nextInner;
+    if (!inspected.present) {
+        nextInner = appendManagedBlock(inner, expected, kind, file);
+    }
+    else {
+        const after = inner.slice(inspected.endEnd);
+        const afterArray = parseTree(`[${inner}]`, undefined, { allowTrailingComma: true, disallowComments: false });
+        const followingElement = (afterArray?.children ?? []).some(child => child.offset - 1 >= inspected.endEnd);
+        if (!followingElement) {
+            // Already the final block: byte-stable no-op, even if the generated
+            // whitespace differs from the canonical form.
+            return text;
+        }
+        const following = after.match(/^\s*,/);
+        if (!following) {
+            throw new Error(`Ambiguous managed ${kind} fragment: ${file}: unexpected content after the end marker.`);
+        }
+        const withoutBlock = inner.slice(0, inspected.beginStart) + after.slice(following[0].length);
+        nextInner = appendManagedBlock(withoutBlock, expected, kind, file);
+    }
+    return `${text.slice(0, start)}${nextInner}${text.slice(end)}`;
+}
+/**
+ * Plan the two fixed managed top-level fragments. It consumes Task 3's
+ * generators, refuses modified/ambiguous markers or duplicate keys, preserves
+ * every user span verbatim, and returns the expected whole arrays for the
+ * installer's reread verification. Pure: reads no file and mutates nothing.
+ */
+function planManagedGlobalFragments(text, file) {
+    const source = text.trim()
+        ? text
+        : '{\n  "$schema": "https://opencode.ai/config.json"\n}\n';
+    let planned = planManagedArray(source, 'permissions', file);
+    planned = planManagedArray(planned, 'policies', file);
+    const errors = [];
+    const data = parseJsonc(planned, errors, { allowTrailingComma: true });
+    if (errors.length || !object(data)
+        || !Array.isArray(data.permissions) || !Array.isArray(data.policies)) {
+        throw new Error(`Invalid OpenCode configuration: ${file}`);
+    }
+    return {
+        text: planned,
+        permissions: data.permissions,
+        policies: data.policies,
+    };
 }
 function hasInnerArrayComments(file, name) {
     const text = readFileSync(file, 'utf8');
@@ -612,31 +815,18 @@ function collectAgentSources(directory, name) {
         }
     }
     const native = nativeAgentFile(directory, name);
-    const singular = singularAgentFile(directory, name);
     const hasNative = existsSync(native);
-    const hasSingular = existsSync(singular);
-    if (hasNative && hasSingular)
-        throw new Error(`Duplicate local agent definitions: ${name}`);
-    const markdownFile = hasNative ? native : hasSingular ? singular : undefined;
+    const markdownFile = hasNative ? native : undefined;
     let markdownText;
     if (markdownFile) {
         markdownText = readFileSync(markdownFile, 'utf8');
         assertUniqueAgentKeys(markdownText, name);
         const { settings } = parseAgent(markdownText, name);
-        if (settings.permissions !== undefined && settings.permission !== undefined) {
-            throw new Error(`Duplicate native and legacy permissions for ${name}.`);
-        }
-        // Markdown permission blocks are a real classification source: validation
-        // alone is not ownership proof. Generated rules are replaceable, custom
-        // allows are preserved and reported, custom denies/ambiguity halt.
+        // Markdown permission blocks are a real classification source: exact known
+        // defaults are replaceable, and every unknown rule is preserved as a custom
+        // for every effect.
         if (settings.permissions !== undefined) {
             sources.push({ file: markdownFile, rules: settings.permissions });
-        }
-        else if (settings.permission !== undefined) {
-            const translated = translatePermissions(settings.permission);
-            if (!translated.ok)
-                throw new Error(translated.reason);
-            sources.push({ file: markdownFile, rules: translated.rules });
         }
     }
     return {
@@ -644,7 +834,6 @@ function collectAgentSources(directory, name) {
         markdownFile,
         markdownText,
         hasNative,
-        singularFile: hasSingular ? singular : undefined,
         commentFiles,
     };
 }
@@ -662,27 +851,8 @@ function removeAgentPermissions(file, names) {
         writeAtomic(file, text);
     return text !== before;
 }
-function sameOwnershipState(left, right) {
-    if (!left || left.version !== right.version)
-        return false;
-    const leftKeys = Object.keys(left.roles).sort();
-    const rightKeys = Object.keys(right.roles).sort();
-    if (leftKeys.length !== rightKeys.length)
-        return false;
-    return leftKeys.every((role, index) => role === rightKeys[index] && left.roles[role] === right.roles[role]);
-}
-function driftReport(name, file, recorded, current, detail) {
-    return [
-        `  ${name} (${file}): ownership drift`,
-        `    recorded hash: ${recorded}`,
-        `    current hash: ${current ?? 'absent'}`,
-        `    rule diff: unavailable (hash-only evidence stores no rules)`,
-        ...(detail ? [`    detail: ${detail}`] : []),
-    ].join('\n');
-}
 export function installGlobalFiles(directory = globalDirectory(), update = false) {
-    // Reject V1 artifacts and malformed tiers before any write.
-    assertNotOC1Config(canonicalPath(directory), homedir(), { allowKnownV1Artifacts: true });
+    // Validate malformed tiers before any write.
     const configs = configFiles(directory, true);
     for (const file of configs) {
         readSettings(file);
@@ -695,66 +865,26 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
     const canonical = generateAgentPermissions(DEFAULT_CONFIG);
     const targetFile = configTarget(directory, true);
     const targetSettings = existsSync(targetFile) ? readSettings(targetFile) : {};
-    const stateFile = ownershipStateFile(directory);
-    const previousState = readOwnershipState(stateFile);
+    const targetText = existsSync(targetFile) ? readFileSync(targetFile, 'utf8') : '';
+    // Preflight before registration mutation and backup: modified or ambiguous
+    // managed fragments stop here without writing anything.
+    const fragmentPlan = planManagedGlobalFragments(targetText, targetFile);
     const states = new Map();
     const targets = {};
     const report = [];
-    const drifts = [];
     for (const name of AGENT_NAMES) {
         const state = collectAgentSources(directory, name);
         states.set(name, state);
-        const ownedHash = previousState?.roles[name];
-        const targetRules = targetSettings.agents?.[name]?.permissions;
-        if (ownedHash !== undefined) {
-            const otherSources = state.sources.filter(source => source.file !== targetFile);
-            const currentHash = Array.isArray(targetRules) ? hashPermissionField(targetRules) : undefined;
-            if (!Array.isArray(targetRules)) {
-                drifts.push(driftReport(name, targetFile, ownedHash, undefined, 'owned permission field is missing'));
-                continue;
-            }
-            if (currentHash !== ownedHash) {
-                drifts.push(driftReport(name, targetFile, ownedHash, currentHash));
-                continue;
-            }
-            if (otherSources.length) {
-                drifts.push(driftReport(name, targetFile, ownedHash, currentHash, `another permission source exists: ${otherSources.map(source => source.file).join(', ')}`));
-                continue;
-            }
-            // The hash proves this exact field is Kiki-owned, but the field can still
-            // contain preserved custom allows. Classify it against the fresh baseline
-            // so old generated shapes are replaced while customs survive.
-            const classification = classifyPermissionSources(name, canonical[name], [
-                { file: targetFile, rules: targetRules },
-            ]);
-            for (const entry of classification.entries) {
-                report.push(`  [${entry.kind}] ${entry.file}: ${entry.rule.action} ${entry.rule.resource} ${entry.rule.effect}`);
-            }
-            if (classification.blockers.length) {
-                throw new Error(`Refusing to update permissions; manual resolution required:\n${classification.blockers.join('\n')}`);
-            }
-            report.push(`  [owned] ${targetFile}: ${name} matches recorded evidence; replacing with fresh baseline`);
-            const { prefix, tail } = splitSecretTail(canonical[name]);
-            targets[name] = { permissions: [...prefix, ...stableCustoms(classification.customs), ...tail] };
-            continue;
-        }
         const classification = classifyPermissionSources(name, canonical[name], state.sources);
         for (const entry of classification.entries) {
             report.push(`  [${entry.kind}] ${entry.file}: ${entry.rule.action} ${entry.rule.resource} ${entry.rule.effect}`);
         }
-        if (classification.blockers.length) {
-            throw new Error(`Refusing to update permissions; manual resolution required:\n${classification.blockers.join('\n')}`);
-        }
         const { prefix, tail } = splitSecretTail(canonical[name]);
-        targets[name] = { permissions: [...prefix, ...stableCustoms(classification.customs), ...tail] };
-    }
-    if (drifts.length) {
-        throw new Error(`Refusing to update permissions; manual resolution required:\n${drifts.join('\n')}`);
+        targets[name] = { permissions: [...prefix, ...classification.customs, ...tail] };
     }
     console.log('Kiki permission plan (verbatim):');
     console.log(report.length ? report.join('\n') : '  (no existing permission rules)');
     const writes = [];
-    const removals = [];
     for (const name of AGENT_NAMES) {
         const state = states.get(name);
         const native = nativeAgentFile(directory, name);
@@ -762,22 +892,18 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
         if (!state.hasNative || readFileSync(native, 'utf8') !== content) {
             writes.push({ file: native, content });
         }
-        if (state.singularFile)
-            removals.push(state.singularFile);
     }
     const workflow = join(directory, 'kiki/agentic-workflow.md');
     const workflowContent = generateAllTemplates(DEFAULT_CONFIG).workflow;
     if (!existsSync(workflow) || readFileSync(workflow, 'utf8') !== workflowContent) {
         writes.push({ file: workflow, content: workflowContent });
     }
-    removals.push(...staleV1Files(directory));
-    let permissionMutation = false;
-    let needsChange = registration.files.length > 0 || writes.length > 0 || removals.length > 0;
+    let needsChange = registration.files.length > 0 || writes.length > 0
+        || fragmentPlan.text !== targetText;
     for (const name of AGENT_NAMES) {
         if (JSON.stringify(targetSettings.agents?.[name]?.permissions)
             !== JSON.stringify(targets[name].permissions)) {
             needsChange = true;
-            permissionMutation = true;
         }
     }
     for (const file of configs) {
@@ -787,7 +913,6 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
         for (const name of AGENT_NAMES) {
             if (settings.agents?.[name]?.permissions !== undefined) {
                 needsChange = true;
-                permissionMutation = true;
             }
         }
     }
@@ -802,12 +927,6 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
             throw new Error(`Refusing to update ${name}: comments inside an existing permissions array would be lost. Move them outside the array: ${state.commentFiles.join(', ')}`);
         }
     }
-    const desiredState = {
-        version: 1,
-        roles: Object.fromEntries(AGENT_NAMES.map(name => [name, hashPermissionField(targets[name].permissions)])),
-    };
-    const stateNeedsChange = !sameOwnershipState(previousState, desiredState);
-    needsChange = needsChange || stateNeedsChange;
     if (!needsChange) {
         console.log(`Kiki ${update ? 'updated' : 'installed'} globally in ${directory}. Restart OpenCode to load it.`);
         console.log('Agent models: set them with the /kiki command in OpenCode (or edit agents.<name>.model in opencode.json).');
@@ -818,19 +937,10 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
             targetFile,
             ...registration.files,
             ...writes.map(write => write.file),
-            ...removals,
-            stateFile,
             ...AGENT_NAMES.map(name => states.get(name).markdownFile).filter((file) => !!file),
         ])];
     const backupDirectory = backup(touched.filter(existsSync), join(directory, 'kiki/backups'));
-    const configSnapshots = snapshotFiles(touched.filter(file => file !== stateFile));
-    const stateSnapshot = snapshotFiles([stateFile])[0];
-    // Invalidate old ownership evidence before the first permission-field
-    // mutation. Preflight already completed; a crash from here on leaves either
-    // the old evidence (no mutation yet), absent evidence (bootstrap fallback) or
-    // newly verified evidence, never stale hashes describing changed bytes.
-    if (permissionMutation && existsSync(stateFile))
-        unlinkSync(stateFile);
+    const configSnapshots = snapshotFiles(touched);
     try {
         // Registration first: captured server-config text cannot overwrite the
         // permission arrays persisted afterwards.
@@ -840,7 +950,15 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
             if (file !== targetFile)
                 removeAgentPermissions(file, [...AGENT_NAMES]);
         }
-        // Verify by re-read before stripping any markdown.
+        // Apply the managed fragments to freshly read text so registration's
+        // captured server-config text cannot overwrite them. Re-planning uses the
+        // same canonical generators and refuses any concurrent marker drift.
+        const freshText = existsSync(targetFile) ? readFileSync(targetFile, 'utf8') : '';
+        const appliedFragments = planManagedGlobalFragments(freshText, targetFile);
+        if (appliedFragments.text !== freshText)
+            writeAtomic(targetFile, appliedFragments.text);
+        // Verify both top-level arrays and every role array by re-read before
+        // stripping any markdown.
         const verified = readSettings(targetFile);
         for (const name of AGENT_NAMES) {
             if (JSON.stringify(verified.agents?.[name]?.permissions)
@@ -848,24 +966,19 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
                 throw new Error(`Permission persistence verification failed for ${name}.`);
             }
         }
+        if (JSON.stringify(verified.permissions) !== JSON.stringify(appliedFragments.permissions)) {
+            throw new Error('Managed top-level permissions verification failed.');
+        }
+        if (JSON.stringify(verified.policies) !== JSON.stringify(appliedFragments.policies)) {
+            throw new Error('Managed top-level policies verification failed.');
+        }
         for (const write of writes)
             writeAtomic(write.file, write.content);
         for (const name of AGENT_NAMES) {
             const settings = parseAgent(readFileSync(nativeAgentFile(directory, name), 'utf8'), name).settings;
-            if (settings.permissions !== undefined || settings.permission !== undefined) {
+            if (settings.permissions !== undefined) {
                 throw new Error(`Markdown permission strip verification failed for ${name}.`);
             }
-        }
-        for (const file of [...new Set(removals)].filter(existsSync))
-            unlinkSync(file);
-        removeStaleDirectory(join(directory, 'kiki/prompts'));
-        // Publish ownership evidence only after configuration verification and the
-        // remaining transaction operations.
-        mkdirSync(dirname(stateFile), { recursive: true, mode: 0o700 });
-        const stateContent = serializeOwnershipState(desiredState);
-        writeAtomic(stateFile, stateContent);
-        if (readFileSync(stateFile, 'utf8') !== stateContent) {
-            throw new Error('Ownership state verification failed.');
         }
     }
     catch (error) {
@@ -874,27 +987,7 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
             ? existsSync(snapshot.file) && readFileSync(snapshot.file).equals(snapshot.content)
             : !existsSync(snapshot.file));
         if (!restored) {
-            // Never restore old hashes over configuration that did not roll back.
-            try {
-                if (existsSync(stateFile))
-                    unlinkSync(stateFile);
-            }
-            catch {
-                // Evidence is absent or cannot be trusted; report recovery below.
-            }
-            throw new Error(`Install/update failed and rollback was incomplete; ownership evidence was left absent. Restore from ${backupDirectory ?? 'the backup directory'}: ${failures.join('; ') || 'configuration verification failed'}. Original error: ${error instanceof Error ? error.message : String(error)}`);
-        }
-        // State is restored last, only after configuration restoration verified.
-        const stateFailures = restoreFiles([stateSnapshot]);
-        if (stateFailures.length) {
-            try {
-                if (existsSync(stateFile))
-                    unlinkSync(stateFile);
-            }
-            catch {
-                // Leave evidence absent rather than stale.
-            }
-            throw new Error(`Install/update failed and rollback was incomplete; ownership evidence could not be restored. Restore from ${backupDirectory ?? 'the backup directory'}: ${stateFailures.join('; ')}. Original error: ${error instanceof Error ? error.message : String(error)}`);
+            throw new Error(`Install/update failed and rollback was incomplete. Restore from ${backupDirectory ?? 'the backup directory'}: ${failures.join('; ') || 'configuration verification failed'}. Original error: ${error instanceof Error ? error.message : String(error)}`);
         }
         throw error instanceof Error
             ? new Error(`${error.message} All changes were rolled back.`)
@@ -910,38 +1003,25 @@ export function installGlobalFiles(directory = globalDirectory(), update = false
  */
 export function initializeProjectAgents(project, config, directory = globalDirectory()) {
     void config;
-    assertNotOC1Config(canonicalPath(project), homedir(), { allowKnownV1Artifacts: true });
-    assertNotOC1Config(canonicalPath(directory), homedir(), { allowKnownV1Artifacts: true });
     for (const file of [...configFiles(project), ...configFiles(directory, true)])
         readSettings(file);
 }
-export function migrateProject(project, global = oc1GlobalDirectory()) {
-    const report = migrateOC1({ from: global, project, force: false, destination: project });
-    if (report.exitCode !== 0) {
-        const details = report.rejected.map(entry => `${entry.agent}: ${entry.reason}`).join('; ');
-        throw new Error(`Migration incomplete: ${details}`);
-    }
-    console.log(`Migrated Kiki settings in ${resolve(project)}; local runtime copies removed. Restart OpenCode.`);
-}
 export function resetProject(project) {
-    assertNotOC1Config(canonicalPath(project), homedir(), { allowKnownV1Artifacts: true });
     const configs = configFiles(project);
     // Validate all configuration before changing any file.
     const settingsByFile = new Map(configs.map(file => [file, readSettings(file)]));
-    const agentFiles = ['agent', 'agents'].flatMap(dir => AGENT_NAMES.map(name => join(project, '.opencode', dir, `${name}.md`))).filter(existsSync);
-    const routing = join(project, '.agentic/kiki/routing.json');
-    const files = [...agentFiles, ...pluginFiles(join(project, '.opencode')), ...(existsSync(routing) ? [routing] : [])];
+    const files = AGENT_NAMES
+        .map(name => join(project, '.opencode', 'agents', `${name}.md`))
+        .filter(existsSync);
     const changes = [];
     for (const [file, settings] of settingsByFile) {
         const text = readFileSync(file, 'utf8');
         let updated = text;
-        for (const section of ['agents', 'agent']) {
-            const entries = settings[section];
-            if (!object(entries))
-                continue;
+        const entries = settings.agents;
+        if (object(entries)) {
             for (const name of AGENT_NAMES) {
                 if (entries[name] !== undefined)
-                    updated = patchValue(updated, [section, name], undefined);
+                    updated = patchValue(updated, ['agents', name], undefined);
             }
         }
         if (updated !== text)

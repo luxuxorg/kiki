@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertOC2Target, resolveOC2Roots } from '../../src/cli/oc2-paths';
@@ -48,96 +48,10 @@ describe('OpenCode 2 root resolution', () => {
     });
   });
 
-  it('refuses_oc1_markers_before_writes', () => {
-    const config = defaultConfig();
-    mkdirSync(join(config, 'plugins'), { recursive: true });
-    const marker = join(config, 'plugins', 'kiki.ts');
-    writeFileSync(marker, 'const token = "sk-live-secret";\n');
-    const before = readFileSync(marker, 'utf8');
-
-    let error: unknown;
-    try {
-      assertOC2Target(resolveOC2Roots({}, home), home);
-    } catch (cause) {
-      error = cause;
-    }
-    expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toMatch(/V1|OC1|version 1|legacy/i);
-    // The guard must not echo configuration values or a stack trace.
-    expect((error as Error).message).not.toContain('sk-live-secret');
-    expect((error as Error).message).not.toContain(join(home, '.config'));
-    expect(readFileSync(marker, 'utf8')).toBe(before);
-    expect(readdirSync(config)).toEqual(['plugins']);
-  });
-
-  it.each(['tui.json', 'tui.jsonc'])(
-    'accepts_legacy_cli_config_without_a_kiki_loader (%s)',
-    name => {
-      const config = defaultConfig();
-      mkdirSync(config, { recursive: true });
-      writeFileSync(join(config, name), '{"plugin":["./kiki/tui.js"],"theme":"custom"}\n');
-
-      // The V1 CLI file is generic OpenCode config; without kiki/tui.js it cannot
-      // load V1 Kiki code, and OpenCode 2 uses cli.json instead.
-      expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).not.toThrow();
-    },
-  );
-
-  it.each(['opencode.json', 'opencode.jsonc'])(
-    'accepts_standard_config_files_shared_by_oc1_and_oc2 (%s)',
-    name => {
-      const config = defaultConfig();
-      mkdirSync(config, { recursive: true });
-      const shared = join(config, name);
-      writeFileSync(shared, '{"model":"provider/model","provider":{"token":"sk-live-secret"}}\n');
-      const before = readFileSync(shared, 'utf8');
-
-      // Both generations use ~/.config/opencode; a config file is not a V1 marker.
-      expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).not.toThrow();
-      expect(readFileSync(shared, 'utf8')).toBe(before);
-    },
-  );
-
-  it('accepts_an_empty_machine_default', () => {
-    expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).not.toThrow();
+  it('accepts an empty machine default', () => {
+    expect(() => assertOC2Target(resolveOC2Roots({}, home))).not.toThrow();
     mkdirSync(defaultConfig(), { recursive: true });
-    expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).not.toThrow();
-  });
-
-  it('allows_install_cleanup_of_v1_artifacts_in_the_standard_config', () => {
-    const config = defaultConfig();
-    mkdirSync(join(config, 'plugins'), { recursive: true });
-    writeFileSync(join(config, 'plugins', 'kiki.ts'), 'legacy\n');
-
-    // Install/update backs up and replaces the known artifacts.
-    expect(() => assertOC2Target(
-      resolveOC2Roots({}, home),
-      home,
-      { allowKnownV1Artifacts: true },
-    )).not.toThrow();
-    // Any other write still fails closed on the live V1 artifacts.
-    expect(() => assertOC2Target(resolveOC2Roots({}, home), home))
-      .toThrow(/V1|OC1|version 1|legacy/i);
-  });
-
-  it('rejects_aliases_into_oc1_roots', () => {
-    const config = defaultConfig();
-    mkdirSync(join(config, 'plugins'), { recursive: true });
-    writeFileSync(join(config, 'plugins', 'kiki.ts'), 'legacy\n');
-
-    // OPENCODE_CONFIG_DIR pointing through a directory symlink into the live OC1 root.
-    symlinkSync(config, join(home, 'config-alias'), 'dir');
-    expect(() => assertOC2Target(
-      resolveOC2Roots({ OPENCODE_CONFIG_DIR: join(home, 'config-alias') }, home),
-      home,
-    )).toThrow(/V1|OC1|version 1|legacy/i);
-
-    // An XDG_CONFIG_HOME whose symlinked ancestor resolves into the live OC1 root.
-    symlinkSync(join(home, '.config'), join(home, 'xdg-alias'), 'dir');
-    expect(() => assertOC2Target(
-      resolveOC2Roots({ XDG_CONFIG_HOME: join(home, 'xdg-alias') }, home),
-      home,
-    )).toThrow(/V1|OC1|version 1|legacy/i);
+    expect(() => assertOC2Target(resolveOC2Roots({}, home))).not.toThrow();
   });
 
   it('canonicalizes_nearest_existing_parent_for_absent_destinations', () => {
@@ -149,7 +63,7 @@ describe('OpenCode 2 root resolution', () => {
       cache: join(home, 'cache'),
       state: join(home, 'state'),
     };
-    expect(() => assertOC2Target(roots, home)).toThrow(/overlap|same|nested|inside/i);
+    expect(() => assertOC2Target(roots)).toThrow(/overlap|same|nested|inside/i);
   });
 
   it('rejects_overlapping_or_nested_roots', () => {
@@ -159,29 +73,23 @@ describe('OpenCode 2 root resolution', () => {
       data: base,
       cache: base,
       state: base,
-    }, home)).toThrow(/overlap|same|nested|inside/i);
+    })).toThrow(/overlap|same|nested|inside/i);
 
     expect(() => assertOC2Target({
       config: join(base, 'config'),
       data: base,
       cache: join(base, 'cache'),
       state: join(base, 'state'),
-    }, home)).toThrow(/overlap|same|nested|inside/i);
+    })).toThrow(/overlap|same|nested|inside/i);
   });
 
-  it('accepts_fully_isolated_roots_even_when_live_oc1_exists', () => {
-    const config = defaultConfig();
-    mkdirSync(join(config, 'plugins'), { recursive: true });
-    writeFileSync(join(config, 'plugins', 'kiki.ts'), 'legacy\n');
-
+  it('accepts fully isolated roots', () => {
     const isolated = join(home, '.opencode2');
     expect(() => assertOC2Target({
       config: join(isolated, 'config', 'opencode'),
       data: join(isolated, 'data', 'opencode'),
       cache: join(isolated, 'cache', 'opencode'),
       state: join(isolated, 'state', 'opencode'),
-    }, home)).not.toThrow();
-
-    expect(() => assertOC2Target(resolveOC2Roots({}, home), home)).toThrow(/V1|OC1|version 1|legacy/i);
+    })).not.toThrow();
   });
 });

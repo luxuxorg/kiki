@@ -44,7 +44,7 @@ function assertWritableDirectory(target) {
  */
 export function buildModelContext(ctx, env = process.env, home = homedir()) {
     const roots = resolveOC2Roots(env, home);
-    assertOC2Target(roots, home);
+    assertOC2Target(roots);
     const globalConfigDirectory = canonicalPath(roots.config);
     assertWritableDirectory(globalConfigDirectory);
     readOpenCodeSettings(globalConfigDirectory, true);

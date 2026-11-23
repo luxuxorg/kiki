@@ -4,7 +4,6 @@ const DISCOVERY_PAGE_LIMIT = 100;
  * `session.list()` and the `parentID` field, follows `cursor.next` so a default
  * server page cap cannot hide older children, and ignores archived or
  * foreign-location sessions. Interruption uses `session.interrupt({ sessionID })`.
- * The OC1 `session.messages`/`session.abort` surface is intentionally absent.
  */
 export function createWatchdogSessionAdapter(session, directory) {
     return {

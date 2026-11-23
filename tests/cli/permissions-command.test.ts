@@ -25,10 +25,13 @@ vi.mock('fs', async (importOriginal) => {
 });
 
 const { permissions } = await import('../../src/cli/commands/permissions');
-const { generateAgentPermissions } = await import('../../src/cli/config');
+const { generateAgentPermissions, SECRET_GLOBS } = await import('../../src/cli/config');
+const { HISTORICAL_GENERATED_SEQUENCES } = await import('../../src/cli/permission-consolidation');
 import type { PermissionRule } from '../../src/cli/opencode-config';
 
 const implementer = generateAgentPermissions()['kiki-implementer'];
+const historicalImplementer = HISTORICAL_GENERATED_SEQUENCES['kiki-implementer'][2];
+const secretDenies: PermissionRule[] = SECRET_GLOBS.map(resource => ({ action: 'edit', resource, effect: 'deny' }));
 
 function globalConfig(global: string): string {
   return join(global, 'opencode.jsonc');
@@ -112,17 +115,26 @@ describe('kiki permissions command', () => {
       .agents['kiki-implementer'].permissions as PermissionRule[];
     expect(rules).toContainEqual({ action: 'edit', resource: 'scripts/new.ts', effect: 'allow' });
     expect(rules.some(rule => rule.resource === '*')).toBe(false);
-    expect(rules.slice(-7)).toEqual(implementer.slice(-7));
+    expect(rules.slice(-7)).toEqual(secretDenies);
   });
 
-  it('validator_rejects_secrets_boundaries_publishing', async () => {
+  it('validator_rejects_secrets_and_publishing', async () => {
     for (const args of [
       ['add', '.env', '--agent', 'kiki-implementer', '--action', 'edit', '--project', project, '--apply'],
-      ['add', 'docs/superpowers/x.md', '--agent', 'kiki-implementer', '--action', 'edit', '--project', project, '--apply'],
       ['add', 'git push*', '--agent', 'kiki-implementer', '--action', 'shell', '--project', project, '--apply'],
     ]) {
       expect(await run(args)).toBe(1);
     }
+    expect(existsSync(projectConfig(project))).toBe(false);
+  });
+
+  it('validator_rejects_explicit_role_boundary_from_pinned_inheritance', async () => {
+    writeFileSync(globalConfig(global), JSON.stringify({
+      agents: { 'kiki-implementer': { permissions: historicalImplementer } },
+    }));
+    expect(await run([
+      'add', 'docs/superpowers/x.md', '--agent', 'kiki-implementer', '--action', 'edit', '--project', project, '--apply',
+    ])).toBe(1);
     expect(existsSync(projectConfig(project))).toBe(false);
   });
 

@@ -5,7 +5,9 @@ import { dirname, join, resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { init, runWizard } from '../../src/cli/commands/init';
 import { installProjectConfig } from '../../src/cli/commands/install';
-import { DEFAULT_CONFIG, DEFAULT_HEALTH, loadConfig } from '../../src/cli/config';
+import {
+  DEFAULT_CONFIG, DEFAULT_HEALTH, SECRET_GLOBS, generateSecretPolicies, loadConfig,
+} from '../../src/cli/config';
 import { baselineAgents, readOpenCodeSettings, type PermissionRule } from '../../src/cli/opencode-config';
 
 describe('project initialization', () => {
@@ -35,7 +37,6 @@ describe('project initialization', () => {
   });
   it.each([
     ['modern', '.agentic/kiki/config.json'],
-    ['legacy fallback', '.agentic/config.json'],
   ])('loads a %s config with models/riskMatrix inert and preserves its bytes after re-init', async (_label, relativePath) => {
     const configPath = join(root, relativePath);
     mkdirSync(dirname(configPath), { recursive: true });
@@ -124,40 +125,31 @@ describe('global agent baselines', () => {
   const rules = (name: string): PermissionRule[] => agents[name].settings.permissions as PermissionRule[];
   const rule = (name: string, action: string, resource: string) =>
     rules(name).find(entry => entry.action === action && entry.resource === resource);
-  it('retains role permissions, broad reads and protected secret paths', () => {
+  it('retains lean role brackets and shared secret protection', () => {
     for (const [name] of Object.entries(agents)) {
-      if (name === 'kiki-orchestrator') continue;
-      expect(rule(name, 'read', '*')?.effect).toBe('allow');
-      expect(rule(name, 'read', '**/.env*')?.effect).toBe('deny');
-      expect(rule(name, 'read', '**/*credential*')?.effect).toBe('deny');
-      expect(rules(name).some(entry => ['write', 'patch', 'apply_patch'].includes(entry.action))).toBe(false);
+      expect(rules(name)[0], name).toEqual({ action: 'shell', resource: '*', effect: 'allow' });
+      expect(rule(name, 'edit', '*')?.effect, name).toBe('deny');
+      expect(rules(name).some(entry => entry.action === 'read'), name).toBe(false);
+      expect(rules(name).some(entry => SECRET_GLOBS.includes(entry.resource)), name).toBe(false);
+      expect(rules(name).some(entry => ['write', 'patch', 'apply_patch'].includes(entry.action)), name).toBe(false);
     }
     expect(rule('kiki-implementer', 'edit', 'src/**')?.effect).toBe('allow');
-    expect(rule('kiki-historian', 'edit', 'src/**')?.effect).toBe('deny');
+    expect(rule('kiki-historian', 'edit', 'docs/**')?.effect).toBe('allow');
     expect(rule('kiki-reviewer', 'edit', '*')?.effect).toBe('deny');
+    expect(generateSecretPolicies()).toHaveLength(SECRET_GLOBS.length * 2);
   });
-  it('grants project-local .worktree access scoped to each role', () => {
+  it('relies on measured cwd resolution with no worktree mirror grants', () => {
     const edit = (name: string, resource: string) => rule(name, 'edit', resource)?.effect;
-    for (const name of ['kiki-brainstormer', 'kiki-planner']) {
-      expect(edit(name, '*')).toBe('deny');
-      expect(edit(name, '.worktree/**/docs/superpowers/**')).toBe('allow');
-      expect(edit(name, '.worktree/**')).toBeUndefined();
+    for (const [name] of Object.entries(agents)) {
+      expect(rules(name).some(entry => entry.resource.startsWith('.worktree')), name).toBe(false);
+      expect(edit(name, '.worktrees/**'), name).toBeUndefined();
     }
-    for (const name of ['kiki-implementer', 'kiki-gui-designer']) {
-      expect(edit(name, '.worktree/**/src/**')).toBe('allow');
-      expect(edit(name, '.worktree/**/tests/**')).toBe('allow');
-      expect(edit(name, '.worktree/**')).toBeUndefined();
-    }
-    for (const name of ['kiki-reviewer', 'kiki-escalation']) {
-      expect(edit(name, '.worktree/**/.agentic/reviews/*')).toBe('allow');
-      expect(edit(name, '.worktree/**/.opencode/docs/reviews/*')).toBe('allow');
-      expect(edit(name, '.worktree/**')).toBeUndefined();
-    }
-    expect(edit('kiki-historian', '.worktree/**/README*')).toBe('allow');
-    expect(edit('kiki-historian', '.worktree/**/docs/**')).toBe('allow');
-    expect(edit('kiki-historian', '.worktree/**/src/**')).toBe('deny');
-    expect(edit('kiki-historian', '.worktree/**/tests/**')).toBe('deny');
-    expect(edit('kiki-historian', '.worktree/**')).toBeUndefined();
+    // The plain role territory still applies when the session cwd is the
+    // worktree (measured in oc2-baseline-worktree.test.ts).
+    expect(edit('kiki-brainstormer', 'docs/superpowers/**')).toBe('allow');
+    expect(edit('kiki-implementer', 'src/**')).toBe('allow');
+    expect(edit('kiki-reviewer', '.agentic/reviews/*')).toBe('allow');
+    expect(edit('kiki-historian', 'docs/**')).toBe('allow');
   });
   it('retains the documentation completion gate and inline skills', () => {
     expect(agents['kiki-orchestrator'].prompt).toContain('Documentation decision required');

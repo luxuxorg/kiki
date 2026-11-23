@@ -1,9 +1,10 @@
 import type { PermissionRule } from './opencode-config.js';
 /**
  * Pure classification of existing permission rules against the canonical
- * builder output. The installer and migration use this to drop only rules whose
- * generation is proven, keep unknown rules verbatim, and halt on anything
- * ambiguous instead of silently widening or narrowing policy.
+ * builder output and the proven historical defaults. Exact
+ * (action, resource, effect) identity decides whether a rule is a known
+ * default or an unknown custom; customs keep source order and are
+ * deduplicated exactly.
  *
  * This is not a runtime evaluator: no path is applied, nothing is written.
  */
@@ -14,12 +15,11 @@ export interface PermissionSource {
 export interface ClassifiedRule {
     file: string;
     rule: PermissionRule;
-    kind: 'generated' | 'custom' | 'ambiguous';
+    kind: 'generated' | 'custom';
 }
 export interface Classification {
     entries: ClassifiedRule[];
     customs: PermissionRule[];
-    blockers: string[];
 }
 /**
  * Additional evidenced historical generated sequences, keyed by agent name.
@@ -42,9 +42,11 @@ export declare function splitSecretTail(baseline: PermissionRule[]): {
 export declare function stableCustoms(customs: PermissionRule[]): PermissionRule[];
 /**
  * Classify ordered sources (discovered config files first, then the single
- * existing role markdown) against the fresh canonical array. Proven generated
- * rules are replaceable; unknown rules stay custom and are preserved verbatim;
- * custom denies and incomplete/ambiguous generated shapes block the write.
+ * existing role markdown). Every tuple with a known default identity — the
+ * role's recorded historical sequences or the fresh canonical baseline — is a
+ * replaceable default regardless of author, position or surrounding
+ * completeness. Every other tuple is a custom and is preserved for every
+ * effect in encounter order.
  */
 export declare function classifyPermissionSources(agent: string, baseline: PermissionRule[], sources: PermissionSource[]): Classification;
 //# sourceMappingURL=permission-consolidation.d.ts.map

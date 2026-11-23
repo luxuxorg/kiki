@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Skill, StaticRoutingTable, KikiConfig, RoutingLogEntry } from '../src/types';
+import type { Skill, KikiConfig, RoutingLogEntry } from '../src/types';
 
 describe('types', () => {
   it('Skill covers the supported skill set', () => {
@@ -11,16 +11,6 @@ describe('types', () => {
       'documenting',
     ];
     expect(skills).toHaveLength(5);
-  });
-
-  it('StaticRoutingTable is an agents-only map', () => {
-    const table: StaticRoutingTable = {
-      agents: {
-        'kiki-orchestrator': 'anthropic/claude-opus-4-8',
-        'kiki-implementer': 'deepseek/deepseek-v4-pro',
-      },
-    };
-    expect(table.agents['kiki-orchestrator']).toBe('anthropic/claude-opus-4-8');
   });
 
   it('KikiConfig has no riskMatrix', () => {
