@@ -496,14 +496,21 @@ no routing-table public API, no V1 translation or cleanup paths) also passed
 final review. The earlier ownership state, hash
 evidence and drift gate are gone; updates classify each exact
 action/resource/effect against the role's known defaults and preserve unknown
-customs. Nothing was committed, merged, published or rolled out, and no live
-config was written. Current source verification recorded build and lint exit 0
+customs. The release work is committed locally; nothing was pushed, tagged,
+published or rolled out, and no live config was written. Current source
+verification recorded build and lint exit 0
 and `git diff --check` clean. After the migration removal, the native full suite
 ran 916 passed, 2 env-gated opt-in skips (`KIKI_RELEASE_TEST_REAL_TSC` and
 `KIKI_RELEASE_TEST_OC2_REHEARSAL`) and zero failures; after the residue removal
 it ran 884 passed with the same 2 env-gated opt-in skips and zero failures (916
-minus 32 removed residue tests); the worktree probe and
-policy battery passed at the final generator state on OpenCode 2.3.2. No broader
+minus 32 removed residue tests). Release verification on 2026-11-23 re-ran the
+native full suite against the installed OpenCode 2.4.1: 884 passed, the same 2
+env-gated opt-in skips and zero failures, with the policy battery and baseline
+worktree probe passing at the final generator state on 2.4.1. Two expectations
+that pinned 2.3.2 runtime behavior were re-measured and updated honestly: the
+version pin, and the malformed-command scanner cases, which 2.4.1 refuses through
+the headless permission ask (auto-rejected) instead of the scanner error path
+while still executing nothing. No broader
 full-green claim is made. The prior OpenCode 2.3.2 spike proved backend
 ask/reject/once-approval for one real child, not native visual consent, wrapper
 hardening, argv parsing or behavior for other child roles. `list`/`check`

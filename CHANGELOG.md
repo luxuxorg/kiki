@@ -171,7 +171,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   suite ran 916 passed, 2 env-gated opt-in skips
   (`KIKI_RELEASE_TEST_REAL_TSC` and `KIKI_RELEASE_TEST_OC2_REHEARSAL`) and zero
   failures; the worktree probe and policy battery passed at the final generator
-  state on OpenCode 2.3.2. No broader full-green claim is made. The matcher/child
+  state on OpenCode 2.4.1 (re-verified at release on 2026-11-23). No broader
+  full-green claim is made. The matcher/child
   spike remains prior OpenCode 2.3.2 evidence (2/2 tests, 160 role decisions, one
   real implementer child reject/once-approval), not native visual-consent,
   wrapper-hardening, argv-parser or other-child-role proof. `list`/`check`
@@ -182,6 +183,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `KIKI_RELEASE_TEST_OC2_REHEARSAL`) and zero failures; the change from 916
   reconciles exactly with the 32 removed OC1/V1 residue tests. No broader
   full-green claim is made.
+- **Verification evidence (2026-11-23, release re-verification on OpenCode
+  2.4.1):** build and lint exited 0 and `git diff --check` was clean. The native
+  full suite ran 884 passed, 2 env-gated opt-in skips
+  (`KIKI_RELEASE_TEST_REAL_TSC` and `KIKI_RELEASE_TEST_OC2_REHEARSAL`) and zero
+  failures against the installed OpenCode 2.4.1, and the policy battery and
+  baseline worktree probe passed at the final generator state on 2.4.1. Two
+  expectations that pinned 2.3.2 runtime behavior were re-measured before being
+  updated: the version pin, and the malformed-command scanner cases, which 2.4.1
+  refuses through the headless permission ask (auto-rejected) instead of the
+  scanner error path while still executing nothing. The frozen OC2 rehearsal
+  stays an env-gated skip. No broader full-green claim is made.
 
 ## [3.1.1] — 2026-11-17
 

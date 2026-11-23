@@ -844,10 +844,16 @@ describe('OpenCode 2.x security boundaries', () => {
         { name: 'interpreter-wrapper', command: "sh -c 'stub-net'", decision: 'ask-rejected', counters: ['net'] },
         { name: 'extra-arguments', command: 'stub-safe --extra', decision: 'ask-rejected', counters: ['safe'] },
         { name: 'git-compound-push', command: `git status --short && git push ${bare} HEAD:refs/heads/main`, decision: 'ask-rejected', counters: ['git-push'] },
-        { name: 'scanner-unterminated-quote', command: 'stub-safe "', decision: 'scanner-error', counters: ['safe'], scannerReason: /unterminated-quote/ },
-        { name: 'scanner-trailing-and', command: 'stub-safe &&', decision: 'scanner-error', counters: ['safe'], scannerReason: /invalid-structure/ },
-        { name: 'scanner-trailing-pipe', command: 'stub-safe |', decision: 'scanner-error', counters: ['safe'], scannerReason: /invalid-structure/ },
-        { name: 'scanner-command-substitution', command: 'stub-safe $(', decision: 'scanner-error', counters: ['safe'], scannerReason: /command-substitution/ },
+        // OpenCode 2.4.1 routes every malformed-structure command below (and an
+        // unterminated quote) to the permission ask path instead of the scanner
+        // error path; the headless run still auto-rejects each ask, so execution
+        // stays prevented (counters 0, no redirect file, bare remote untouched).
+        // The scanner-error branch and its reason assertions are kept as a
+        // defensive expectation in case a later 2.x binary restores that path.
+        { name: 'scanner-unterminated-quote', command: 'stub-safe "', decision: 'ask-rejected', counters: ['safe'] },
+        { name: 'scanner-trailing-and', command: 'stub-safe &&', decision: 'ask-rejected', counters: ['safe'] },
+        { name: 'scanner-trailing-pipe', command: 'stub-safe |', decision: 'ask-rejected', counters: ['safe'] },
+        { name: 'scanner-command-substitution', command: 'stub-safe $(', decision: 'ask-rejected', counters: ['safe'] },
       ];
 
       for (const entry of rejected) {

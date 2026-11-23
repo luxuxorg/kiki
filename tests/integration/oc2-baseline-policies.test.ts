@@ -178,7 +178,10 @@ describe.skipIf(!hasOC2Binary())('final generator policy battery on real OpenCod
   it('policy_binding_all_roles_and_all_secret_patterns', async () => {
     const binary = requireOC2Binary();
     const version = observedOC2Version(binary);
-    expect(version, 'observed OpenCode version').toBe('2.3.2');
+    // Binding properties verified on OpenCode 2.4.1 (2026-11-23). The harness
+    // accepts any 2.x binary; this pin records the patch release the battery was
+    // actually run against for the 3.2.0 release.
+    expect(version, 'observed OpenCode version').toBe('2.4.1');
     const fixture = createOC2Fixture(binary);
     const provider = await startFixtureProvider();
     try {
